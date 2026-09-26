@@ -613,6 +613,18 @@
       "types": "./dist/fury-artifacts.d.ts",
       "import": "./dist/fury-artifacts.js"
     },
+    "./media-plugin-contracts": {
+      "types": "./dist/media-plugin-contracts.d.ts",
+      "import": "./dist/media-plugin-contracts.js"
+    },
+    "./media-ingestion": {
+      "types": "./dist/media-ingestion.d.ts",
+      "import": "./dist/media-ingestion.js"
+    },
+    "./media-generation-runtime": {
+      "types": "./dist/media-generation-runtime.d.ts",
+      "import": "./dist/media-generation-runtime.js"
+    },
     "./fury-plugin-runtime": {
       "types": "./dist/fury-plugin-runtime.d.ts",
       "import": "./dist/fury-plugin-runtime.js"

@@ -421,6 +421,13 @@ try {
   ], installDir);
   assert(gatewayLocalToolRuntimeExport.stderr === '', `Gateway local tool runtime export wrote stderr: ${gatewayLocalToolRuntimeExport.stderr}`);
 
+  const furyCodeAdvancedExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-code-advanced-node'); if (typeof m.createFuryCodeAdvanced !== 'function' || m.FURY_CODE_EDIT_PLAN_FORMAT !== 'furypipe-code-edit-plan/v1' || m.FURY_CODE_SCRIPT_PLAN_FORMAT !== 'furypipe-code-script-plan/v1') process.exit(1);",
+  ], installDir);
+  assert(furyCodeAdvancedExport.stderr === '', `FuryCode Advanced package export wrote stderr: ${furyCodeAdvancedExport.stderr}`);
+
   const capabilityIndexExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

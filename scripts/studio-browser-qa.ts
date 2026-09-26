@@ -342,6 +342,12 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#tree button').filter({ hasText: /^auth\/$/u }).click();
     await page.locator('#tree button').filter({ hasText: /^session\.ts$/u }).click();
     await page.waitForFunction(() => (document.querySelector('#file-view')?.textContent ?? '').includes('createSession'));
+    assert(!(await page.locator('#code-edit-card').isHidden()), `${name}: governed code editor did not open for a text file`);
+    assert((await page.locator('#code-edit-content').inputValue()).includes('createSession'), `${name}: governed code editor did not load the exact file content`);
+    assert(await page.locator('.code-script-run').count() === 3, `${name}: FuryCode must expose exactly test/typecheck/build project checks`);
+    assert(await page.locator('.code-script-run[data-script="test"]').count() === 1, `${name}: FuryCode test preset missing`);
+    assert(await page.locator('.code-script-run[data-script="typecheck"]').count() === 1, `${name}: FuryCode typecheck preset missing`);
+    assert(await page.locator('.code-script-run[data-script="build"]').count() === 1, `${name}: FuryCode build preset missing`);
     // The QA project is not a git repository: worktrees report that plainly.
     await page.waitForFunction(() => /Worktrees unavailable/u.test(document.querySelector('#wt-status')?.textContent ?? ''));
 

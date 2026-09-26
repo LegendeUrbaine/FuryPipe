@@ -547,7 +547,8 @@ export function createPlaywrightBrowserHost(options: PlaywrightBrowserHostOption
     throw new BrowserRuntimeError('policy-denied', 'unexpected top-level navigation is not authorized');
   };
 
-  return Object.freeze({
+  const host: BrowserHost = {
+
     async createSession(input): Promise<void> {
       if (sessions.has(input.sessionId)) throw new BrowserRuntimeError('invalid-session', 'Playwright session already exists');
       if (input.signal.aborted) throw new BrowserRuntimeError('cancelled', 'browser session creation was cancelled');
@@ -764,7 +765,8 @@ export function createPlaywrightBrowserHost(options: PlaywrightBrowserHostOption
       if (input.signal.aborted) throw new BrowserRuntimeError('cancelled', 'browser URL inspection was cancelled');
       return pageBinding.page.url();
     },
-  });
+  };
+  return Object.freeze(host);
 }
 
 export function createManagedPlaywrightBrowserRuntime(options: ManagedPlaywrightBrowserRuntimeOptions): BrowserRuntime {

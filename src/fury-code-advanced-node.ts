@@ -215,7 +215,7 @@ export async function createFuryCodeAdvanced(options: {
   const processRuntime = createCodingProcessRuntime({ sandbox, now: options.now });
 
   return Object.freeze({
-    async planEdit(input) {
+    async planEdit(input: { readonly path: string; readonly replacement: string }) {
       if (typeof input?.path !== 'string' || !SAFE_PATH.test(input.path) || input.path.includes('\\')) {
         throw new CodingRuntimeError('path-denied', 'edit path must be a normalized project-relative path');
       }
@@ -251,7 +251,7 @@ export async function createFuryCodeAdvanced(options: {
       return plan;
     },
 
-    async approveEdit(plan, input) {
+    async approveEdit(plan: FuryCodeEditPlan, input: { readonly confirm: true; readonly approvedBy: string; readonly approvedAt: string }) {
       const state = EDIT_PLANS.get(plan as unknown as object);
       if (!state) throw new CodingRuntimeError('permit-invalid', 'edit plan is not process-local FuryPipe evidence');
       if (input.confirm !== true) throw new CodingRuntimeError('policy-denied', 'edit approval requires confirm: true');
@@ -268,7 +268,7 @@ export async function createFuryCodeAdvanced(options: {
       return approval;
     },
 
-    async applyEdit(plan, approval) {
+    async applyEdit(plan: FuryCodeEditPlan, approval: FuryCodeEditApproval) {
       const state = EDIT_APPROVALS.get(approval as unknown as object);
       if (!state || state.plan !== plan || approval.planDigestSha256 !== plan.planDigestSha256) {
         throw new CodingRuntimeError('permit-invalid', 'edit approval does not match the process-local plan');
@@ -276,7 +276,7 @@ export async function createFuryCodeAdvanced(options: {
       return patch.apply(state.permit);
     },
 
-    async planScript(script) {
+    async planScript(script: FuryCodeScriptName) {
       if (!SCRIPT_NAMES.has(script) || !allowedScripts.includes(script)) throw new CodingRuntimeError('policy-denied', 'script is outside the FuryCode allowlist');
       const packageBytes = await sandbox.readFile('package.json');
       const parsed = parsePackageScripts(packageBytes);
@@ -301,7 +301,7 @@ export async function createFuryCodeAdvanced(options: {
       return plan;
     },
 
-    async approveScript(plan, input) {
+    async approveScript(plan: FuryCodeScriptPlan, input: { readonly confirm: true; readonly approvedBy: string; readonly approvedAt: string }) {
       const state = SCRIPT_PLANS.get(plan as unknown as object);
       if (!state) throw new CodingRuntimeError('permit-invalid', 'script plan is not process-local FuryPipe evidence');
       if (input.confirm !== true) throw new CodingRuntimeError('policy-denied', 'script approval requires confirm: true');
@@ -326,7 +326,7 @@ export async function createFuryCodeAdvanced(options: {
       return approval;
     },
 
-    async runScript(plan, approval) {
+    async runScript(plan: FuryCodeScriptPlan, approval: FuryCodeScriptApproval) {
       const state = SCRIPT_APPROVALS.get(approval as unknown as object);
       if (!state || state.plan !== plan || approval.planDigestSha256 !== plan.planDigestSha256) {
         throw new CodingRuntimeError('permit-invalid', 'script approval does not match the process-local plan');

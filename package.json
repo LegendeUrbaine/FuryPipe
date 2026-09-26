@@ -632,6 +632,10 @@
     "./fury-code-advanced-node": {
       "types": "./dist/fury-code-advanced-node.d.ts",
       "import": "./dist/fury-code-advanced-node.js"
+    },
+    "./browser-playwright-host-node": {
+      "types": "./dist/browser-playwright-host-node.d.ts",
+      "import": "./dist/browser-playwright-host-node.js"
     }
   },
   "files": [
@@ -749,7 +753,8 @@
     "browser:webchat:qa": "tsx scripts/gateway-webchat-browser-qa.ts",
     "browser:studio:qa": "tsx scripts/studio-browser-qa.ts",
     "bench:studio": "tsx scripts/furybench-studio.ts",
-    "validation:supply-chain": "tsx scripts/supply-chain-evidence.ts"
+    "validation:supply-chain": "tsx scripts/supply-chain-evidence.ts",
+    "browser:host:qa": "tsx scripts/browser-playwright-host-qa.ts"
   },
   "keywords": [
     "furypipe",

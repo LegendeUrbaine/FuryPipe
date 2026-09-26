@@ -428,6 +428,13 @@ try {
   ], installDir);
   assert(furyCodeAdvancedExport.stderr === '', `FuryCode Advanced package export wrote stderr: ${furyCodeAdvancedExport.stderr}`);
 
+  const browserPlaywrightHostExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/browser-playwright-host-node'); if (typeof m.createPlaywrightBrowserHost !== 'function' || typeof m.createPinnedBrowserNetworkTransport !== 'function' || m.FURY_PLAYWRIGHT_BROWSER_HOST_FORMAT !== 'furypipe-playwright-browser-host/v1') process.exit(1);",
+  ], installDir);
+  assert(browserPlaywrightHostExport.stderr === '', `Playwright browser host package export wrote stderr: ${browserPlaywrightHostExport.stderr}`);
+
   const capabilityIndexExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

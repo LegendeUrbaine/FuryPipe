@@ -45,6 +45,11 @@ jobs:
       - name: Run Gateway WebChat real cross-engine QA
         run: pnpm run browser:webchat:qa
 
+      - name: Run governed Playwright browser host QA
+        run: pnpm run browser:host:qa
+        env:
+          FURYPIPE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
       - name: Run FuryPipe Studio real cross-engine QA
         run: pnpm run browser:studio:qa
         env:
@@ -58,6 +63,7 @@ jobs:
           path: |
             artifacts/cross-browser-qa/
             artifacts/gateway-webchat-browser-qa/
+            artifacts/browser-playwright-host-qa/
             artifacts/studio-browser-qa/
           if-no-files-found: warn
           retention-days: 30

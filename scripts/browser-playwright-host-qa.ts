@@ -43,7 +43,7 @@ class FixtureTransport implements BrowserPinnedNetworkTransport {
           <button type="submit">Submit</button>
         </form>
         <form id="upload" action="/upload" method="post" enctype="multipart/form-data">
-          <input id="file" type="file" name="file" onchange="this.form.requestSubmit()">
+          <input id="file" type="file" name="file">
           <button type="submit">Upload</button>
         </form>
         <script>setTimeout(()=>fetch('/late').catch(()=>{}),150)</script>
@@ -124,8 +124,9 @@ async function main(): Promise<void> {
   });
 
   const checks: string[] = [];
+  let session: Awaited<ReturnType<typeof runtime.createSession>> | undefined;
   try {
-    const session = await runtime.createSession('browser-qa');
+    session = await runtime.createSession('browser-qa');
     const page = await runtime.createPage(session);
 
     const nav = await runtime.authorize({ action: 'navigate', session, page, url: 'https://browser.qa/' });
@@ -197,8 +198,11 @@ async function main(): Promise<void> {
     });
     const upload = await runtime.invoke(uploadPermit);
     assert(upload.receipt.outcome === 'succeeded', 'upload failed');
+    const submitUploadPermit = await runtime.authorize({ action: 'submit', session, page, formScope: '#upload' });
+    const submittedUpload = await runtime.invoke(submitUploadPermit);
+    assert(submittedUpload.receipt.outcome === 'succeeded', `upload form submit failed: ${submittedUpload.receipt.errorCode ?? 'unknown'}`);
     assert(transport.requests.some((request) => new URL(request.url).pathname === '/upload' && request.method === 'POST' && request.bodyBytes > 0), 'upload body did not traverse pinned transport');
-    checks.push('upload');
+    checks.push('upload-and-submit');
 
     const downloadPermit = await runtime.authorize({
       action: 'download',
@@ -235,6 +239,7 @@ async function main(): Promise<void> {
     }, null, 2) + '\n');
     console.log(`FuryPipe Playwright browser host QA passed: ${checks.length}/${checks.length}`);
   } finally {
+    if (session) await runtime.closeSession(session).catch(() => undefined);
     await rm(root, { recursive: true, force: true });
   }
 }

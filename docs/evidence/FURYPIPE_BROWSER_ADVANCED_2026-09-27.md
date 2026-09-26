@@ -1,10 +1,10 @@
 # FuryPipe Browser Advanced — exact-head evidence
 
-Date: 2026-09-27 Europe/Paris  
-Repository: `Mistermode45/FuryPipe`  
-PR: [#233](https://github.com/Mistermode45/FuryPipe/pull/233)  
-Source commit: `59064a17617696837b554aba046f4237fd9e1a66`  
-Cross-Browser workflow: [run 36274996586](https://github.com/Mistermode45/FuryPipe/actions/runs/36274996586)  
+Date: 2026-09-27 Europe/Paris
+Repository: `Mistermode45/FuryPipe`
+PR: [#233](https://github.com/Mistermode45/FuryPipe/pull/233)
+Source commit: `59064a17617696837b554aba046f4237fd9e1a66`
+Cross-Browser workflow: [run 36274996586](https://github.com/Mistermode45/FuryPipe/actions/runs/36274996586)
 
 ## Hosted result
 

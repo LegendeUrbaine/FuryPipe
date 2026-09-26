@@ -654,7 +654,7 @@ export function createPlaywrightBrowserHost(options: PlaywrightBrowserHostOption
 
     async submit(input): Promise<BrowserHostNavigationResult> {
       const pageBinding = binding(input.sessionId, input.pageId);
-      const result = await withNavigationGuard(pageBinding, input.signal, input.onRedirect, async () => {
+      const result = await withNavigationGuard(pageBinding, input.signal, input.onRedirect ?? noRedirect, async () => {
         const form = pageBinding.page.locator(input.formScope);
         const submitter = form.locator('button[type="submit"],input[type="submit"]').first();
         if (await submitter.count()) await submitter.click({ timeout: actionTimeoutMs });

@@ -3,7 +3,7 @@
 Status: ACTIVE PRODUCT GAP LEDGER  
 Repository: `Mistermode45/FuryPipe`  
 Track: PR #233 — `claude/furypipe-studio-autopilot-extensions`  
-Audit input HEAD: `e1a084be6216b107e787e2037e68af7f69776211`  
+Audit input HEAD: `59064a17617696837b554aba046f4237fd9e1a66` (Browser QA closure source; historical checkpoints below retain their original SHAs)
 Product source: `docs/product/FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md`
 
 ## Scope and evidence rule
@@ -19,6 +19,29 @@ Status vocabulary:
 - `NOT_VERIFIED`: likely related code may exist, but this audit has not proved the full target.
 - `NOT_STARTED`: the current tracked spec explicitly records no implementation.
 - `HUMAN_GATE`: automated evidence exists but a required human validation remains.
+
+## Browser Advanced exact-head closure — 2026-09-27
+
+The Browser QA patch was published on PR #233 at source commit
+`59064a17617696837b554aba046f4237fd9e1a66`.
+
+Hosted evidence on that exact source commit:
+
+- Cross-Browser QA run `36274996586`: `SUCCESS`;
+- Dashboard Browser QA and Web Studio Browser QA: `SUCCESS`;
+- Gateway WebChat and governed Playwright Browser Host: covered by the
+  successful Cross-Browser workflow;
+- CI 9/9 across Ubuntu, macOS and Windows with Node 22/24/26: `SUCCESS`;
+- 13/13 hosted workflows and 31 PR checks: `SUCCESS`;
+- PR #233 remains `OPEN + DRAFT + NOT MERGED`.
+
+Status: `DONE CORE` for the Browser Advanced gate. Provider credentials,
+external provider traffic, human visual review, screen-reader review and
+production deployment remain separate gates.
+
+This documentation update creates a new candidate SHA. Its own exact-head
+hosted evidence is required before the documentation commit is promoted as
+the final PR checkpoint.
 
 ## Architecture finding
 

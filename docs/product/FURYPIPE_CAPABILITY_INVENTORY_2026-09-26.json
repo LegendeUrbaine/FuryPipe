@@ -296,7 +296,7 @@
       "dependsOn": "all",
       "acceptance": "Hosted checks",
       "testStrategy": "CI",
-      "status": "PENDING — hosted cross-OS CI must be green on the final exact head (recorded in the PR body when it is)"
+      "status": "DONE — exact-head hosted evidence on source commit 59064a17617696837b554aba046f4237fd9e1a66: 13/13 workflows, 31 PR checks, CI 9/9, Cross-Browser QA SUCCESS"
     },
     {
       "id": "QA-04",

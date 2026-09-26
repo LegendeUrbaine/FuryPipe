@@ -46,11 +46,13 @@ jobs:
         run: pnpm run browser:webchat:qa
 
       - name: Run governed Playwright browser host QA
+        if: ${{ !cancelled() }}
         run: pnpm run browser:host:qa
         env:
           FURYPIPE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Run FuryPipe Studio real cross-engine QA
+        if: ${{ !cancelled() }}
         run: pnpm run browser:studio:qa
         env:
           FURYPIPE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}

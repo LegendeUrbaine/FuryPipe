@@ -1186,7 +1186,6 @@ async function main(): Promise<void> {
   const harness = await startHarness();
   const modelHarness = await startHarness(true);
   const toolHarness = await startHarness(false, true);
-  const memoryHarness = await startHarness(true, false, true);
   try {
     const observations: QaObservation[] = [];
     observations.push(...await labelled('chromium lifecycle', () => runEngine('chromium', chromium, harness)));
@@ -1228,10 +1227,18 @@ async function main(): Promise<void> {
       'WebChat governed tool browser evidence is incomplete',
     );
 
+    const runIsolatedMemoryCase = async (engine: EngineName, browserType: BrowserType): Promise<MemoryQaObservation> => {
+      const memoryHarness = await startHarness(true, false, true);
+      try {
+        return await labelled(`${engine} memory-enabled`, () => runMemoryEnabledCase(engine, browserType, memoryHarness));
+      } finally {
+        await memoryHarness.close();
+      }
+    };
     const memoryCases: MemoryQaObservation[] = [];
-    memoryCases.push(await labelled('chromium memory-enabled', () => runMemoryEnabledCase('chromium', chromium, memoryHarness)));
-    memoryCases.push(await labelled('firefox memory-enabled', () => runMemoryEnabledCase('firefox', firefox, memoryHarness)));
-    memoryCases.push(await labelled('webkit memory-enabled', () => runMemoryEnabledCase('webkit', webkit, memoryHarness)));
+    memoryCases.push(await runIsolatedMemoryCase('chromium', chromium));
+    memoryCases.push(await runIsolatedMemoryCase('firefox', firefox));
+    memoryCases.push(await runIsolatedMemoryCase('webkit', webkit));
     assert(
       memoryCases.every((item) =>
         item.configRedacted
@@ -1273,7 +1280,6 @@ async function main(): Promise<void> {
     );
     console.log('Gateway WebChat browser QA passed: 15/15 real browser cases');
   } finally {
-    await memoryHarness.close();
     await toolHarness.close();
     await modelHarness.close();
     await harness.close();

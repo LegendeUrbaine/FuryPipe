@@ -2397,10 +2397,48 @@ const SCRIPT = String.raw`
         b.addEventListener('click', () => e.kind === 'dir' ? loadTree(full) : openFile(full)); ul.append(el('li', {}, b)); }
     } catch (e) { $('#tree-path').textContent = 'Files unavailable: ' + e.message; }
   }
+  let codeOpenPath = null;
   async function openFile(p) {
-    try { const r = await post('/api/studio/code/file', { path: p }); $('#file-title').textContent = p; $('#file-view').textContent = r.binary ? '(binary file, ' + r.bytes + ' bytes)' : r.content; }
-    catch (e) { $('#file-view').textContent = e.message; }
+    const editCard = $('#code-edit-card'); const editStatus = $('#code-edit-status');
+    try {
+      const r = await post('/api/studio/code/file', { path: p });
+      $('#file-title').textContent = p;
+      $('#file-view').textContent = r.binary ? '(binary file, ' + r.bytes + ' bytes)' : r.content;
+      codeOpenPath = r.binary ? null : p;
+      editCard.hidden = !!r.binary;
+      if (!r.binary) { $('#code-edit-path').textContent = p; $('#code-edit-content').value = r.content; editStatus.textContent = 'Ready to plan an exact replacement.'; }
+    } catch (e) {
+      codeOpenPath = null; editCard.hidden = true; $('#file-view').textContent = e.message;
+    }
   }
+  $('#code-edit-plan').addEventListener('click', async () => {
+    const status = $('#code-edit-status');
+    if (!codeOpenPath) { status.textContent = 'Open a text file first.'; return; }
+    try {
+      status.textContent = 'Planning exact edit…';
+      const plan = await post('/api/studio/code/edit/plan', { path: codeOpenPath, replacement: $('#code-edit-content').value });
+      const ok = confirm('Apply exact edit to ' + plan.path + '?\n\nCurrent sha256: ' + plan.expectedSha256 + '\nReplacement sha256: ' + plan.replacementSha256 + '\nBytes: ' + plan.replacementBytes + '\n\nFuryPipe will reject this if HEAD or file content changed.');
+      if (!ok) { status.textContent = 'Edit plan not applied.'; return; }
+      const receipt = await post('/api/studio/code/edit/apply', { planDigestSha256: plan.planDigestSha256, confirm: true });
+      status.textContent = receipt.outcome === 'succeeded' ? 'Edit applied · ' + receipt.appliedFiles + ' file · locally verified.' : 'Edit not applied · ' + (receipt.errorCode || receipt.outcome) + '.';
+      await openFile(codeOpenPath);
+    } catch (e) { status.textContent = 'Edit rejected: ' + e.message; }
+  });
+  async function runCodeScript(script) {
+    const status = $('#code-script-status'); const planView = $('#code-script-plan'); const out = $('#code-script-output');
+    try {
+      status.textContent = 'Planning ' + script + '…'; out.hidden = true;
+      const plan = await post('/api/studio/code/script/plan', { script });
+      planView.hidden = false; planView.textContent = plan.scriptText;
+      status.textContent = 'Exact script · sha256 ' + plan.scriptSha256.slice(0, 16) + '… · package ' + plan.packageJsonSha256.slice(0, 16) + '…';
+      const ok = confirm('Run package script "' + script + '" with node --run?\n\n' + plan.scriptText + '\n\nsha256: ' + plan.scriptSha256 + '\n\nNo arbitrary command entry is available.');
+      if (!ok) { status.textContent = 'Script plan not executed.'; return; }
+      const receipt = await post('/api/studio/code/script/run', { planDigestSha256: plan.planDigestSha256, confirm: true });
+      out.hidden = false; out.textContent = (receipt.stdout || '') + (receipt.stderr ? '\n[stderr]\n' + receipt.stderr : '');
+      status.textContent = script + ' · ' + receipt.process.outcome + ' · ' + receipt.process.stdoutBytes + ' stdout bytes · receipt ' + receipt.process.receiptId;
+    } catch (e) { status.textContent = 'Script rejected: ' + e.message; }
+  }
+  for (const button of document.querySelectorAll('.code-script-run')) button.addEventListener('click', () => runCodeScript(button.dataset.script));
   function renderDiff(patch) {
     const pre = $('#diff-view'); pre.replaceChildren(); pre.hidden = false;
     for (const line of patch.split('\n').slice(0, 5000)) pre.append(el('span', { class: line.startsWith('+') && !line.startsWith('+++') ? 'add' : line.startsWith('-') && !line.startsWith('---') ? 'del' : line.startsWith('@@') ? 'hunk' : '', text: line + '\n' }));
@@ -2610,6 +2648,16 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div class="card"><h2>Blast radius</h2><form id="blast-form"><label for="blast-files">Changed files (one per line)</label><textarea id="blast-files" placeholder="src/auth/session.ts"></textarea><button type="submit">Analyse</button></form><div id="blast-out" aria-live="polite"></div></div></div>
   <div class="grid"><div class="card"><h2>Files</h2><p class="muted" id="tree-path">/</p><ul id="tree" class="tree"></ul></div>
   <div class="card"><h2 id="file-title">File</h2><pre id="file-view" class="code-view" tabindex="0" aria-labelledby="file-title">Select a file.</pre></div></div>
+  <div class="grid">
+    <div class="card" id="code-edit-card" hidden><h2>Governed edit</h2><p class="muted">The current file remains visible above. FuryPipe plans an exact-file replacement first; applying it requires confirmation and fails closed if HEAD or file content changed.</p>
+      <label for="code-edit-content">Replacement for <span id="code-edit-path" class="code">—</span></label><textarea id="code-edit-content" class="code" spellcheck="false" maxlength="240000"></textarea>
+      <div class="row"><button id="code-edit-plan" type="button">Review &amp; apply edit</button></div><p id="code-edit-status" class="status muted" role="status"></p>
+    </div>
+    <div class="card"><h2>Project checks</h2><p class="muted">No free shell. Only allowlisted package scripts can run, and FuryPipe shows the exact script text and SHA-256 before confirmation.</p>
+      <div class="row"><button type="button" class="secondary code-script-run" data-script="test">Test</button><button type="button" class="secondary code-script-run" data-script="typecheck">Typecheck</button><button type="button" class="secondary code-script-run" data-script="build">Build</button></div>
+      <p id="code-script-status" class="status muted" role="status"></p><pre id="code-script-plan" class="code-view" hidden tabindex="0" aria-label="Exact project script"></pre><pre id="code-script-output" class="code-view" hidden tabindex="0" aria-label="Project script output"></pre>
+    </div>
+  </div>
   <div class="card"><h2>Worktrees</h2><p class="muted">Every agent writes in its own worktree. Diffs are read-only here; merging goes through FuryIntegrator.</p>
   <table><thead><tr><th scope="col">Worktree</th><th scope="col">Branch</th><th scope="col">Changed</th><th scope="col">Agents · receipts</th><th scope="col"></th></tr></thead><tbody id="wt-body"></tbody></table>
   <p id="wt-status" class="status muted" role="status"></p><pre id="diff-view" class="code-view" hidden tabindex="0" aria-label="Diff"></pre></div></section>

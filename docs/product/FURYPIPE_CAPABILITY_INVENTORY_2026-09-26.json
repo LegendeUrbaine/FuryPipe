@@ -296,7 +296,7 @@
       "dependsOn": "all",
       "acceptance": "Hosted checks",
       "testStrategy": "CI",
-      "status": "DONE — exact-head hosted evidence on source commit 59064a17617696837b554aba046f4237fd9e1a66: 13/13 workflows, 31 PR checks, CI 9/9, Cross-Browser QA SUCCESS"
+      "status": "DONE — exact-head hosted evidence on implementation commit 96fa90b7a79955eac12ca9c0a1f1d25b06df9353: 13/13 workflows, 31 PR checks, CI 9/9, Cross-Browser QA run 36278188036 SUCCESS; the documentation candidate still requires its own exact-head hosted validation"
     },
     {
       "id": "QA-04",

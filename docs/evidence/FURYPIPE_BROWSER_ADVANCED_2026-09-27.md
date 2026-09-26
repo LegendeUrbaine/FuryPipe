@@ -3,12 +3,12 @@
 Date: 2026-09-27 Europe/Paris
 Repository: `Mistermode45/FuryPipe`
 PR: [#233](https://github.com/Mistermode45/FuryPipe/pull/233)
-Source commit: `59064a17617696837b554aba046f4237fd9e1a66`
-Cross-Browser workflow: [run 36274996586](https://github.com/Mistermode45/FuryPipe/actions/runs/36274996586)
+Validated implementation commit: `96fa90b7a79955eac12ca9c0a1f1d25b06df9353`
+Cross-Browser workflow: [run 36278188036](https://github.com/Mistermode45/FuryPipe/actions/runs/36278188036)
 
 ## Hosted result
 
-The source commit was validated with:
+The implementation commit was validated with:
 
 - Cross-Browser QA: `SUCCESS`;
 - Dashboard Browser QA: `SUCCESS`;
@@ -39,6 +39,7 @@ This is hosted browser/CI evidence only. It does not prove provider
 credentials, billable external media generation, human visual review,
 screen-reader review, production deployment or merge authorization.
 
-The source evidence is bound to the source commit above. This documentation
-file creates a new candidate SHA; the documentation commit requires a fresh
-exact-head hosted validation before it becomes the final PR checkpoint.
+The hosted evidence is bound to the implementation commit above. The
+documentation changes in this file create a new candidate SHA; that
+documentation commit requires its own fresh exact-head hosted validation
+before it becomes the final PR checkpoint.

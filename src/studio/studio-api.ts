@@ -55,6 +55,14 @@ import { buildFuryWorkspaceGraph } from '../fury-workspace-graph.js';
 import { evaluateFuryDataset, type FuryEvalDataset } from '../fury-eval.js';
 import { createFuryArtifactRepository, type FuryArtifactRepository } from '../fury-artifact-repository-node.js';
 import type { FuryArtifact, FuryArtifactKind, FuryArtifactRestorePlan } from '../fury-artifacts.js';
+import { CodingRuntimeError } from '../coding-runtime.js';
+import {
+  createFuryCodeAdvanced,
+  type FuryCodeAdvanced,
+  type FuryCodeEditPlan,
+  type FuryCodeScriptName,
+  type FuryCodeScriptPlan,
+} from '../fury-code-advanced-node.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
@@ -70,7 +78,8 @@ export type StudioRoute =
   | 'integrations' | 'connections' | 'connection-login' | 'support'
   | 'artifacts' | 'artifact-get' | 'artifact-create' | 'artifact-version' | 'artifact-search' | 'artifact-restore-plan' | 'artifact-restore' | 'artifact-export'
   | 'chats' | 'chat-get' | 'chat-save' | 'chat-branch' | 'chat-delete'
-  | 'code-tree' | 'code-file' | 'code-worktrees' | 'code-diff';
+  | 'code-tree' | 'code-file' | 'code-worktrees' | 'code-diff'
+  | 'code-edit-plan' | 'code-edit-apply' | 'code-script-plan' | 'code-script-run';
 
 const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POST' }>> = Object.freeze({
   '/api/studio/harnesses.json': { route: 'harnesses', method: 'GET' },
@@ -134,6 +143,10 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/code/file': { route: 'code-file', method: 'POST' },
   '/api/studio/code/worktrees.json': { route: 'code-worktrees', method: 'GET' },
   '/api/studio/code/diff': { route: 'code-diff', method: 'POST' },
+  '/api/studio/code/edit/plan': { route: 'code-edit-plan', method: 'POST' },
+  '/api/studio/code/edit/apply': { route: 'code-edit-apply', method: 'POST' },
+  '/api/studio/code/script/plan': { route: 'code-script-plan', method: 'POST' },
+  '/api/studio/code/script/run': { route: 'code-script-run', method: 'POST' },
 });
 
 export function studioApiRoute(pathname: string): { route: StudioRoute; method: 'GET' | 'POST' } | null {
@@ -351,6 +364,18 @@ export function createStudioApi(options: StudioApiOptions) {
     return value as FuryArtifactKind;
   };
   const code = createStudioCode(options.projectRoot);
+  let codeAdvancedPromise: Promise<FuryCodeAdvanced> | undefined;
+  const codeAdvanced = (): Promise<FuryCodeAdvanced> => (codeAdvancedPromise ??= createFuryCodeAdvanced({ projectRoot: options.projectRoot, now }));
+  const codeEditPlans = new Map<string, FuryCodeEditPlan>();
+  const codeScriptPlans = new Map<string, FuryCodeScriptPlan>();
+  const rememberCodePlan = <T>(store: Map<string, T>, digest: string, plan: T): void => {
+    while (store.size >= 64) {
+      const oldest = store.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      store.delete(oldest);
+    }
+    store.set(digest, plan);
+  };
   let memoryState: StudioMemory | undefined = options.memory;
   const memory = () => (memoryState ??= studioMemoryFromEnv());
   const memoryStore = () => {
@@ -914,6 +939,54 @@ export function createStudioApi(options: StudioApiOptions) {
               default: return problem(400, 'invalid-input', 'action must be FETCH, MAP, CRAWL or SEARCH (browser actions go through the governed browser runtime)');
             }
           }
+          case 'code-edit-plan': {
+            const body = await readJson(request) as { path?: unknown; replacement?: unknown };
+            if (typeof body.path !== 'string' || typeof body.replacement !== 'string') {
+              return problem(400, 'invalid-input', 'path and replacement are required');
+            }
+            const plan = await (await codeAdvanced()).planEdit({ path: body.path, replacement: body.replacement });
+            rememberCodePlan(codeEditPlans, plan.planDigestSha256, plan);
+            return json(plan);
+          }
+          case 'code-edit-apply': {
+            const body = await readJson(request) as { planDigestSha256?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'applying a code edit requires confirm: true');
+            if (typeof body.planDigestSha256 !== 'string') return problem(400, 'invalid-input', 'planDigestSha256 is required');
+            const plan = codeEditPlans.get(body.planDigestSha256);
+            if (!plan) return problem(409, 'plan-unavailable', 'code edit plan is missing, expired or already consumed');
+            codeEditPlans.delete(body.planDigestSha256);
+            const advanced = await codeAdvanced();
+            const approval = await advanced.approveEdit(plan, {
+              confirm: true,
+              approvedBy: 'studio-operator',
+              approvedAt: new Date(now()).toISOString(),
+            });
+            return json(await advanced.applyEdit(plan, approval));
+          }
+          case 'code-script-plan': {
+            const body = await readJson(request) as { script?: unknown };
+            if (body.script !== 'test' && body.script !== 'typecheck' && body.script !== 'build') {
+              return problem(400, 'invalid-input', 'script must be test, typecheck or build');
+            }
+            const plan = await (await codeAdvanced()).planScript(body.script as FuryCodeScriptName);
+            rememberCodePlan(codeScriptPlans, plan.planDigestSha256, plan);
+            return json(plan);
+          }
+          case 'code-script-run': {
+            const body = await readJson(request) as { planDigestSha256?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'running a project script requires confirm: true');
+            if (typeof body.planDigestSha256 !== 'string') return problem(400, 'invalid-input', 'planDigestSha256 is required');
+            const plan = codeScriptPlans.get(body.planDigestSha256);
+            if (!plan) return problem(409, 'plan-unavailable', 'code script plan is missing, expired or already consumed');
+            codeScriptPlans.delete(body.planDigestSha256);
+            const advanced = await codeAdvanced();
+            const approval = await advanced.approveScript(plan, {
+              confirm: true,
+              approvedBy: 'studio-operator',
+              approvedAt: new Date(now()).toISOString(),
+            });
+            return json(await advanced.runScript(plan, approval));
+          }
           case 'code-tree':
             return json(await code.tree(((await readJson(request)) as { path?: unknown })?.path ?? ''));
           case 'code-file':
@@ -1048,6 +1121,11 @@ export function createStudioApi(options: StudioApiOptions) {
         if (error instanceof FuryDispatchError) return problem(422, 'dispatch-rejected', error.message);
         if (['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'ETIMEDOUT', 'EHOSTUNREACH', 'EPROTO'].includes((error as NodeJS.ErrnoException).code ?? '')) return problem(502, 'upstream-unreachable', `upstream unreachable (${(error as NodeJS.ErrnoException).code})`);
         if (error instanceof StudioCodeError) return problem(error.status, 'code-rejected', error.message);
+        if (error instanceof CodingRuntimeError) {
+          const conflict = error.code === 'permit-invalid' || error.code === 'permit-expired' || error.code === 'permit-consumed';
+          const denied = error.code === 'policy-denied' || error.code === 'path-denied' || error.code === 'symlink-denied';
+          return problem(conflict ? 409 : denied ? 403 : 422, 'code-runtime-rejected', error.message);
+        }
         if (error instanceof StudioChatError) return problem(error.status, 'chat-rejected', error.message);
         if (error instanceof FuryWebError) return problem(error.code === 'blocked' ? 403 : error.code === 'not-configured' ? 409 : 502, `web-${error.code}`, error.message);
         if (error instanceof FuryKnowledgeError) return problem(422, 'knowledge-rejected', error.message);

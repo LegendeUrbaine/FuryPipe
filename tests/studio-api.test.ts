@@ -740,3 +740,118 @@ describe('Studio Artifacts', () => {
     }
   });
 });
+
+
+describe('Studio FuryCode Advanced', () => {
+  it('keeps edit/script authority process-local and one-shot through Studio', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const { mkdtempSync, readFileSync, rmSync, writeFileSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const root = mkdtempSync(join(tmpdir(), 'furypipe-studio-code-'));
+    const gitEnv = {
+      ...process.env,
+      GIT_AUTHOR_NAME: 'FuryPipe QA',
+      GIT_AUTHOR_EMAIL: 'qa@furypipe.local',
+      GIT_COMMITTER_NAME: 'FuryPipe QA',
+      GIT_COMMITTER_EMAIL: 'qa@furypipe.local',
+    };
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: root, env: gitEnv });
+      execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: root, env: gitEnv });
+      writeFileSync(join(root, 'source.ts'), 'export const value = 1;\n');
+      writeFileSync(join(root, 'qa-script.mjs'), "process.stdout.write('STUDIO_FURY_CODE_OK');\n");
+      writeFileSync(join(root, 'package.json'), JSON.stringify({
+        name: 'studio-fury-code-fixture',
+        private: true,
+        scripts: {
+          test: 'node qa-script.mjs',
+          typecheck: 'node qa-script.mjs',
+          build: 'node qa-script.mjs',
+        },
+      }, null, 2) + '\n');
+      execFileSync('git', ['add', '.'], { cwd: root, env: gitEnv });
+      execFileSync('git', ['commit', '-q', '-m', 'fixture'], { cwd: root, env: gitEnv });
+
+      const studio = createStudioApi({
+        projectRoot: root,
+        now: () => Date.parse('2026-09-26T19:15:00.000Z'),
+        discoverHarnesses: async () => harnesses,
+        discoverLocal: async () => ({ backends: [] }),
+      });
+
+      expect(studioApiRoute('/api/studio/code/edit/plan')).toEqual({ route: 'code-edit-plan', method: 'POST' });
+      expect(studioApiRoute('/api/studio/code/edit/apply')).toEqual({ route: 'code-edit-apply', method: 'POST' });
+      expect(studioApiRoute('/api/studio/code/script/plan')).toEqual({ route: 'code-script-plan', method: 'POST' });
+      expect(studioApiRoute('/api/studio/code/script/run')).toEqual({ route: 'code-script-run', method: 'POST' });
+
+      const editPlanResponse = await studio.handle('code-edit-plan', post({
+        path: 'source.ts',
+        replacement: 'export const value = 2;\n',
+      }));
+      expect(editPlanResponse.status).toBe(200);
+      const editPlan = await editPlanResponse.json() as { planDigestSha256: string; writeAuthorized: boolean; executionAuthorized: boolean };
+      expect(editPlan.planDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
+      expect(editPlan).toMatchObject({ writeAuthorized: false, executionAuthorized: false });
+
+      expect((await studio.handle('code-edit-apply', post({
+        planDigestSha256: editPlan.planDigestSha256,
+      }))).status).toBe(400);
+
+      const applied = await studio.handle('code-edit-apply', post({
+        planDigestSha256: editPlan.planDigestSha256,
+        confirm: true,
+      }));
+      expect(applied.status).toBe(200);
+      expect(await applied.json()).toMatchObject({
+        outcome: 'succeeded',
+        appliedFiles: 1,
+        verificationStatus: 'locally-verified',
+        executionAuthority: false,
+      });
+      expect(readFileSync(join(root, 'source.ts'), 'utf8')).toBe('export const value = 2;\n');
+
+      expect((await studio.handle('code-edit-apply', post({
+        planDigestSha256: editPlan.planDigestSha256,
+        confirm: true,
+      }))).status).toBe(409);
+
+      const scriptPlanResponse = await studio.handle('code-script-plan', post({ script: 'test' }));
+      expect(scriptPlanResponse.status).toBe(200);
+      const scriptPlan = await scriptPlanResponse.json() as {
+        planDigestSha256: string; scriptText: string; executionAuthorized: boolean; runner: string;
+      };
+      expect(scriptPlan).toMatchObject({
+        scriptText: 'node qa-script.mjs',
+        executionAuthorized: false,
+        runner: 'node --run',
+      });
+
+      expect((await studio.handle('code-script-run', post({
+        planDigestSha256: scriptPlan.planDigestSha256,
+      }))).status).toBe(400);
+
+      const ran = await studio.handle('code-script-run', post({
+        planDigestSha256: scriptPlan.planDigestSha256,
+        confirm: true,
+      }));
+      expect(ran.status).toBe(200);
+      const receipt = await ran.json() as {
+        executionPerformed: boolean; arbitraryCommandAuthorized: boolean; stdout: string; process: { outcome: string };
+      };
+      expect(receipt).toMatchObject({
+        executionPerformed: true,
+        arbitraryCommandAuthorized: false,
+        process: { outcome: 'succeeded' },
+      });
+      expect(receipt.stdout).toContain('STUDIO_FURY_CODE_OK');
+
+      expect((await studio.handle('code-script-run', post({
+        planDigestSha256: scriptPlan.planDigestSha256,
+        confirm: true,
+      }))).status).toBe(409);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 30_000);
+});

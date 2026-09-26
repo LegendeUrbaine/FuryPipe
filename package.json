@@ -628,6 +628,10 @@
     "./fury-plugin-ui-runtime-node": {
       "types": "./dist/fury-plugin-ui-runtime-node.d.ts",
       "import": "./dist/fury-plugin-ui-runtime-node.js"
+    },
+    "./fury-code-advanced-node": {
+      "types": "./dist/fury-code-advanced-node.d.ts",
+      "import": "./dist/fury-code-advanced-node.js"
     }
   },
   "files": [

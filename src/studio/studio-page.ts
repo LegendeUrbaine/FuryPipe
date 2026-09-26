@@ -2532,7 +2532,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
 <html lang="${initialLocale}" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark light"><meta name="theme-color" content="#050506">
 <title>Chat · FuryPipe Studio</title><style nonce="${nonce}">${CSS}</style></head>
-<body data-mode="simple" data-view="chat"><a class="skip" href="#main">Skip to content</a>
+<body data-mode="simple" data-view="chat"><a class="skip" href="#main" tabindex="0">Skip to content</a>
 <svg class="defs" aria-hidden="true" focusable="false"><defs>
 <radialGradient id="fury-core" cx="45%" cy="40%" r="60%"><stop offset="0" stop-color="#ffe2c7"/><stop offset=".45" stop-color="#ff8a3d"/><stop offset="1" stop-color="#d9480f"/></radialGradient>
 <linearGradient id="fury-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff9a52"/><stop offset=".6" stop-color="rgba(255,138,61,.25)"/><stop offset="1" stop-color="rgba(255,255,255,.08)"/></linearGradient>

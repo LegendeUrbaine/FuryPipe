@@ -287,7 +287,7 @@ describe('Studio page', () => {
     expect(a.nonce).not.toBe(b.nonce);
     expect(a.html).not.toMatch(/\son[a-z]+=/u);
     expect(a.html).not.toMatch(/style="/u);
-    expect(a.html).toContain('<a class="skip" href="#main">');
+    expect(a.html).toContain('<a class="skip" href="#main" tabindex="0">');
     expect(a.html).toContain('&quot;format&quot;: &quot;furypipe-ir/v1&quot;');
     const fr = renderStudioHtml({ locale: 'fr' });
     expect(fr.html).toContain('<html lang="fr"');

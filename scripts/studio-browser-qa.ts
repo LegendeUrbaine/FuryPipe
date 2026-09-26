@@ -139,7 +139,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
   const browser = await type.launch();
   const errors: string[] = [];
   try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+    const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, locale: 'en-US' });
     const page = await context.newPage();
     const chatPayloads: Array<{ messages?: Array<{ role?: string; content?: string }> }> = [];
     page.on('request', (request) => {
@@ -425,7 +425,7 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
   const browser = await type.launch();
   const shots: string[] = [];
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', reducedMotion: 'reduce' });
     const page = await context.newPage();
     const shot = async (file: string): Promise<void> => {
       await page.waitForTimeout(150);
@@ -480,7 +480,7 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await page.locator('#side-open').click();
     await shot('13-drawer-390.png');
     await context.close();
-    const light = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light', reducedMotion: 'reduce' });
+    const light = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', colorScheme: 'light', reducedMotion: 'reduce' });
     const lp = await light.newPage();
     await lp.goto(`${origins.normal}/#/settings`);
     await lp.locator('input[name="pref-theme"][value="system"]').check({ force: true });

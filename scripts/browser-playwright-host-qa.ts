@@ -14,6 +14,19 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
+async function waitForTransportRequest(
+  transport: FixtureTransport,
+  predicate: (request: FixtureTransport['requests'][number]) => boolean,
+  message: string,
+): Promise<void> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline) {
+    if (transport.requests.some(predicate)) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert(transport.requests.some(predicate), message);
+}
+
 class FixtureTransport implements BrowserPinnedNetworkTransport {
   readonly format = FURY_BROWSER_PINNED_TRANSPORT_FORMAT;
   readonly requests: { url: string; method: string; bodyBytes: number; addresses: readonly string[] }[] = [];
@@ -154,7 +167,12 @@ async function main(): Promise<void> {
 
     const api = await runtime.authorize({ action: 'click', session, page, selector: '#api' });
     assert((await runtime.invoke(api)).receipt.outcome === 'succeeded', 'governed fetch click failed');
-    assert(transport.requests.some((request) => new URL(request.url).pathname === '/api'), 'governed fetch was not routed through pinned transport');
+    // A DOM click returns before the inline handler's asynchronous fetch settles.
+    await waitForTransportRequest(
+      transport,
+      (request) => new URL(request.url).pathname === '/api',
+      'governed fetch was not routed through pinned transport',
+    );
     checks.push('governed-fetch');
 
     await new Promise((resolve) => setTimeout(resolve, 300));

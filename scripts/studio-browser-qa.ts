@@ -324,6 +324,10 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
       return response.status;
     });
     assert(rejectedMedia === 422, `${name}: invalid media preview status ${rejectedMedia}`);
+    await page.goto(`${origins.normal}/#/observability`);
+    await page.locator('#h-observability').waitFor({ state: 'visible' });
+    await page.locator('#observability-status').filter({ hasText: 'not configured' }).waitFor();
+    assert((await page.locator('#observability-summary').textContent())?.includes('0'), `${name}: empty observability summary missing`);
     await page.goto(`${origins.normal}/#/runtimes`);
     await page.locator('#runtimes-body tr').filter({ hasText: 'Claude Code' }).filter({ hasText: '2.1.282' }).waitFor();
     await page.goto(`${origins.normal}/#/skills`);

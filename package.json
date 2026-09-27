@@ -641,6 +641,10 @@
       "types": "./dist/fury-video-timeline.d.ts",
       "import": "./dist/fury-video-timeline.js"
     },
+    "./fury-observability": {
+      "types": "./dist/fury-observability.d.ts",
+      "import": "./dist/fury-observability.js"
+    },
     "./fury-plugin-runtime": {
       "types": "./dist/fury-plugin-runtime.d.ts",
       "import": "./dist/fury-plugin-runtime.js"

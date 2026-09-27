@@ -86,10 +86,21 @@ and bounded Duration controls through the same preview route. The Studio copy
 states that microphone capture requires explicit consent; the audio preview
 does not invoke providers, capture devices or authorize speaker playback.
 
+`src/fury-observability.ts` now provides the shared evidence-only observability
+and cost contract used by the Studio projection. It links request/provider/tool/
+MCP/media-job spans, derives latency only from observed timestamps, and keeps
+`KNOWN`, `ESTIMATED`, `UNKNOWN`, `NOT_APPLICABLE` and not-recorded cost states
+explicit. Only known costs aggregate by comparable `costBasis`. Request, daily,
+monthly and workspace budgets become
+`UNKNOWN_INCOMPLETE_EVIDENCE` when the evidence cannot prove completeness;
+there is no zero-cost fallback. `GET /api/studio/observability.json` is
+read-only and returns `NOT_CONFIGURED` without an injected registry.
+
 Browser QA was extended in `scripts/studio-browser-qa.ts` and passed locally on
 Chromium, Firefox and WebKit. It covered media navigation, all three surfaces,
-valid image/video/audio previews, timeline preview, invalid operation
-rejection, raw-prompt non-leakage and the responsive no-overflow matrix.
+the Observability / Cost view, valid image/video/audio previews, timeline
+preview, invalid operation rejection, raw-prompt non-leakage and the
+responsive no-overflow matrix.
 Automated browser rendering is not a human visual/screen-reader sign-off.
 
 The first WebKit attempt exposed a harness timing false negative on the
@@ -102,6 +113,7 @@ Package exports added:
 - `furypipe/media-generation-deterministic-adapter`
 - `furypipe/media-studio`
 - `furypipe/fury-video-timeline`
+- `furypipe/fury-observability`
 
 ## Durable safety boundary
 
@@ -119,10 +131,9 @@ automatically resubmitted. `UNKNOWN` requires explicit reconciliation proof.
 
 ## Local verification
 
-- Focused media runtime, async job engine and Studio preview/API contracts:
-  `43/43` tests passed.
-- Full Vitest suite: `337/337` files passed; `3,553` passed, `6` skipped,
-  `3,559` total.
+- Focused observability/API contracts: `32/32` tests passed.
+- Full Vitest suite: `339/339` files passed; `3,565` passed, `6` skipped,
+  `3,571` total.
 - TypeScript source typecheck: passed.
 - Hosted-MCP TypeScript typecheck: passed.
 - Build: `node scripts/build.mjs` passed.

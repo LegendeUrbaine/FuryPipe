@@ -442,6 +442,13 @@ try {
   ], installDir);
   assert(furyVideoTimelineExport.stderr === '', `FuryVideo timeline package export wrote stderr: ${furyVideoTimelineExport.stderr}`);
 
+  const furyObservabilityExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-observability'); if (typeof m.createFuryObservabilityRegistry !== 'function' || m.FURY_OBSERVABILITY_SNAPSHOT_FORMAT !== 'furypipe-observability-snapshot/v1') process.exit(1);",
+  ], installDir);
+  assert(furyObservabilityExport.stderr === '', `FuryObservability package export wrote stderr: ${furyObservabilityExport.stderr}`);
+
   const capabilityIndexExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

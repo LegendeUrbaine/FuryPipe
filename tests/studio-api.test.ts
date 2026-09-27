@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { FuryHarnessDiscovery } from '../src/fury-harness-hub.js';
 import { FURY_HARNESS_REGISTRY } from '../src/fury-harness-hub.js';
 import type { FuryLocalBackendStatus } from '../src/fury-local-fabric.js';
+import { createFuryObservabilityRegistry } from '../src/fury-observability.js';
 import { createStudioApi, studioApiRoute, studioBindings } from '../src/studio/studio-api.js';
 import { renderStudioHtml, STUDIO_EXAMPLE_FLOW, STUDIO_EXAMPLE_IR } from '../src/studio/studio-page.js';
 
@@ -73,6 +74,7 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/media/preview')).toEqual({ route: 'media-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/media/jobs.json')).toEqual({ route: 'media-jobs', method: 'GET' });
     expect(studioApiRoute('/api/studio/media/timeline/preview')).toEqual({ route: 'media-timeline-preview', method: 'POST' });
+    expect(studioApiRoute('/api/studio/observability.json')).toEqual({ route: 'observability', method: 'GET' });
     expect(studioApiRoute('/api/studio/../control-room.json')).toBeNull();
   });
 
@@ -126,6 +128,12 @@ describe('Studio API', () => {
       format: 'furypipe-media-studio-gallery/v1', authority: 'read-only-media-job-history', state: 'NOT_CONFIGURED', jobs: [],
     });
 
+    const observabilityResponse = await studio.handle('observability', new Request('http://127.0.0.1/api/studio/observability.json'));
+    expect(observabilityResponse.status).toBe(200);
+    expect(await observabilityResponse.json()).toMatchObject({
+      format: 'furypipe-observability-snapshot/v1', state: 'NOT_CONFIGURED', authority: 'observed-evidence-only', executionAuthority: false,
+    });
+
     const rejectedResponse = await studio.handle('media-preview', post({
       surface: 'video', operation: 'text-to-image', prompt: 'bad operation', outputMimeType: 'image/png',
     }));
@@ -135,7 +143,25 @@ describe('Studio API', () => {
     expect(page).toContain('href="#/media"');
     expect(page).toContain('FuryImage Studio');
     expect(page).toContain('FuryVideo Studio');
+    expect(page).toContain('Observability / Cost');
     expect(page).toContain('preview-only');
+  });
+
+  it('projects injected observability evidence without adding execution authority', async () => {
+    const now = Date.UTC(2026, 8, 27, 12, 0, 0);
+    const observability = createFuryObservabilityRegistry({ now: () => now, budgets: [{ scope: 'workspace', limitUsd: 1, costBasis: 'usd/request' }] });
+    observability.observe({
+      format: 'furypipe-observability/v1', eventId: 'studio-event', traceId: 'studio-trace', spanId: 'studio-span',
+      kind: 'provider', source: 'provider-transport', status: 'success', startedAt: now - 100, finishedAt: now,
+      cost: { status: 'known', totalUsd: 0.25, costBasis: 'usd/request', source: 'provider-usage', observedAt: now },
+    });
+    const studio = createStudioApi({ projectRoot: process.cwd(), now: () => now, observability, discoverHarnesses: async () => harnesses, discoverLocal: async () => ({ backends: [] }) });
+    const response = await studio.handle('observability', new Request('http://127.0.0.1/api/studio/observability.json'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      state: 'READY', counts: { events: 1, traces: 1 }, cost: { knownEventCount: 1 },
+      budgets: [{ status: 'WITHIN_KNOWN_COST', knownCostUsd: 0.25 }], executionAuthority: false,
+    });
   });
 
   it('builds a bounded FuryVideo storyboard/timeline preview without creating jobs or artifacts', async () => {

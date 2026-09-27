@@ -67,6 +67,7 @@ import { createFuryMediaStudioGallery, createFuryMediaStudioPreview, createFuryM
 import type { FuryMediaGenerationAdapter, FuryMediaGenerationMode } from '../media-generation-runtime.js';
 import type { FuryMediaGenerationJobEngine } from '../media-generation-job-engine.js';
 import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } from '../fury-video-timeline.js';
+import { createFuryObservabilityNotConfiguredSnapshot, type FuryObservabilityRegistry } from '../fury-observability.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
@@ -80,7 +81,7 @@ export type StudioRoute =
   | 'web' | 'visual-render'
   | 'memory' | 'memory-remember' | 'memory-search' | 'memory-act'
   | 'integrations' | 'connections' | 'connection-login' | 'support'
-  | 'media' | 'media-preview' | 'media-jobs' | 'media-timeline-preview'
+  | 'media' | 'media-preview' | 'media-jobs' | 'media-timeline-preview' | 'observability'
   | 'artifacts' | 'artifact-get' | 'artifact-create' | 'artifact-version' | 'artifact-search' | 'artifact-restore-plan' | 'artifact-restore' | 'artifact-export'
   | 'chats' | 'chat-get' | 'chat-save' | 'chat-branch' | 'chat-delete'
   | 'code-tree' | 'code-file' | 'code-worktrees' | 'code-diff'
@@ -107,6 +108,7 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/media/preview': { route: 'media-preview', method: 'POST' },
   '/api/studio/media/jobs.json': { route: 'media-jobs', method: 'GET' },
   '/api/studio/media/timeline/preview': { route: 'media-timeline-preview', method: 'POST' },
+  '/api/studio/observability.json': { route: 'observability', method: 'GET' },
   '/api/studio/artifacts.json': { route: 'artifacts', method: 'GET' },
   '/api/studio/artifacts/get': { route: 'artifact-get', method: 'POST' },
   '/api/studio/artifacts/create': { route: 'artifact-create', method: 'POST' },
@@ -209,6 +211,8 @@ export interface StudioApiOptions {
   readonly mediaAdapters?: readonly FuryMediaGenerationAdapter[];
   /** Optional durable media job projection; Studio only reads jobs and never submits from this route. */
   readonly mediaJobEngine?: Pick<FuryMediaGenerationJobEngine, 'list'>;
+  /** Optional evidence registry; Studio only reads its immutable snapshot. */
+  readonly observability?: Pick<FuryObservabilityRegistry, 'snapshot'>;
 }
 
 interface StudioRun {
@@ -687,6 +691,8 @@ export function createStudioApi(options: StudioApiOptions) {
               return problem(422, 'media-timeline-preview-rejected', (error as Error).message.slice(0, 300));
             }
           }
+          case 'observability':
+            return json(options.observability?.snapshot() ?? createFuryObservabilityNotConfiguredSnapshot(now));
           case 'artifacts':
             return json({ artifacts: (await artifacts.list()).map(artifactSummary), authority: 'persistent-artifact-store' });
           case 'artifact-get': {

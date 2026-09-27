@@ -80,6 +80,7 @@ const ICONS: Readonly<Record<string, string>> = Object.freeze({
   memory: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
   models: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
   media: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="10" r="1.5"/><path d="m5 17 4-4 3 3 2-2 5 3"/>',
+  observability: '<path d="M4 19V5M4 19h16"/><path d="m7 15 3-4 3 2 5-7"/>',
   runtimes: '<path d="m4 17 6-5-6-5"/><path d="M12 19h8"/>',
   skills: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
   autopilot: '<path d="M12 2l2.1 6.1L20 10l-5.9 1.9L12 18l-2.1-6.1L4 10l5.9-1.9z"/><path d="M5 18l.8 2.2L8 21l-2.2.8L5 24l-.8-2.2L2 21l2.2-.8z"/>',
@@ -553,11 +554,11 @@ const SCRIPT = String.raw`
   const tpl = document.createElement('template');
   function ic(name, cls) { tpl.innerHTML = '<svg class="' + (cls || 'i') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || '') + '</svg>'; return tpl.content.firstChild; }
   const store = { get(k, d) { try { const v = localStorage.getItem('furypipe.studio.' + k); return v === null ? d : v; } catch { return d; } }, set(k, v) { try { localStorage.setItem('furypipe.studio.' + k, v); } catch {} } };
-  const views = ['chat','media','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
-  const VIEW_TITLES = { chat: 'Chat', media: 'Media Studio', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
+  const views = ['chat','media','observability','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
+  const VIEW_TITLES = { chat: 'Chat', media: 'Media Studio', observability: 'Observability / Cost', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
   const PROVIDER = { ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp', vllm: 'vLLM', sglang: 'SGLang', localai: 'LocalAI', jan: 'Jan', 'openai-compatible': 'OpenAI-compatible', 'anthropic-compatible': 'Anthropic-compatible' };
   const SETUP = { ollama: 'https://ollama.com/download', lmstudio: 'https://lmstudio.ai', llamacpp: 'https://github.com/ggml-org/llama.cpp', vllm: 'https://docs.vllm.ai', sglang: 'https://docs.sglang.ai', localai: 'https://localai.io', jan: 'https://jan.ai' };
-  const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, media: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
+  const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, media: null, observability: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
   /* ---------- Locale / i18n ---------- */
   const SUPPORTED_LANGUAGES = Object.freeze(['en', 'fr']);
   const FR = Object.freeze({
@@ -1055,6 +1056,7 @@ const SCRIPT = String.raw`
     firstRoute = false;
     if (name === 'chat' || name === 'models') loadLocal();
     if (name === 'media') loadMedia();
+    if (name === 'observability') loadObservability();
     if (name === 'autopilot') $('#autopilot-effort').value = $('#effort-select').value;
     if (name === 'chat') autosize();
     if (name === 'connections') loadConnections();
@@ -1566,6 +1568,66 @@ const SCRIPT = String.raw`
       );
       return card;
     }));
+  }
+  function renderObservability(snapshot) {
+    const status = $('#observability-status');
+    const summary = $('#observability-summary');
+    const traces = $('#observability-traces');
+    const budgets = $('#observability-budgets');
+    if (!snapshot) return;
+    const counts = snapshot.counts || {};
+    const latency = snapshot.latency || {};
+    const cost = snapshot.cost || {};
+    if (status) status.textContent = snapshot.state === 'NOT_CONFIGURED'
+      ? 'Observability registry not configured. No telemetry or cost is inferred.'
+      : 'Observed evidence only. This view does not execute providers or alter budgets.';
+    const numberText = (value, suffix = '') => typeof value === 'number' && Number.isFinite(value) ? String(value) + suffix : 'UNKNOWN';
+    const costText = (value) => typeof value === 'number' && Number.isFinite(value) ? '$' + value.toFixed(6) : 'UNKNOWN';
+    if (summary) {
+      const basis = Array.isArray(cost.knownTotalUsdByBasis) && cost.knownTotalUsdByBasis.length
+        ? cost.knownTotalUsdByBasis.map((item) => String(item.costBasis) + ': ' + costText(item.totalUsd)).join(' · ')
+        : 'No known cost recorded';
+      const estimatedBasis = Array.isArray(cost.estimatedTotalUsdByBasis) && cost.estimatedTotalUsdByBasis.length
+        ? cost.estimatedTotalUsdByBasis.map((item) => String(item.costBasis) + ': ' + costText(item.totalUsd)).join(' · ')
+        : 'No estimated cost recorded';
+      summary.replaceChildren(
+        el('div', { class: 'autopilot-summary' },
+          el('div', { class: 'autopilot-stat' }, el('b', { text: numberText(counts.events) }), el('span', { text: 'events' })),
+          el('div', { class: 'autopilot-stat' }, el('b', { text: numberText(counts.traces) }), el('span', { text: 'traces' })),
+          el('div', { class: 'autopilot-stat' }, el('b', { text: latency.sampleCount ? numberText(latency.p50Ms, ' ms') : 'UNKNOWN' }), el('span', { text: 'observed p50 latency' })),
+          el('div', { class: 'autopilot-stat' }, el('b', { text: basis }), el('span', { text: 'known cost by basis' })),
+          el('div', { class: 'autopilot-stat' }, el('b', { text: estimatedBasis }), el('span', { text: 'estimated cost by basis' })),
+          el('div', { class: 'autopilot-stat' }, el('b', { text: numberText(cost.unknownEventCount) }), el('span', { text: 'unknown cost events' })),
+        ),
+      );
+    }
+    if (traces) {
+      const rows = Array.isArray(snapshot.traces) ? snapshot.traces : [];
+      traces.replaceChildren(...(rows.length ? rows.map((trace) => el('article', { class: 'card extension-card' },
+        el('h3', { text: String(trace.traceId) }),
+        el('p', { class: 'muted', text: String(trace.eventCount) + ' event(s) · depth ' + String(trace.maxDepth) + ' · roots ' + String(trace.rootSpanCount) }),
+        el('p', { class: 'muted', text: 'Orphan parents: ' + String(trace.orphanParentCount) + ' · Digest: sha256:' + String(trace.traceDigestSha256).slice(0, 16) + '…' }),
+      )) : [el('p', { class: 'muted', text: 'No trace evidence recorded.' })]));
+    }
+    if (budgets) {
+      const rows = Array.isArray(snapshot.budgets) ? snapshot.budgets : [];
+      budgets.replaceChildren(...(rows.length ? rows.map((budget) => el('article', { class: 'card extension-card' },
+        el('h3', { text: String(budget.scope) + (budget.traceId ? ' · ' + String(budget.traceId) : '') }),
+        el('p', { class: 'muted', text: 'Status: ' + String(budget.status) + ' · Basis: ' + String(budget.costBasis) }),
+        el('p', { class: 'muted', text: 'Known: ' + costText(budget.knownCostUsd) + ' / limit ' + costText(budget.limitUsd) + ' · Estimated: ' + String(budget.estimatedCostEventCount) + ' · Unknown: ' + String(budget.unknownCostEventCount) + ' · N/A: ' + String(budget.notApplicableCostEventCount) + ' · Not recorded: ' + String(budget.notRecordedCostEventCount) }),
+      )) : [el('p', { class: 'muted', text: 'No budget policy configured.' })]));
+    }
+  }
+  async function loadObservability() {
+    try {
+      const snapshot = await getJson('/api/studio/observability.json');
+      state.observability = snapshot;
+      renderObservability(snapshot);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = $('#observability-status');
+      if (status) status.textContent = 'Observability load failed: ' + message;
+    }
   }
   async function loadMedia() {
     try {
@@ -2726,7 +2788,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
     <li class="nav-more-row"><details class="nav-more" id="nav-more"><summary>${icon('more')}<span class="label">More</span>${icon('chevron','i more-chevron')}</summary><ul>
       ${nav('knowledge', 'power', 'Knowledge')}${nav('web', 'power', 'Web')}${nav('memory', 'power', 'Memory')}
       ${nav('models', 'simple', 'Models')}${nav('connections', 'simple', 'Connections')}${nav('mission', 'expert', 'Mission Control')}
-      ${nav('runtimes', 'engineer', 'Runtimes')}${nav('skills', 'power', 'Skills')}${nav('mcp', 'power', 'MCP')}${nav('extensions', 'power', 'Extensions')}${nav('artifacts', 'power', 'Artifacts')}${nav('integrations', 'engineer', 'Integrations')}${nav('support', 'simple', 'Support')}
+      ${nav('runtimes', 'engineer', 'Runtimes')}${nav('observability', 'engineer', 'Observability')}${nav('skills', 'power', 'Skills')}${nav('mcp', 'power', 'MCP')}${nav('extensions', 'power', 'Extensions')}${nav('artifacts', 'power', 'Artifacts')}${nav('integrations', 'engineer', 'Integrations')}${nav('support', 'simple', 'Support')}
     </ul></details></li>
   </ul></nav>
   <div class="recent" aria-labelledby="recent-h"><h2 id="recent-h">Recent</h2><ul id="chat-list" aria-labelledby="recent-h"></ul></div>
@@ -2812,6 +2874,11 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-provider">Provider / AUTO</label><select id="media-provider"><option value="AUTO">AUTO</option></select></div><div><label for="media-model">Model</label><select id="media-model"><option value="AUTO">AUTO</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><fieldset id="media-image-controls"><legend>FuryImage controls</legend><div class="row"><div><label for="media-aspect-ratio">Aspect ratio</label><select id="media-aspect-ratio"><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-resolution">Resolution</label><select id="media-resolution"><option value="1024x1024">1024×1024</option><option value="1536x1024">1536×1024</option><option value="1024x1536">1024×1536</option></select></div><div><label for="media-quality">Quality</label><select id="media-quality"><option value="standard">Standard</option><option value="high">High</option></select></div></div><details><summary>Advanced image controls</summary><div class="row"><div><label for="media-negative-prompt">Negative prompt</label><input id="media-negative-prompt" maxlength="100000" placeholder="Optional exclusions"></div><div><label for="media-seed">Seed</label><input id="media-seed" type="number" min="0" max="2147483647" step="1"></div><div><label for="media-guidance">Guidance</label><input id="media-guidance" type="number" min="0" max="30" step="0.1"></div><div><label for="media-steps">Steps</label><input id="media-steps" type="number" min="1" max="150" step="1"></div><div><label for="media-style">Style</label><select id="media-style"><option value="auto">Auto</option><option value="photorealistic">Photorealistic</option><option value="illustration">Illustration</option><option value="cinematic">Cinematic</option><option value="3d">3D</option></select></div><div><label for="media-input-strength">Input strength</label><input id="media-input-strength" type="number" min="0" max="1" step="0.01"></div></div></details></fieldset><fieldset id="media-video-controls" hidden><legend>FuryVideo controls</legend><div class="row"><div><label for="media-reference">Reference</label><input id="media-reference" maxlength="512" placeholder="Optional artifact/reference ID"></div><div><label for="media-duration">Duration (ms)</label><input id="media-duration" type="number" min="500" max="600000" step="1"></div><div><label for="media-fps">FPS</label><input id="media-fps" type="number" min="1" max="120" step="1"></div><div><label for="media-video-aspect-ratio">Aspect ratio</label><select id="media-video-aspect-ratio"><option value="16:9">16:9</option><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-video-resolution">Resolution</label><select id="media-video-resolution"><option value="1080p">1080p</option><option value="720p">720p</option><option value="2160p">2160p</option></select></div></div></fieldset><fieldset id="media-audio-controls" hidden><legend>FuryAudio / Voice controls</legend><div class="row"><div><label for="media-voice">Voice</label><input id="media-voice" maxlength="128" placeholder="Optional voice ID"></div><div><label for="media-language">Language</label><input id="media-language" maxlength="32" placeholder="Optional language, e.g. fr-FR"></div><div><label for="media-audio-duration">Duration (ms)</label><input id="media-audio-duration" type="number" min="500" max="600000" step="1"></div></div><p class="muted">Microphone capture requires explicit consent and is not started by this preview.</p></fieldset><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><div class="row"><button id="media-submit" type="submit">Generate image (preview-only)</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
   <div class="card"><h2>Provider boundary</h2><p id="media-provider-status" class="muted">Loading registered capability observations…</p><div id="media-adapters"></div></div>
   <div class="card"><h2>Media job history / gallery</h2><div id="media-gallery"><p class="muted">Loading media job history…</p></div></div>
+</section>
+<section data-view="observability" aria-labelledby="h-observability" hidden><h1 id="h-observability">Observability / Cost</h1><p class="lead">Measured request, provider, tool, MCP and media-job evidence. Unknown cost stays unknown; this panel never invents prices or executes work.</p>
+  <div class="cap-rail" aria-label="Observability guarantees"><span>${icon('shield')}Observed evidence only</span><span>${icon('check')}No raw prompt or response</span><span>${icon('settings')}No execution authority</span></div>
+  <div class="card"><h2>Current evidence</h2><p id="observability-status" class="status muted" role="status">Loading observability…</p><div id="observability-summary"></div></div>
+  <div class="grid"><div class="card"><h2>Trace tree summaries</h2><div id="observability-traces"><p class="muted">Loading trace evidence…</p></div></div><div class="card"><h2>Budget guards</h2><div id="observability-budgets"><p class="muted">Loading budget evidence…</p></div></div></div>
 </section>
 <section data-view="cowork" class="work-view" aria-labelledby="h-cowork" hidden><h1 id="h-cowork">Work</h1><p class="lead">Give FuryPipe a goal. It can plan first, or run with the exact permissions you allow.</p>
   <div class="card work-brief"><label for="cowork-intent">What should FuryPipe do?</label><textarea id="cowork-intent" placeholder="e.g. Review the project, fix the issue and verify the result"></textarea>

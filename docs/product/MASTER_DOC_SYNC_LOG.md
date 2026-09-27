@@ -212,3 +212,32 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - Status: `PARTIAL_AUDIO_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-27 — FuryObservability / Cost evidence contract
+
+- Added `src/fury-observability.ts` as one bounded, evidence-only registry for
+  request/provider/tool/MCP/media-job events. It links trace parents without
+  retaining prompts, responses, credentials or provider payloads.
+- Latency is derived only from observed start/finish timestamps. Cost states
+  remain explicit as `KNOWN`, `ESTIMATED`, `UNKNOWN` and `NOT_APPLICABLE`; only
+  `KNOWN` values aggregate inside the same explicit `costBasis`. Missing,
+  estimated, unknown and incomparable evidence remain visible and are never
+  coerced to zero.
+- Request, daily, monthly and workspace budget views are fail-closed:
+  `EXCEEDED_KNOWN_COST` is reported when known evidence exceeds the limit;
+  otherwise incomplete evidence yields `UNKNOWN_INCOMPLETE_EVIDENCE`.
+- Added the read-only `GET /api/studio/observability.json` projection and a
+  Studio Observability / Cost view. With no injected registry it reports
+  `NOT_CONFIGURED`, not fabricated empty telemetry. The route does not execute
+  providers, mutate jobs or authorize actions.
+- Local proof: focused observability/API tests `32/32` passed; source
+  typecheck and `git diff --check` passed. Full suite: `339` files,
+  `3,565` passed, `6` skipped. Source and hosted-MCP typechecks, build,
+  installed package smoke and Chromium/Firefox/WebKit Browser QA passed on
+  this exact local candidate.
+- Remaining: live provider/tool/MCP telemetry adapters, provider billing
+  reconciliation, self-healing diagnostics, human visual/screen-reader review,
+  hosted exact-head validation and production/client gates.
+- Status: `PARTIAL_OBSERVABILITY_COST_LOCAL_CONTRACT_VERIFIED`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.

@@ -81,11 +81,16 @@ references and explicit `REFERENCE_ONLY` generation-job/output-artifact
 references. `POST /api/studio/media/timeline/preview` validates and projects
 that plan without creating jobs, artifacts or provider authority.
 
+FuryAudio now accepts capability-driven Provider/AUTO, Model, Voice, Language
+and bounded Duration controls through the same preview route. The Studio copy
+states that microphone capture requires explicit consent; the audio preview
+does not invoke providers, capture devices or authorize speaker playback.
+
 Browser QA was extended in `scripts/studio-browser-qa.ts` and passed locally on
 Chromium, Firefox and WebKit. It covered media navigation, all three surfaces,
-valid image/video previews, invalid operation rejection, raw-prompt non-leakage
-and the responsive no-overflow matrix. Automated browser rendering is not a
-human visual/screen-reader sign-off.
+valid image/video/audio previews, timeline preview, invalid operation
+rejection, raw-prompt non-leakage and the responsive no-overflow matrix.
+Automated browser rendering is not a human visual/screen-reader sign-off.
 
 The first WebKit attempt exposed a harness timing false negative on the
 existing 404 assertion (`visible` was checked before route rendering). The

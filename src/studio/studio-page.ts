@@ -1479,6 +1479,7 @@ const SCRIPT = String.raw`
     const modelSelect = $('#media-model');
     const imageControls = $('#media-image-controls');
     const videoControls = $('#media-video-controls');
+    const audioControls = $('#media-audio-controls');
     const submitButton = $('#media-submit');
     if (!surfaceSelect || !operationSelect || !mimeSelect || !snapshot || !Array.isArray(snapshot.surfaces)) return;
     const surface = snapshot.surfaces.find((item) => item.id === surfaceSelect.value) || snapshot.surfaces[0];
@@ -1492,9 +1493,11 @@ const SCRIPT = String.raw`
     if (surface.outputMimeTypes.includes(currentMime)) mimeSelect.value = currentMime;
     const image = surface.id === 'image';
     const video = surface.id === 'video';
+    const audio = surface.id === 'audio';
     if (imageControls) imageControls.hidden = !image;
     if (videoControls) videoControls.hidden = !video;
-    if (submitButton) submitButton.textContent = image ? 'Generate image (preview-only)' : video ? 'Generate video (preview-only)' : 'Preview governed request';
+    if (audioControls) audioControls.hidden = !audio;
+    if (submitButton) submitButton.textContent = image ? 'Generate image (preview-only)' : video ? 'Generate video (preview-only)' : audio ? 'Generate audio (preview-only)' : 'Preview governed request';
     const activeAdapters = Array.isArray(snapshot.adapters) ? snapshot.adapters.filter((adapter) => adapter.family === surface.family) : [];
     if (providerSelect && modelSelect) {
       const previousProvider = providerSelect.value || 'AUTO';
@@ -1513,7 +1516,7 @@ const SCRIPT = String.raw`
     const providerStatus = $('#media-provider-status');
     if (providerStatus) providerStatus.textContent = activeAdapters.length === 0
       ? (image ? 'No image provider configured. Studio remains preview-only.' : video ? 'No video provider configured. Studio remains preview-only.' : 'No audio provider configured. Studio remains preview-only.')
-      : (image ? 'Image adapter capability observed. Live provider execution is not validated here.' : video ? 'Video adapter capability observed. Live provider execution is not validated here.' : 'Audio adapter capability observed. Live provider execution is not validated here.');
+      : (image ? 'Image adapter capability observed. Live provider execution is not validated here.' : video ? 'Video adapter capability observed. Live provider execution is not validated here.' : 'Audio adapter capability observed. Live provider execution is not validated here. Microphone capture still requires explicit consent.');
   }
   function renderMediaSnapshot(snapshot) {
     const surfaces = $('#media-surfaces');
@@ -1618,6 +1621,13 @@ const SCRIPT = String.raw`
       aspectRatio: $('#media-video-aspect-ratio').value,
       resolution: $('#media-video-resolution').value,
     } : undefined;
+    const audioOptions = surface === 'audio' ? {
+      provider: $('#media-provider').value,
+      model: $('#media-model').value,
+      voice: valueOrUndefined('#media-voice'),
+      language: valueOrUndefined('#media-language'),
+      durationMs: numberOrUndefined('#media-audio-duration'),
+    } : undefined;
     if (status) status.textContent = 'Building preview…';
     if (output) output.hidden = true;
     try {
@@ -1626,14 +1636,16 @@ const SCRIPT = String.raw`
         operation: $('#media-operation').value,
         outputMimeType: $('#media-mime').value,
         prompt: $('#media-prompt').value,
-        ...(imageOptions ? { options: imageOptions } : videoOptions ? { options: videoOptions } : {}),
+        ...(imageOptions ? { options: imageOptions } : videoOptions ? { options: videoOptions } : audioOptions ? { options: audioOptions } : {}),
       });
       if (output) { output.textContent = JSON.stringify(preview, null, 2); output.hidden = false; }
       if (status) status.textContent = surface === 'image'
         ? 'Image preview built. No provider call or billable generation executed.'
         : surface === 'video'
           ? 'Video preview built. No provider call or billable generation executed.'
-          : 'Preview built. No provider call or billable generation executed.';
+          : surface === 'audio'
+            ? 'Audio preview built. No provider call, microphone capture or billable generation executed.'
+            : 'Preview built. No provider call or billable generation executed.';
     } catch (error) {
       if (status) status.textContent = 'Preview rejected: ' + (error instanceof Error ? error.message : String(error));
     }
@@ -2797,7 +2809,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
 <section data-view="media" class="media-workspace" aria-labelledby="h-media" hidden><h1 id="h-media">Media Studio</h1><p class="lead">FuryImage, FuryVideo and FuryAudio share the governed media runtime. This surface builds bounded previews only; no provider call, credential use or billable generation starts here.</p>
   <div class="cap-rail" aria-label="Media Studio guarantees"><span>${icon('shield')}Preview authority only</span><span>${icon('check')}Bounded prompt + MIME</span><span>${icon('artifacts')}Artifact references after runtime proof</span></div>
   <div class="grid" id="media-surfaces"></div>
-  <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-provider">Provider / AUTO</label><select id="media-provider"><option value="AUTO">AUTO</option></select></div><div><label for="media-model">Model</label><select id="media-model"><option value="AUTO">AUTO</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><fieldset id="media-image-controls"><legend>FuryImage controls</legend><div class="row"><div><label for="media-aspect-ratio">Aspect ratio</label><select id="media-aspect-ratio"><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-resolution">Resolution</label><select id="media-resolution"><option value="1024x1024">1024×1024</option><option value="1536x1024">1536×1024</option><option value="1024x1536">1024×1536</option></select></div><div><label for="media-quality">Quality</label><select id="media-quality"><option value="standard">Standard</option><option value="high">High</option></select></div></div><details><summary>Advanced image controls</summary><div class="row"><div><label for="media-negative-prompt">Negative prompt</label><input id="media-negative-prompt" maxlength="100000" placeholder="Optional exclusions"></div><div><label for="media-seed">Seed</label><input id="media-seed" type="number" min="0" max="2147483647" step="1"></div><div><label for="media-guidance">Guidance</label><input id="media-guidance" type="number" min="0" max="30" step="0.1"></div><div><label for="media-steps">Steps</label><input id="media-steps" type="number" min="1" max="150" step="1"></div><div><label for="media-style">Style</label><select id="media-style"><option value="auto">Auto</option><option value="photorealistic">Photorealistic</option><option value="illustration">Illustration</option><option value="cinematic">Cinematic</option><option value="3d">3D</option></select></div><div><label for="media-input-strength">Input strength</label><input id="media-input-strength" type="number" min="0" max="1" step="0.01"></div></div></details></fieldset><fieldset id="media-video-controls" hidden><legend>FuryVideo controls</legend><div class="row"><div><label for="media-reference">Reference</label><input id="media-reference" maxlength="512" placeholder="Optional artifact/reference ID"></div><div><label for="media-duration">Duration (ms)</label><input id="media-duration" type="number" min="500" max="600000" step="1"></div><div><label for="media-fps">FPS</label><input id="media-fps" type="number" min="1" max="120" step="1"></div><div><label for="media-video-aspect-ratio">Aspect ratio</label><select id="media-video-aspect-ratio"><option value="16:9">16:9</option><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-video-resolution">Resolution</label><select id="media-video-resolution"><option value="1080p">1080p</option><option value="720p">720p</option><option value="2160p">2160p</option></select></div></div></fieldset><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><div class="row"><button id="media-submit" type="submit">Generate image (preview-only)</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
+  <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-provider">Provider / AUTO</label><select id="media-provider"><option value="AUTO">AUTO</option></select></div><div><label for="media-model">Model</label><select id="media-model"><option value="AUTO">AUTO</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><fieldset id="media-image-controls"><legend>FuryImage controls</legend><div class="row"><div><label for="media-aspect-ratio">Aspect ratio</label><select id="media-aspect-ratio"><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-resolution">Resolution</label><select id="media-resolution"><option value="1024x1024">1024×1024</option><option value="1536x1024">1536×1024</option><option value="1024x1536">1024×1536</option></select></div><div><label for="media-quality">Quality</label><select id="media-quality"><option value="standard">Standard</option><option value="high">High</option></select></div></div><details><summary>Advanced image controls</summary><div class="row"><div><label for="media-negative-prompt">Negative prompt</label><input id="media-negative-prompt" maxlength="100000" placeholder="Optional exclusions"></div><div><label for="media-seed">Seed</label><input id="media-seed" type="number" min="0" max="2147483647" step="1"></div><div><label for="media-guidance">Guidance</label><input id="media-guidance" type="number" min="0" max="30" step="0.1"></div><div><label for="media-steps">Steps</label><input id="media-steps" type="number" min="1" max="150" step="1"></div><div><label for="media-style">Style</label><select id="media-style"><option value="auto">Auto</option><option value="photorealistic">Photorealistic</option><option value="illustration">Illustration</option><option value="cinematic">Cinematic</option><option value="3d">3D</option></select></div><div><label for="media-input-strength">Input strength</label><input id="media-input-strength" type="number" min="0" max="1" step="0.01"></div></div></details></fieldset><fieldset id="media-video-controls" hidden><legend>FuryVideo controls</legend><div class="row"><div><label for="media-reference">Reference</label><input id="media-reference" maxlength="512" placeholder="Optional artifact/reference ID"></div><div><label for="media-duration">Duration (ms)</label><input id="media-duration" type="number" min="500" max="600000" step="1"></div><div><label for="media-fps">FPS</label><input id="media-fps" type="number" min="1" max="120" step="1"></div><div><label for="media-video-aspect-ratio">Aspect ratio</label><select id="media-video-aspect-ratio"><option value="16:9">16:9</option><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-video-resolution">Resolution</label><select id="media-video-resolution"><option value="1080p">1080p</option><option value="720p">720p</option><option value="2160p">2160p</option></select></div></div></fieldset><fieldset id="media-audio-controls" hidden><legend>FuryAudio / Voice controls</legend><div class="row"><div><label for="media-voice">Voice</label><input id="media-voice" maxlength="128" placeholder="Optional voice ID"></div><div><label for="media-language">Language</label><input id="media-language" maxlength="32" placeholder="Optional language, e.g. fr-FR"></div><div><label for="media-audio-duration">Duration (ms)</label><input id="media-audio-duration" type="number" min="500" max="600000" step="1"></div></div><p class="muted">Microphone capture requires explicit consent and is not started by this preview.</p></fieldset><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><div class="row"><button id="media-submit" type="submit">Generate image (preview-only)</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
   <div class="card"><h2>Provider boundary</h2><p id="media-provider-status" class="muted">Loading registered capability observations…</p><div id="media-adapters"></div></div>
   <div class="card"><h2>Media job history / gallery</h2><div id="media-gallery"><p class="muted">Loading media job history…</p></div></div>
 </section>

@@ -192,3 +192,23 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-27 — FuryAudio / Voice Studio preview controls
+
+- Added capability-driven FuryAudio controls for `Provider / AUTO`, model,
+  voice, language and bounded duration on the existing Media Studio preview
+  route.
+- Preview explicitly does not call a provider, capture a microphone or
+  authorize speaker playback. Existing STT/TTS, realtime voice and device
+  capture contracts remain separate permission/permit boundaries.
+- Local proof: focused Media Studio/API tests `32` passed, full suite `338`
+  files / `3,558` tests passed with `6` skipped, source and hosted-MCP
+  typechecks, build, package smoke and Chromium/Firefox/WebKit Browser QA
+  passed.
+- Remaining: live provider execution, client microphone/device permission UX,
+  real streaming/VAD/interruption validation, recovery, human
+  visual/screen-reader review and hosted exact-head validation for this
+  follow-up.
+- Status: `PARTIAL_AUDIO_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.

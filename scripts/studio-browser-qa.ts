@@ -291,6 +291,19 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
     assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: video preview did not remain preview-only`);
     assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded video preview'), `${name}: video preview leaked the raw prompt`);
+    await page.locator('#media-surface').selectOption('audio');
+    await page.locator('#media-provider-status').filter({ hasText: 'No audio provider configured' }).waitFor();
+    await page.locator('#media-audio-controls').waitFor({ state: 'visible' });
+    await page.locator('#media-voice').fill('alloy');
+    await page.locator('#media-language').fill('fr-FR');
+    await page.locator('#media-audio-duration').fill('4000');
+    await page.locator('#media-operation option[value="text-to-audio"]').waitFor({ state: 'attached' });
+    await page.locator('#media-operation').selectOption('text-to-audio');
+    await page.locator('#media-prompt').fill('A bounded audio preview');
+    await page.locator('#media-preview-form button[type=submit]').click();
+    await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
+    assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: audio preview did not remain preview-only`);
+    assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded audio preview'), `${name}: audio preview leaked the raw prompt`);
     const timelinePreview = await page.evaluate(async () => {
       const response = await fetch('/api/studio/media/timeline/preview', {
         method: 'POST', headers: { 'content-type': 'application/json' },

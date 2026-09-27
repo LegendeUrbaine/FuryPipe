@@ -105,6 +105,32 @@ describe('Media Studio preview boundary', () => {
     })).toThrow(/model is not supported by the selected provider/u);
   });
 
+  it('keeps FuryAudio and voice controls bounded without authorizing capture or playback', () => {
+    const adapter = createFuryDeterministicMediaGenerationAdapter({
+      bundleId: 'media-lab', bundleVersion: '1.0.0', profileId: 'audio-voice',
+      family: 'audio-generation', supportedModes: ['text-to-audio', 'voice-generation'], outputMimeType: 'audio/wav',
+    });
+    const snapshot = createFuryMediaStudioSnapshot({ adapters: [adapter], now: () => 7 });
+    const selectorId = snapshot.adapters[0]!.selectorId;
+    const preview = createFuryMediaStudioPreview({
+      surface: 'audio', operation: 'text-to-audio', prompt: 'A bounded audio prompt', outputMimeType: 'audio/wav', adapters: [adapter],
+      options: { provider: selectorId, model: 'audio-voice', voice: 'alloy', language: 'fr-FR', durationMs: 4_000 },
+    });
+    expect(preview).toMatchObject({ provider: selectorId, model: 'audio-voice', executionAuthorized: false, requiresApproval: true });
+    expect(preview.controlsDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
+    expect(preview).not.toHaveProperty('voice');
+    expect(preview).not.toHaveProperty('language');
+    expect(preview).not.toHaveProperty('prompt');
+    expect(() => createFuryMediaStudioPreview({
+      surface: 'audio', operation: 'text-to-audio', prompt: 'x', outputMimeType: 'audio/wav', adapters: [adapter],
+      options: { durationMs: 400 },
+    })).toThrow(/audio duration/u);
+    expect(() => createFuryMediaStudioPreview({
+      surface: 'audio', operation: 'text-to-audio', prompt: 'x', outputMimeType: 'audio/wav', adapters: [adapter],
+      options: { language: 'fr FR' },
+    })).toThrow(/audio language/u);
+  });
+
   it('projects durable job history without inventing dimensions, seed or cost', () => {
     const digest = 'a'.repeat(64);
     const job: FuryMediaGenerationJob = {

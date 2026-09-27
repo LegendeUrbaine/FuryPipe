@@ -49,6 +49,8 @@ export interface FuryMediaStudioPreviewOptions {
   readonly reference?: string;
   readonly durationMs?: number;
   readonly fps?: number;
+  readonly voice?: string;
+  readonly language?: string;
   readonly aspectRatio?: string;
   readonly resolution?: string;
   readonly quality?: string;
@@ -125,6 +127,7 @@ const RESOLUTIONS = new Set(['1024x1024', '1536x1024', '1024x1536']);
 const VIDEO_RESOLUTIONS = new Set(['720p', '1080p', '2160p']);
 const QUALITIES = new Set(['standard', 'high']);
 const STYLES = new Set(['auto', 'photorealistic', 'illustration', 'cinematic', '3d']);
+const LANGUAGE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/u;
 const SURFACES: Readonly<Record<FuryMediaStudioSurfaceId, FuryMediaStudioSurface>> = Object.freeze({
   image: Object.freeze({
     id: 'image', title: 'FuryImage Studio', family: 'image-generation',
@@ -167,9 +170,12 @@ const SURFACES: Readonly<Record<FuryMediaStudioSurfaceId, FuryMediaStudioSurface
     operations: Object.freeze(['text-to-audio', 'audio-to-audio', 'voice-generation', 'sound-effect'] as FuryMediaGenerationMode[]),
     outputMimeTypes: Object.freeze(['audio/wav', 'audio/mpeg']),
     controls: Object.freeze([
+      Object.freeze({ id: 'provider', label: 'Provider / AUTO', type: 'select', required: true, bounded: true as const }),
+      Object.freeze({ id: 'model', label: 'Model', type: 'select', required: true, bounded: true as const }),
       Object.freeze({ id: 'prompt', label: 'Prompt', type: 'text', required: true, bounded: true as const }),
       Object.freeze({ id: 'durationMs', label: 'Duration', type: 'number', required: false, bounded: true as const }),
-      Object.freeze({ id: 'voice', label: 'Voice', type: 'select', required: false, bounded: true as const }),
+      Object.freeze({ id: 'voice', label: 'Voice', type: 'text', required: false, bounded: true as const }),
+      Object.freeze({ id: 'language', label: 'Language', type: 'text', required: false, bounded: true as const }),
     ]),
     state: 'CORE_AVAILABLE_PROVIDER_OPTIONAL', executionAuthorized: false,
   }),
@@ -218,7 +224,7 @@ function boundedNumber(value: unknown, label: string, min: number, max: number, 
 function normalizeProviderModel(
   input: FuryMediaStudioPreviewOptions,
   adapters: readonly FuryMediaGenerationAdapter[],
-  family: 'image-generation' | 'video-generation',
+  family: 'image-generation' | 'video-generation' | 'audio-generation',
 ): { readonly provider: string; readonly model: string } {
   const provider = input.provider ?? 'AUTO';
   if (typeof provider !== 'string' || (provider !== 'AUTO' && !SELECTOR_ID.test(provider))) throw new TypeError('media studio provider selection is invalid');
@@ -284,6 +290,31 @@ function normalizeVideoOptions(
   return Object.freeze({ provider, model, controls: Object.freeze(controls) });
 }
 
+function normalizeAudioOptions(
+  input: FuryMediaStudioPreviewOptions | undefined,
+  adapters: readonly FuryMediaGenerationAdapter[],
+): { readonly provider: string; readonly model: string; readonly controls: Readonly<Record<string, string | number>> } {
+  if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) throw new TypeError('media studio audio controls are invalid');
+  const options = input ?? {};
+  const allowedKeys = new Set(['provider', 'model', 'voice', 'language', 'durationMs']);
+  if (Object.keys(options).some((key) => !allowedKeys.has(key))) throw new TypeError('media studio audio controls contain an unsupported field');
+  const { provider, model } = normalizeProviderModel(options, adapters, 'audio-generation');
+  const controls: Record<string, string | number> = {};
+  const voice = boundedControlText(options.voice, 'audio voice');
+  if (voice !== undefined) {
+    if (!MODEL_ID.test(voice)) throw new TypeError('media studio audio voice is invalid');
+    controls.voice = voice;
+  }
+  const language = boundedControlText(options.language, 'audio language');
+  if (language !== undefined) {
+    if (!LANGUAGE.test(language)) throw new TypeError('media studio audio language is invalid');
+    controls.language = language;
+  }
+  const durationMs = boundedNumber(options.durationMs, 'audio duration', 500, 600_000, true);
+  if (durationMs !== undefined) controls.durationMs = durationMs;
+  return Object.freeze({ provider, model, controls: Object.freeze(controls) });
+}
+
 export function createFuryMediaStudioSnapshot(options: {
   readonly adapters?: readonly FuryMediaGenerationAdapter[];
   readonly now?: () => number;
@@ -332,8 +363,7 @@ export function createFuryMediaStudioPreview(input: {
     ? normalizeImageOptions(input.options, adapters)
     : input.surface === 'video'
       ? normalizeVideoOptions(input.options, adapters)
-      : { provider: 'AUTO', model: 'AUTO', controls: Object.freeze({}) };
-  if (input.surface === 'audio' && input.options !== undefined && Object.keys(input.options).length > 0) throw new TypeError('media studio audio controls are not implemented in the preview boundary');
+      : normalizeAudioOptions(input.options, adapters);
   const promptDigestSha256 = digest(input.prompt);
   const controlsDigestSha256 = digest(JSON.stringify(surfaceOptions.controls));
   const idempotencySeedDigestSha256 = digest(JSON.stringify({ surface: input.surface, operation: input.operation, promptDigestSha256, outputMimeType: input.outputMimeType, provider: surfaceOptions.provider, model: surfaceOptions.model, controlsDigestSha256 }));

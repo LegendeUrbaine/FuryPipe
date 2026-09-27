@@ -110,6 +110,16 @@ describe('Studio API', () => {
     expect(preview.controlsDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
     expect(preview).not.toHaveProperty('prompt');
 
+    const audioPreviewResponse = await studio.handle('media-preview', post({
+      surface: 'audio', operation: 'text-to-audio', prompt: 'A bounded audio prompt', outputMimeType: 'audio/wav',
+      options: { provider: 'AUTO', model: 'AUTO', voice: 'alloy', language: 'fr-FR', durationMs: 4_000 },
+    }));
+    expect(audioPreviewResponse.status).toBe(200);
+    const audioPreview = await audioPreviewResponse.json() as Record<string, unknown>;
+    expect(audioPreview).toMatchObject({ surface: 'audio', operation: 'text-to-audio', provider: 'AUTO', model: 'AUTO', executionAuthorized: false });
+    expect(audioPreview).not.toHaveProperty('voice');
+    expect(audioPreview).not.toHaveProperty('prompt');
+
     const galleryResponse = await studio.handle('media-jobs', new Request('http://127.0.0.1/api/studio/media/jobs.json'));
     expect(galleryResponse.status).toBe(200);
     expect(await galleryResponse.json()).toMatchObject({

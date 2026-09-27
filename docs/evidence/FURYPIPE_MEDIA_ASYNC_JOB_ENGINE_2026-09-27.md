@@ -64,7 +64,9 @@ Implemented files:
 ## Studio preview boundary
 
 `src/media-studio.ts` defines bounded FuryImage, FuryVideo and FuryAudio
-surfaces. `GET /api/studio/media.json` projects capability observations only;
+surfaces. FuryImage additionally exposes capability-driven Provider/AUTO, Model,
+aspect ratio, resolution, quality and bounded advanced controls. `GET
+/api/studio/media.json` projects capability observations only;
 `POST /api/studio/media/preview` returns digest-only preview evidence. Neither
 route invokes a provider, reads credentials, creates a billable job or grants
 execution authority. Studio renders these surfaces in `src/studio/studio-page.ts`
@@ -104,8 +106,8 @@ automatically resubmitted. `UNKNOWN` requires explicit reconciliation proof.
 
 - Focused media runtime, async job engine and Studio preview/API contracts:
   `43/43` tests passed.
-- Full Vitest suite: `337/337` files passed; `3,551` passed, `6` skipped,
-  `3,557` total.
+- Full Vitest suite: `337/337` files passed; `3,552` passed, `6` skipped,
+  `3,558` total.
 - TypeScript source typecheck: passed.
 - Hosted-MCP TypeScript typecheck: passed.
 - Build: `node scripts/build.mjs` passed.

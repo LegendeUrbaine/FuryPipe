@@ -1475,6 +1475,10 @@ const SCRIPT = String.raw`
     const surfaceSelect = $('#media-surface');
     const operationSelect = $('#media-operation');
     const mimeSelect = $('#media-mime');
+    const providerSelect = $('#media-provider');
+    const modelSelect = $('#media-model');
+    const imageControls = $('#media-image-controls');
+    const submitButton = $('#media-submit');
     if (!surfaceSelect || !operationSelect || !mimeSelect || !snapshot || !Array.isArray(snapshot.surfaces)) return;
     const surface = snapshot.surfaces.find((item) => item.id === surfaceSelect.value) || snapshot.surfaces[0];
     if (!surface) return;
@@ -1485,6 +1489,28 @@ const SCRIPT = String.raw`
     const currentMime = mimeSelect.value;
     mimeSelect.replaceChildren(...(Array.isArray(surface.outputMimeTypes) ? surface.outputMimeTypes : []).map((mime) => el('option', { value: mime, text: mime })));
     if (surface.outputMimeTypes.includes(currentMime)) mimeSelect.value = currentMime;
+    const image = surface.id === 'image';
+    if (imageControls) imageControls.hidden = !image;
+    if (submitButton) submitButton.textContent = image ? 'Generate image (preview-only)' : 'Preview governed request';
+    const imageAdapters = Array.isArray(snapshot.adapters) ? snapshot.adapters.filter((adapter) => adapter.family === 'image-generation') : [];
+    if (providerSelect && modelSelect) {
+      const previousProvider = providerSelect.value || 'AUTO';
+      const providerValues = ['AUTO', ...imageAdapters.map((adapter) => adapter.selectorId)];
+      providerSelect.replaceChildren(...providerValues.map((value) => {
+        const adapter = imageAdapters.find((candidate) => candidate.selectorId === value);
+        return el('option', { value, text: adapter ? adapter.bundleId + ' · ' + adapter.profileId : 'AUTO' });
+      }));
+      providerSelect.value = providerValues.includes(previousProvider) ? previousProvider : 'AUTO';
+      const selectedAdapter = imageAdapters.find((adapter) => adapter.selectorId === providerSelect.value);
+      const modelValues = ['AUTO', ...imageAdapters.filter((adapter) => !selectedAdapter || adapter.selectorId === selectedAdapter.selectorId).map((adapter) => adapter.profileId).filter((value, index, values) => values.indexOf(value) === index)];
+      const previousModel = modelSelect.value || 'AUTO';
+      modelSelect.replaceChildren(...modelValues.map((value) => el('option', { value, text: value })));
+      modelSelect.value = modelValues.includes(previousModel) ? previousModel : 'AUTO';
+    }
+    const providerStatus = $('#media-provider-status');
+    if (providerStatus) providerStatus.textContent = image
+      ? (imageAdapters.length === 0 ? 'No image provider configured. Studio remains preview-only.' : 'Image adapter capability observed. Live provider execution is not validated here.')
+      : (snapshot.providerExecution === 'NOT_CONFIGURED' ? 'No provider adapter registered. Studio remains preview-only.' : 'Adapter capability observed. Live provider execution is not validated here.');
   }
   function renderMediaSnapshot(snapshot) {
     const surfaces = $('#media-surfaces');
@@ -1498,9 +1524,10 @@ const SCRIPT = String.raw`
       }));
     }
     const providerStatus = $('#media-provider-status');
-    if (providerStatus) providerStatus.textContent = snapshot.providerExecution === 'NOT_CONFIGURED'
-      ? 'No provider adapter registered. Studio remains preview-only.'
-      : 'Adapter capability observed. Live provider execution is not validated here.';
+    const imageAdapters = Array.isArray(snapshot.adapters) ? snapshot.adapters.filter((adapter) => adapter.family === 'image-generation') : [];
+    if (providerStatus) providerStatus.textContent = imageAdapters.length === 0
+      ? 'No image provider configured. Studio remains preview-only.'
+      : 'Image adapter capability observed. Live provider execution is not validated here.';
     const adapters = $('#media-adapters');
     if (adapters) {
       const observations = Array.isArray(snapshot.adapters) ? snapshot.adapters : [];
@@ -1530,17 +1557,42 @@ const SCRIPT = String.raw`
     event.preventDefault();
     const status = $('#media-status');
     const output = $('#media-preview-out');
+    const surface = $('#media-surface').value;
+    const valueOrUndefined = (selector) => {
+      const value = $(selector).value;
+      return value === '' ? undefined : value;
+    };
+    const numberOrUndefined = (selector) => {
+      const value = valueOrUndefined(selector);
+      return value === undefined ? undefined : Number(value);
+    };
+    const imageOptions = surface === 'image' ? {
+      provider: $('#media-provider').value,
+      model: $('#media-model').value,
+      aspectRatio: $('#media-aspect-ratio').value,
+      resolution: $('#media-resolution').value,
+      quality: $('#media-quality').value,
+      negativePrompt: valueOrUndefined('#media-negative-prompt'),
+      seed: numberOrUndefined('#media-seed'),
+      guidance: numberOrUndefined('#media-guidance'),
+      steps: numberOrUndefined('#media-steps'),
+      style: $('#media-style').value,
+      inputStrength: numberOrUndefined('#media-input-strength'),
+    } : undefined;
     if (status) status.textContent = 'Building preview…';
     if (output) output.hidden = true;
     try {
       const preview = await post('/api/studio/media/preview', {
-        surface: $('#media-surface').value,
+        surface,
         operation: $('#media-operation').value,
         outputMimeType: $('#media-mime').value,
         prompt: $('#media-prompt').value,
+        ...(imageOptions ? { options: imageOptions } : {}),
       });
       if (output) { output.textContent = JSON.stringify(preview, null, 2); output.hidden = false; }
-      if (status) status.textContent = 'Preview built. No provider call or billable generation executed.';
+      if (status) status.textContent = surface === 'image'
+        ? 'Image preview built. No provider call or billable generation executed.'
+        : 'Preview built. No provider call or billable generation executed.';
     } catch (error) {
       if (status) status.textContent = 'Preview rejected: ' + (error instanceof Error ? error.message : String(error));
     }
@@ -2704,7 +2756,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
 <section data-view="media" class="media-workspace" aria-labelledby="h-media" hidden><h1 id="h-media">Media Studio</h1><p class="lead">FuryImage, FuryVideo and FuryAudio share the governed media runtime. This surface builds bounded previews only; no provider call, credential use or billable generation starts here.</p>
   <div class="cap-rail" aria-label="Media Studio guarantees"><span>${icon('shield')}Preview authority only</span><span>${icon('check')}Bounded prompt + MIME</span><span>${icon('artifacts')}Artifact references after runtime proof</span></div>
   <div class="grid" id="media-surfaces"></div>
-  <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><div class="row"><button type="submit">Preview governed request</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
+  <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-provider">Provider / AUTO</label><select id="media-provider"><option value="AUTO">AUTO</option></select></div><div><label for="media-model">Model</label><select id="media-model"><option value="AUTO">AUTO</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><fieldset id="media-image-controls"><legend>FuryImage controls</legend><div class="row"><div><label for="media-aspect-ratio">Aspect ratio</label><select id="media-aspect-ratio"><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-resolution">Resolution</label><select id="media-resolution"><option value="1024x1024">1024×1024</option><option value="1536x1024">1536×1024</option><option value="1024x1536">1024×1536</option></select></div><div><label for="media-quality">Quality</label><select id="media-quality"><option value="standard">Standard</option><option value="high">High</option></select></div></div><details><summary>Advanced image controls</summary><div class="row"><div><label for="media-negative-prompt">Negative prompt</label><input id="media-negative-prompt" maxlength="100000" placeholder="Optional exclusions"></div><div><label for="media-seed">Seed</label><input id="media-seed" type="number" min="0" max="2147483647" step="1"></div><div><label for="media-guidance">Guidance</label><input id="media-guidance" type="number" min="0" max="30" step="0.1"></div><div><label for="media-steps">Steps</label><input id="media-steps" type="number" min="1" max="150" step="1"></div><div><label for="media-style">Style</label><select id="media-style"><option value="auto">Auto</option><option value="photorealistic">Photorealistic</option><option value="illustration">Illustration</option><option value="cinematic">Cinematic</option><option value="3d">3D</option></select></div><div><label for="media-input-strength">Input strength</label><input id="media-input-strength" type="number" min="0" max="1" step="0.01"></div></div></details></fieldset><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><div class="row"><button id="media-submit" type="submit">Generate image (preview-only)</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
   <div class="card"><h2>Provider boundary</h2><p id="media-provider-status" class="muted">Loading registered capability observations…</p><div id="media-adapters"></div></div>
 </section>
 <section data-view="cowork" class="work-view" aria-labelledby="h-cowork" hidden><h1 id="h-cowork">Work</h1><p class="lead">Give FuryPipe a goal. It can plan first, or run with the exact permissions you allow.</p>

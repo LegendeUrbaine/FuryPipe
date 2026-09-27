@@ -102,6 +102,23 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
 
+## 2026-09-27 — FuryImage Studio controls
+
+- Added a provider-optional FuryImage form with `Provider / AUTO`, model,
+  aspect ratio, resolution and quality controls.
+- Added bounded advanced controls for negative prompt, seed, guidance, steps,
+  style and input strength; preview output contains digests only.
+- Provider/model choices are derived from registered adapter capability
+  observations. With no image adapter, the UI states `No image provider
+  configured` and remains preview-only.
+- Local proof: focused API/Media Studio tests passed, full suite `337` files /
+  `3,552` tests passed with `6` skipped, source and hosted-MCP typechecks,
+  build, package smoke and Chromium/Firefox/WebKit Browser QA passed.
+- Remaining: live provider SDK/credentials, billable execution, Studio history
+  and artifact UX, human visual/screen-reader review and hosted exact-head
+  validation for this follow-up.
+- Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
+
 ## 2026-09-27 — Media Studio preview surface
 
 - Added provider-neutral FuryImage, FuryVideo and FuryAudio Studio surfaces

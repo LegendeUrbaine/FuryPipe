@@ -259,7 +259,16 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.goto(`${origins.normal}/#/media`);
     await page.locator('#media-surfaces .card').filter({ hasText: 'FuryImage Studio' }).waitFor();
     await page.locator('#media-surfaces .card').filter({ hasText: 'FuryVideo Studio' }).waitFor();
-    await page.locator('#media-provider-status').filter({ hasText: 'preview-only' }).waitFor();
+    await page.locator('#media-provider-status').filter({ hasText: 'No image provider configured' }).waitFor();
+    await page.locator('#media-image-controls').waitFor({ state: 'visible' });
+    await page.locator('#media-provider option[value="AUTO"]').waitFor({ state: 'attached' });
+    await page.locator('#media-model option[value="AUTO"]').waitFor({ state: 'attached' });
+    await page.locator('#media-aspect-ratio').selectOption('16:9');
+    await page.locator('#media-resolution').selectOption('1536x1024');
+    await page.locator('#media-quality').selectOption('high');
+    await page.locator('#media-image-controls details > summary').click();
+    await page.locator('#media-negative-prompt').fill('blur');
+    await page.locator('#media-seed').fill('7');
     await page.locator('#media-operation option[value="text-to-image"]').waitFor({ state: 'attached' });
     await page.locator('#media-prompt').fill('A bounded browser preview');
     await page.locator('#media-preview-form button[type=submit]').click();

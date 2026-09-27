@@ -97,13 +97,15 @@ describe('Studio API', () => {
 
     const previewResponse = await studio.handle('media-preview', post({
       surface: 'image', operation: 'text-to-image', prompt: 'A bounded preview prompt', outputMimeType: 'image/png',
+      options: { provider: 'AUTO', model: 'AUTO', aspectRatio: '16:9', resolution: '1536x1024', quality: 'high', negativePrompt: 'blur', seed: 7 },
     }));
     expect(previewResponse.status).toBe(200);
     const preview = await previewResponse.json() as Record<string, unknown>;
     expect(preview).toMatchObject({
       surface: 'image', operation: 'text-to-image', outputMimeType: 'image/png',
-      state: 'PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY', requiresApproval: true, executionAuthorized: false,
+      provider: 'AUTO', model: 'AUTO', state: 'PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY', requiresApproval: true, executionAuthorized: false,
     });
+    expect(preview.controlsDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
     expect(preview).not.toHaveProperty('prompt');
 
     const rejectedResponse = await studio.handle('media-preview', post({

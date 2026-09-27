@@ -47,4 +47,32 @@ describe('Media Studio preview boundary', () => {
     expect(() => createFuryMediaStudioPreview({ surface: 'video', operation: 'text-to-image', prompt: 'x', outputMimeType: 'image/png' })).toThrow(/operation/u);
     expect(() => createFuryMediaStudioPreview({ surface: 'image', operation: 'text-to-image', prompt: 'x', outputMimeType: 'video/mp4' })).toThrow(/MIME/u);
   });
+
+  it('keeps FuryImage controls bounded and provider selection capability-driven', () => {
+    const adapter = createFuryDeterministicMediaGenerationAdapter({
+      bundleId: 'media-lab', bundleVersion: '1.0.0', profileId: 'image-text',
+      family: 'image-generation', supportedModes: ['text-to-image'], outputMimeType: 'image/png',
+    });
+    const snapshot = createFuryMediaStudioSnapshot({ adapters: [adapter], now: () => 7 });
+    const selectorId = snapshot.adapters[0]!.selectorId;
+    const preview = createFuryMediaStudioPreview({
+      surface: 'image', operation: 'text-to-image', prompt: 'A bounded image prompt', outputMimeType: 'image/png', adapters: [adapter],
+      options: {
+        provider: selectorId, model: 'image-text', aspectRatio: '16:9', resolution: '1536x1024', quality: 'high',
+        negativePrompt: 'blur', seed: 42, guidance: 7.5, steps: 24, style: 'cinematic', inputStrength: 0.4,
+      },
+    });
+    expect(preview).toMatchObject({ provider: selectorId, model: 'image-text' });
+    expect(preview.controlsDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
+    expect(preview).not.toHaveProperty('negativePrompt');
+    expect(preview).not.toHaveProperty('prompt');
+    expect(() => createFuryMediaStudioPreview({
+      surface: 'image', operation: 'text-to-image', prompt: 'x', outputMimeType: 'image/png', adapters: [adapter],
+      options: { provider: 'adapter_00000000000000000000000000000000', model: 'image-text' },
+    })).toThrow(/provider/u);
+    expect(() => createFuryMediaStudioPreview({
+      surface: 'image', operation: 'text-to-image', prompt: 'x', outputMimeType: 'image/png',
+      options: { aspectRatio: '2:1' },
+    })).toThrow(/aspect ratio/u);
+  });
 });

@@ -63,7 +63,7 @@ import {
   type FuryCodeScriptName,
   type FuryCodeScriptPlan,
 } from '../fury-code-advanced-node.js';
-import { createFuryMediaStudioPreview, createFuryMediaStudioSnapshot } from '../media-studio.js';
+import { createFuryMediaStudioPreview, createFuryMediaStudioSnapshot, type FuryMediaStudioPreviewOptions } from '../media-studio.js';
 import type { FuryMediaGenerationAdapter, FuryMediaGenerationMode } from '../media-generation-runtime.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
@@ -649,7 +649,7 @@ export function createStudioApi(options: StudioApiOptions) {
               now,
             }));
           case 'media-preview': {
-            const body = await readJson(request) as { surface?: unknown; operation?: unknown; prompt?: unknown; outputMimeType?: unknown };
+            const body = await readJson(request) as { surface?: unknown; operation?: unknown; prompt?: unknown; outputMimeType?: unknown; options?: unknown };
             if (body?.surface !== 'image' && body?.surface !== 'video' && body?.surface !== 'audio') return problem(400, 'invalid-input', 'media surface must be image, video or audio');
             if (typeof body.operation !== 'string' || typeof body.prompt !== 'string' || typeof body.outputMimeType !== 'string') return problem(400, 'invalid-input', 'media operation, prompt and outputMimeType are required');
             try {
@@ -658,6 +658,8 @@ export function createStudioApi(options: StudioApiOptions) {
                 operation: body.operation as FuryMediaGenerationMode,
                 prompt: body.prompt,
                 outputMimeType: body.outputMimeType,
+                ...(body.options === undefined ? {} : { options: body.options as FuryMediaStudioPreviewOptions }),
+                ...(options.mediaAdapters === undefined ? {} : { adapters: options.mediaAdapters }),
               }));
             } catch (error) {
               return problem(422, 'media-preview-rejected', (error as Error).message.slice(0, 300));

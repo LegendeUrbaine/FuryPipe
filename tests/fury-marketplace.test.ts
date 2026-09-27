@@ -1,11 +1,14 @@
-import { generateKeyPairSync } from 'node:crypto';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
 import {
   createFuryMarketplaceManifest,
+  createFuryMarketplaceCatalog,
   planFuryMarketplaceTransition,
+  planFuryMarketplaceOperation,
   signFuryMarketplaceManifest,
+  verifyFuryMarketplaceSource,
   verifyFuryMarketplaceSignature,
 } from '../src/fury-marketplace.js';
 
@@ -47,6 +50,7 @@ describe('Fury Marketplace foundation', () => {
       format: 'furypipe-marketplace-manifest/v1',
       executionAuthorized: false,
       trust: 'VERIFIED',
+      compatibility: [],
     });
   });
 
@@ -158,5 +162,40 @@ describe('Fury Marketplace foundation', () => {
       signature,
       trustedKeys,
     })).toThrow(/current version/u);
+  });
+
+  it('rejects forged metadata and keeps catalog, source verification and isolated operations approval-only', () => {
+    const source = 'verified marketplace package bytes';
+    const manifest = createFuryMarketplaceManifest({
+      ...fixture(),
+      sourceSha256: createHash('sha256').update(source).digest('hex'),
+      compatibility: ['node>=22', 'windows'],
+    });
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+    const privateKeyPem = privateKey.export({ format: 'pem', type: 'pkcs8' });
+    const publicKeyPem = publicKey.export({ format: 'pem', type: 'spki' });
+    const signature = signFuryMarketplaceManifest(manifest, privateKeyPem, 'verified-root');
+    const trustedKeys = [{ keyId: 'verified-root', publicKeyPem, trust: 'VERIFIED' as const }];
+    const catalog = createFuryMarketplaceCatalog({ entries: [{ manifest, signature }], trustedKeys });
+    const entry = catalog.find('example-skill', '1.2.3');
+    expect(entry).toBeDefined();
+    expect(catalog.snapshot()).toMatchObject({ format: 'furypipe-marketplace-catalog/v1', state: 'READY', count: 1, networkAuthorized: false, executionAuthorized: false });
+
+    const sourceVerification = verifyFuryMarketplaceSource({ manifest, signature, trustedKeys, source });
+    expect(sourceVerification).toMatchObject({
+      format: 'furypipe-marketplace-source-verification/v1', verified: true, hashMatches: true, signatureVerified: true,
+      compatibility: ['node>=22', 'windows'], networkAuthorized: false, filesystemAuthorized: false, executionAuthorized: false,
+    });
+    expect(planFuryMarketplaceOperation({ action: 'DOWNLOAD', entry: entry! })).toMatchObject({
+      state: 'READY_FOR_APPROVAL', sourceHashVerified: false, isolation: 'staged-verification-required', requiresOperatorApproval: true,
+    });
+    expect(planFuryMarketplaceOperation({ action: 'INSTALL', entry: entry! }).state).toBe('REJECTED');
+    expect(planFuryMarketplaceOperation({ action: 'INSTALL', entry: entry!, sourceVerification: sourceVerification })).toMatchObject({ state: 'READY_FOR_APPROVAL', sourceHashVerified: true });
+    expect(planFuryMarketplaceOperation({ action: 'UNINSTALL', entry: entry!, currentVersion: '1.0.0' })).toMatchObject({ action: 'UNINSTALL', state: 'READY_FOR_APPROVAL', filesystemAuthorized: false });
+
+    const forged = { ...manifest, permissions: { ...permissions, network: 'arbitrary' as const } };
+    expect(verifyFuryMarketplaceSignature(forged, signature, trustedKeys)).toMatchObject({ verified: false, reason: 'manifest digest does not match its metadata' });
+    expect(() => signFuryMarketplaceManifest(forged, privateKeyPem, 'verified-root')).toThrow(/digest does not match/u);
+    expect(verifyFuryMarketplaceSource({ manifest, signature, trustedKeys, source: 'tampered bytes' })).toMatchObject({ verified: false, signatureVerified: true, hashMatches: false });
   });
 });

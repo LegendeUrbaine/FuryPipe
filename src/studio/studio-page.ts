@@ -554,11 +554,11 @@ const SCRIPT = String.raw`
   const tpl = document.createElement('template');
   function ic(name, cls) { tpl.innerHTML = '<svg class="' + (cls || 'i') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || '') + '</svg>'; return tpl.content.firstChild; }
   const store = { get(k, d) { try { const v = localStorage.getItem('furypipe.studio.' + k); return v === null ? d : v; } catch { return d; } }, set(k, v) { try { localStorage.setItem('furypipe.studio.' + k, v); } catch {} } };
-  const views = ['chat','media','observability','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
-  const VIEW_TITLES = { chat: 'Chat', media: 'Media Studio', observability: 'Observability / Cost', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
+  const views = ['chat','media','observability','marketplace','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
+  const VIEW_TITLES = { chat: 'Chat', media: 'Media Studio', observability: 'Observability / Cost', marketplace: 'Marketplace', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
   const PROVIDER = { ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp', vllm: 'vLLM', sglang: 'SGLang', localai: 'LocalAI', jan: 'Jan', 'openai-compatible': 'OpenAI-compatible', 'anthropic-compatible': 'Anthropic-compatible' };
   const SETUP = { ollama: 'https://ollama.com/download', lmstudio: 'https://lmstudio.ai', llamacpp: 'https://github.com/ggml-org/llama.cpp', vllm: 'https://docs.vllm.ai', sglang: 'https://docs.sglang.ai', localai: 'https://localai.io', jan: 'https://jan.ai' };
-  const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, media: null, observability: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
+  const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, media: null, observability: null, marketplace: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
   /* ---------- Locale / i18n ---------- */
   const SUPPORTED_LANGUAGES = Object.freeze(['en', 'fr']);
   const FR = Object.freeze({
@@ -1057,6 +1057,7 @@ const SCRIPT = String.raw`
     if (name === 'chat' || name === 'models') loadLocal();
     if (name === 'media') loadMedia();
     if (name === 'observability') loadObservability();
+    if (name === 'marketplace') loadMarketplace();
     if (name === 'autopilot') $('#autopilot-effort').value = $('#effort-select').value;
     if (name === 'chat') autosize();
     if (name === 'connections') loadConnections();
@@ -1627,6 +1628,48 @@ const SCRIPT = String.raw`
       const message = error instanceof Error ? error.message : String(error);
       const status = $('#observability-status');
       if (status) status.textContent = 'Observability load failed: ' + message;
+    }
+  }
+  function renderMarketplace(snapshot) {
+    const status = $('#marketplace-status');
+    const summary = $('#marketplace-summary');
+    const list = $('#marketplace-list');
+    if (!snapshot) return;
+    const entries = Array.isArray(snapshot.entries) ? snapshot.entries : [];
+    const verified = entries.filter((entry) => entry.verification && entry.verification.verified).length;
+    if (status) status.textContent = snapshot.state === 'EMPTY'
+      ? 'No signed catalog configured. Network download and installation stay disabled.'
+      : 'Signed metadata only. Review approval and isolated verification are required before any install path.';
+    if (summary) summary.replaceChildren(
+      el('div', { class: 'autopilot-summary' },
+        el('div', { class: 'autopilot-stat' }, el('b', { text: String(entries.length) }), el('span', { text: 'catalog entries' })),
+        el('div', { class: 'autopilot-stat' }, el('b', { text: String(verified) }), el('span', { text: 'verified signatures' })),
+        el('div', { class: 'autopilot-stat' }, el('b', { text: 'PLAN ONLY' }), el('span', { text: 'download / install authority' })),
+      ),
+    );
+    if (list) list.replaceChildren(...(entries.length ? entries.map((entry) => {
+      const manifest = entry.manifest || {};
+      const verification = entry.verification || {};
+      const card = el('article', { class: 'card extension-card' });
+      card.append(
+        el('h3', { text: String(manifest.name || manifest.id || 'Unnamed capability') + ' · ' + String(manifest.version || 'unknown') }),
+        el('p', { class: 'muted' }, badge(String(manifest.capabilityType || 'unknown'), 'muted'), ' ', badge(String(verification.trust || manifest.trust || 'RESTRICTED'), verification.verified ? 'good' : 'muted'), ' ', badge(verification.verified ? 'signature verified' : 'untrusted metadata', verification.verified ? 'good' : 'muted')),
+        el('p', { class: 'muted', text: 'License: ' + String(manifest.license || 'UNKNOWN') + ' · Compatibility: ' + (Array.isArray(manifest.compatibility) && manifest.compatibility.length ? manifest.compatibility.join(', ') : 'not declared') }),
+        el('p', { class: 'muted', text: 'Permissions: ' + Object.entries(manifest.permissions || {}).filter(([key]) => key !== 'externalWrites').map(([key, value]) => key + '=' + String(value)).join(' · ') }),
+        el('p', { class: 'muted', text: 'Source SHA-256: ' + String(manifest.sourceSha256 || 'UNKNOWN') + ' · Plan: approval + staged verification only' }),
+      );
+      return card;
+    }) : [el('p', { class: 'muted', text: 'Catalog empty. Add signed metadata through the governed host; this view never fetches or installs packages.' })]));
+  }
+  async function loadMarketplace() {
+    try {
+      const snapshot = await getJson('/api/studio/marketplace.json');
+      state.marketplace = snapshot;
+      renderMarketplace(snapshot);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = $('#marketplace-status');
+      if (status) status.textContent = 'Marketplace load failed: ' + message;
     }
   }
   async function loadMedia() {
@@ -2852,7 +2895,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
     <li class="nav-more-row"><details class="nav-more" id="nav-more"><summary>${icon('more')}<span class="label">More</span>${icon('chevron','i more-chevron')}</summary><ul>
       ${nav('knowledge', 'power', 'Knowledge')}${nav('web', 'power', 'Web')}${nav('memory', 'power', 'Memory')}
       ${nav('models', 'simple', 'Models')}${nav('connections', 'simple', 'Connections')}${nav('mission', 'expert', 'Mission Control')}
-      ${nav('runtimes', 'engineer', 'Runtimes')}${nav('observability', 'engineer', 'Observability')}${nav('skills', 'power', 'Skills')}${nav('mcp', 'power', 'MCP')}${nav('extensions', 'power', 'Extensions')}${nav('artifacts', 'power', 'Artifacts')}${nav('integrations', 'engineer', 'Integrations')}${nav('support', 'simple', 'Support')}
+      ${nav('runtimes', 'engineer', 'Runtimes')}${nav('observability', 'engineer', 'Observability')}${nav('marketplace', 'power', 'Marketplace')}${nav('skills', 'power', 'Skills')}${nav('mcp', 'power', 'MCP')}${nav('extensions', 'power', 'Extensions')}${nav('artifacts', 'power', 'Artifacts')}${nav('integrations', 'engineer', 'Integrations')}${nav('support', 'simple', 'Support')}
     </ul></details></li>
   </ul></nav>
   <div class="recent" aria-labelledby="recent-h"><h2 id="recent-h">Recent</h2><ul id="chat-list" aria-labelledby="recent-h"></ul></div>
@@ -2943,6 +2986,11 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div class="cap-rail" aria-label="Observability guarantees"><span>${icon('shield')}Observed evidence only</span><span>${icon('check')}No raw prompt or response</span><span>${icon('settings')}No execution authority</span></div>
   <div class="card"><h2>Current evidence</h2><p id="observability-status" class="status muted" role="status">Loading observability…</p><div id="observability-summary"></div></div>
   <div class="grid"><div class="card"><h2>Trace tree summaries</h2><div id="observability-traces"><p class="muted">Loading trace evidence…</p></div></div><div class="card"><h2>Budget guards</h2><div id="observability-budgets"><p class="muted">Loading budget evidence…</p></div></div></div>
+</section>
+<section data-view="marketplace" aria-labelledby="h-marketplace" hidden><h1 id="h-marketplace">Marketplace</h1><p class="lead">Signed capability metadata, license, compatibility and permissions. Download, verification and install paths remain explicit plans; this Studio surface never fetches, mutates files or executes packages.</p>
+  <div class="cap-rail" aria-label="Marketplace guarantees"><span>${icon('shield')}Ed25519 metadata trust</span><span>${icon('check')}Hash before staged install</span><span>${icon('settings')}Approval-only authority</span></div>
+  <div class="card"><h2>Catalog</h2><p id="marketplace-status" class="status muted" role="status">Loading signed catalog…</p><div id="marketplace-summary"></div></div>
+  <div class="card"><h2>Available capabilities</h2><div id="marketplace-list"><p class="muted">Loading marketplace metadata…</p></div></div>
 </section>
 <section data-view="cowork" class="work-view" aria-labelledby="h-cowork" hidden><h1 id="h-cowork">Work</h1><p class="lead">Give FuryPipe a goal. It can plan first, or run with the exact permissions you allow.</p>
   <div class="card work-brief"><label for="cowork-intent">What should FuryPipe do?</label><textarea id="cowork-intent" placeholder="e.g. Review the project, fix the issue and verify the result"></textarea>

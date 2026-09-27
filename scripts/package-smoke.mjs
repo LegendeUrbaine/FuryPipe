@@ -704,6 +704,12 @@ try {
     "const m = await import('furypipe/fury-memory-time-machine'); if (typeof m.createFuryMemoryTimeMachine !== 'function' || m.FURY_MEMORY_SNAPSHOT_FORMAT !== 'furypipe-memory-snapshot/v1') process.exit(1);",
   ], installDir);
   assert(memoryTimeMachineExport.stderr === '', `Memory Time Machine package export wrote stderr: ${memoryTimeMachineExport.stderr}`);
+  const marketplaceExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-marketplace'); if (typeof m.createFuryMarketplaceCatalog !== 'function' || typeof m.verifyFuryMarketplaceSource !== 'function' || m.FURY_MARKETPLACE_CATALOG_FORMAT !== 'furypipe-marketplace-catalog/v1') process.exit(1);",
+  ], installDir);
+  assert(marketplaceExport.stderr === '', `Marketplace package export wrote stderr: ${marketplaceExport.stderr}`);
   const controlRoomEvidenceExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

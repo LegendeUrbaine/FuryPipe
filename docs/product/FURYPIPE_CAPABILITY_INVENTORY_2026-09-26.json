@@ -323,7 +323,7 @@
       "dependsOn": "PLAT-01,02",
       "acceptance": "Unsigned component shown as untrusted",
       "testStrategy": "unit",
-      "status": "NOT_STARTED"
+      "status": "PARTIAL FOUNDATION — signed deterministic manifest, compatibility/license/permission metadata, digest-recomputed Ed25519 verification, metadata-only catalog, source hash verification and approval-only DOWNLOAD/VERIFY/INSTALL/UPDATE/ROLLBACK/UNINSTALL plans; no downloader, filesystem installer or execution authority"
     },
     {
       "id": "SHOULD-03",

@@ -69,6 +69,7 @@ import type { FuryMediaGenerationJobEngine } from '../media-generation-job-engin
 import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } from '../fury-video-timeline.js';
 import { createFuryObservabilityNotConfiguredSnapshot, type FuryObservabilityRegistry } from '../fury-observability.js';
 import { createFuryMemoryTimeMachine, type FuryMemorySnapshot } from '../fury-memory-time-machine.js';
+import { createFuryMarketplaceCatalog, type FuryMarketplaceCatalog } from '../fury-marketplace.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
@@ -83,6 +84,7 @@ export type StudioRoute =
   | 'memory' | 'memory-remember' | 'memory-search' | 'memory-act'
   | 'integrations' | 'connections' | 'connection-login' | 'support'
   | 'media' | 'media-preview' | 'media-jobs' | 'media-timeline-preview' | 'observability'
+  | 'marketplace'
   | 'memory-time-machine' | 'memory-time-machine-diff' | 'memory-time-machine-restore' | 'memory-time-machine-action' | 'memory-time-machine-export'
   | 'artifacts' | 'artifact-get' | 'artifact-create' | 'artifact-version' | 'artifact-search' | 'artifact-restore-plan' | 'artifact-restore' | 'artifact-export'
   | 'chats' | 'chat-get' | 'chat-save' | 'chat-branch' | 'chat-delete'
@@ -111,6 +113,7 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/media/jobs.json': { route: 'media-jobs', method: 'GET' },
   '/api/studio/media/timeline/preview': { route: 'media-timeline-preview', method: 'POST' },
   '/api/studio/observability.json': { route: 'observability', method: 'GET' },
+  '/api/studio/marketplace.json': { route: 'marketplace', method: 'GET' },
   '/api/studio/memory/time-machine.json': { route: 'memory-time-machine', method: 'GET' },
   '/api/studio/memory/time-machine/diff': { route: 'memory-time-machine-diff', method: 'POST' },
   '/api/studio/memory/time-machine/restore': { route: 'memory-time-machine-restore', method: 'POST' },
@@ -220,6 +223,8 @@ export interface StudioApiOptions {
   readonly mediaJobEngine?: Pick<FuryMediaGenerationJobEngine, 'list'>;
   /** Optional evidence registry; Studio only reads its immutable snapshot. */
   readonly observability?: Pick<FuryObservabilityRegistry, 'snapshot'>;
+  /** Optional signed marketplace metadata catalog; Studio only reads its immutable snapshot. */
+  readonly marketplace?: Pick<FuryMarketplaceCatalog, 'snapshot'>;
 }
 
 interface StudioRun {
@@ -408,6 +413,7 @@ export function createStudioApi(options: StudioApiOptions) {
     return m.store;
   };
   const memoryTimeMachine = () => createFuryMemoryTimeMachine({ memory: memoryStore(), now });
+  const marketplaceCatalog = () => options.marketplace ?? createFuryMarketplaceCatalog({ entries: [], trustedKeys: [] });
   const studioMemoryScope = (value: unknown): 'project' | 'user' => {
     if (value !== 'project' && value !== 'user') throw Object.assign(new Error('scope must be project or user'), { status: 400 });
     return value;
@@ -705,6 +711,8 @@ export function createStudioApi(options: StudioApiOptions) {
           }
           case 'observability':
             return json(options.observability?.snapshot() ?? createFuryObservabilityNotConfiguredSnapshot(now));
+          case 'marketplace':
+            return json(marketplaceCatalog().snapshot());
           case 'memory-time-machine': {
             const scopes = studioMemoryScopes(options.projectRoot);
             const snapshot = await memoryTimeMachine().snapshot({ scopes: [scopes.project, scopes.user], now: now() });

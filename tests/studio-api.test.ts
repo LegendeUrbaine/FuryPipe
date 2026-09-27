@@ -75,6 +75,7 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/media/jobs.json')).toEqual({ route: 'media-jobs', method: 'GET' });
     expect(studioApiRoute('/api/studio/media/timeline/preview')).toEqual({ route: 'media-timeline-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/observability.json')).toEqual({ route: 'observability', method: 'GET' });
+    expect(studioApiRoute('/api/studio/marketplace.json')).toEqual({ route: 'marketplace', method: 'GET' });
     expect(studioApiRoute('/api/studio/memory/time-machine.json')).toEqual({ route: 'memory-time-machine', method: 'GET' });
     expect(studioApiRoute('/api/studio/memory/time-machine/restore')).toEqual({ route: 'memory-time-machine-restore', method: 'POST' });
     expect(studioApiRoute('/api/studio/../control-room.json')).toBeNull();
@@ -136,6 +137,13 @@ describe('Studio API', () => {
       format: 'furypipe-observability-snapshot/v1', state: 'NOT_CONFIGURED', authority: 'observed-evidence-only', executionAuthority: false,
     });
 
+    const marketplaceResponse = await studio.handle('marketplace', new Request('http://127.0.0.1/api/studio/marketplace.json'));
+    expect(marketplaceResponse.status).toBe(200);
+    expect(await marketplaceResponse.json()).toMatchObject({
+      format: 'furypipe-marketplace-catalog/v1', state: 'EMPTY', count: 0,
+      authority: 'marketplace-metadata-only', networkAuthorized: false, filesystemAuthorized: false, executionAuthorized: false,
+    });
+
     const rejectedResponse = await studio.handle('media-preview', post({
       surface: 'video', operation: 'text-to-image', prompt: 'bad operation', outputMimeType: 'image/png',
     }));
@@ -146,6 +154,7 @@ describe('Studio API', () => {
     expect(page).toContain('FuryImage Studio');
     expect(page).toContain('FuryVideo Studio');
     expect(page).toContain('Observability / Cost');
+    expect(page).toContain('Marketplace');
     expect(page).toContain('Memory Time Machine');
     expect(page).toContain('preview-only');
   });

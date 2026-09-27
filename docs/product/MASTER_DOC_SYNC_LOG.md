@@ -266,3 +266,26 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - Status: `PARTIAL_MEMORY_TIME_MACHINE_LOCAL_CONTRACT_VERIFIED`.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-27 — FuryMarketplace control plane
+
+- Reconciled Marketplace against the continuation roadmap: catalog, source
+  hash, detached signature, license, trust, compatibility, permissions,
+  approval and lifecycle plan contracts are now represented in the existing
+  `src/fury-marketplace.ts` authority.
+- Manifest signing and verification recompute the metadata digest. Forged
+  capability or permission metadata with a stale declared digest is rejected.
+- Added bounded metadata-only catalog and supplied-byte source verification.
+  DOWNLOAD / VERIFY / INSTALL / UPDATE / ROLLBACK / UNINSTALL remain plans;
+  no network fetch, filesystem mutation or package execution is introduced.
+- Studio adds a read-only Marketplace route/view. Empty catalog is explicit
+  when no signed catalog is injected; no availability is fabricated.
+- Local proof: Marketplace/Studio focused `31/31`; full Vitest `340` files /
+  `3,569` passed / `6` skipped; source and hosted-MCP typechecks, build,
+  installed package smoke and Chromium/Firefox/WebKit Browser QA passed.
+- Status: `PARTIAL_MARKETPLACE_CONTROL_PLANE_LOCAL_CONTRACT_VERIFIED`.
+- Remaining: persistent catalog, real downloader, isolated installer,
+  compatibility host matrix, rollback executor, human review and hosted
+  exact-head evidence.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.

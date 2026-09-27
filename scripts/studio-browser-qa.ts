@@ -328,6 +328,11 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#h-observability').waitFor({ state: 'visible' });
     await page.locator('#observability-status').filter({ hasText: 'not configured' }).waitFor();
     assert((await page.locator('#observability-summary').textContent())?.includes('0'), `${name}: empty observability summary missing`);
+    await page.goto(`${origins.normal}/#/marketplace`);
+    await page.locator('#h-marketplace').waitFor({ state: 'visible' });
+    await page.locator('#marketplace-status').filter({ hasText: 'No signed catalog configured' }).waitFor();
+    assert((await page.locator('#marketplace-summary').textContent())?.includes('PLAN ONLY'), `${name}: marketplace authority summary missing`);
+    assert(!(await page.locator('#marketplace-list').textContent())?.includes('downloaded'), `${name}: marketplace presented an execution claim`);
     await page.goto(`${origins.normal}/#/runtimes`);
     await page.locator('#runtimes-body tr').filter({ hasText: 'Claude Code' }).filter({ hasText: '2.1.282' }).waitFor();
     await page.goto(`${origins.normal}/#/skills`);
@@ -466,7 +471,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await setMode(page, 'expert');
     for (const width of [1280, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 844 });
-      for (const view of ['chat', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
+      for (const view of ['chat', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'observability', 'marketplace', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
         await page.goto(`${origins.normal}/#/${view}`);
         await page.locator(`section[data-view="${view}"] h1`).waitFor();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

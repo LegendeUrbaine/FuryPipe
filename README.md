@@ -271,6 +271,10 @@ FuryPipe is a governed context runtime rather than a single-purpose proxy. Its p
 The loopback Control Plane V2 exposes only bounded, read-only runtime and source-bound evidence. It does not execute capabilities from the dashboard; unavailable wiring remains fail-visible. See [Control Plane V2](docs/CONTROL_PLANE.md).
 
 The visual engine uses provider-priced geometry planning and lossless rendering safeguards; transformations remain gated by profitability and fidelity checks rather than being applied blindly. See [Visual Engine](docs/VISUAL_ENGINE.md) for the pipeline and release invariants.
+
+The FuryPipe Studio shell uses the official black, graphite, orange and white
+identity. See [FuryPipe brand guidelines](docs/brand/FURYPIPE_BRAND_GUIDELINES.md)
+for the centralized UI mark, usage rules and asset-source boundary.
 ## CLI
 
 Common entry points:

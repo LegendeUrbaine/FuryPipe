@@ -12,6 +12,11 @@
 // compile-time constant.
 import { randomBytes } from 'node:crypto';
 import { FURY_HARNESS_REGISTRY } from '../fury-harness-hub.js';
+import {
+  FURYPIPE_FAVICON_SVG,
+  renderFuryPipeMonogramSvg,
+  renderFuryPipeWordmarkHtml,
+} from './studio-brand.js';
 
 export const STUDIO_EXAMPLE_IR = Object.freeze({
   format: 'furypipe-ir/v1',
@@ -105,8 +110,11 @@ function icon(name: string, cls = 'i'): string {
   return `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] ?? ''}</svg>`;
 }
 
-/** The FuryPipe mark: a ring, a luminous core and the pipe flowing through it. */
-const MARK = '<svg class="mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><circle cx="16" cy="16" r="13" fill="none" stroke="url(#fury-ring)" stroke-width="1.4"/><path d="M4.5 20.5c5 0 6.5-9 11.5-9s6.5 9 11.5 9" fill="none" stroke="url(#fury-flow)" stroke-width="2.2" stroke-linecap="round"/><circle cx="16" cy="11.5" r="3.1" fill="url(#fury-core)"/></svg>';
+const MARK = renderFuryPipeMonogramSvg({ className: 'mark brand-mark', tone: 'accent' });
+const TOP_MARK = renderFuryPipeMonogramSvg({ className: 'top-brand-mark brand-mark', tone: 'accent' });
+const HERO_MARK = renderFuryPipeMonogramSvg({ className: 'hero-brand-mark brand-mark', tone: 'accent' });
+const SUPPORT_MARK = renderFuryPipeMonogramSvg({ className: 'support-brand-mark brand-mark', tone: 'accent' });
+const WORDMARK = renderFuryPipeWordmarkHtml();
 
 const CSS = `
 :root{
@@ -149,7 +157,7 @@ kbd{font:600 11px/1 var(--font);color:var(--muted);border:1px solid var(--line-2
 /* ---------- Shell ---------- */
 .app{--side-w:var(--side-open-w,272px);display:grid;grid-template-columns:var(--side-w) minmax(0,1fr);height:100vh;height:100dvh;transition:grid-template-columns .26s var(--ease-out)}
 .app[data-collapsed="true"]{--side-w:68px}
-.side{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;background:linear-gradient(180deg,rgba(12,12,15,.98) 0%,var(--b0) 100%);border-right:1px solid var(--line);overflow:hidden;box-shadow:18px 0 70px -56px rgba(255,90,0,.26)}
+.side{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;background:linear-gradient(180deg,var(--b1) 0%,var(--b0) 100%);border-right:1px solid var(--line);overflow:hidden;box-shadow:18px 0 70px -56px rgba(255,90,0,.26)}
 .side::after{content:"";position:absolute;inset:0 0 auto 0;height:220px;background:radial-gradient(260px 140px at 40px -30px,rgba(255,106,26,.10),transparent 70%);pointer-events:none}
 .side-resizer{position:absolute;z-index:12;right:0;top:0;bottom:0;width:5px;cursor:col-resize;touch-action:none;outline:none}
 .side-resizer::before{content:"";position:absolute;right:0;top:12%;bottom:12%;width:1px;background:transparent;transition:background .18s,box-shadow .18s}
@@ -158,7 +166,9 @@ kbd{font:600 11px/1 var(--font);color:var(--muted);border:1px solid var(--line-2
 .side-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:16px 12px 10px 16px;position:relative;z-index:1}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:650 16.5px/1 var(--display);letter-spacing:-.015em;color:var(--ink);white-space:nowrap}
 .brand .mark{width:28px;height:28px;flex:none;filter:drop-shadow(0 0 10px rgba(255,106,26,.35))}
-.brand b{font-weight:650;color:var(--o-hot)}
+.brand-mark[data-tone="accent"]{color:var(--o-hot)}.brand-mark[data-tone="light"]{color:var(--ink)}.brand-mark[data-tone="white"]{color:#fff}.brand-mark[data-tone="dark"]{color:#050506}
+.wordmark{display:inline-flex;align-items:baseline;letter-spacing:-.015em}.wordmark-fury{color:var(--ink)}.wordmark-pipe{font-weight:650;color:var(--o-hot)}
+.top-brand{display:none;align-items:center;gap:8px;color:var(--ink);text-decoration:none;flex:none;font:650 14px/1 var(--display)}.top-brand-mark{width:24px;height:24px;filter:drop-shadow(0 0 8px rgba(255,106,26,.28))}.top-brand .wordmark-pipe{font-weight:650}
 .icon-btn{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;transition:background .15s,color .15s,transform .12s}
 .icon-btn:hover{background:var(--b4);color:var(--ink)}.icon-btn:active{transform:scale(.94)}
 .new-chat{position:relative;z-index:1;display:flex;align-items:center;gap:10px;margin:6px 12px 6px;height:42px;padding:0 12px;border-radius:13px;border:1px solid var(--o-line);background:linear-gradient(180deg,rgba(255,122,40,.17),rgba(255,106,26,.05));color:var(--ink);font:600 14px/1 var(--font);cursor:pointer;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 10px 30px -18px var(--o-glow);transition:transform .12s var(--ease),border-color .2s,background .2s;white-space:nowrap}
@@ -201,6 +211,7 @@ kbd{font:600 11px/1 var(--font);color:var(--muted);border:1px solid var(--line-2
 .mode-btn:hover{border-color:var(--line-2)}.mode-btn .mode-dot{width:8px;height:8px;border-radius:50%;background:var(--o-core);box-shadow:0 0 8px var(--o-core);flex:none}
 .mode-btn small{color:var(--muted);font-weight:500;margin-right:auto}
 .app[data-collapsed="true"] .label,.app[data-collapsed="true"] .recent,.app[data-collapsed="true"] .search-btn kbd,.app[data-collapsed="true"] .brand span,.app[data-collapsed="true"] .mode-btn small,.app[data-collapsed="true"] .mode-btn .i{display:none}
+.app[data-collapsed="true"] .top-brand{display:flex}
 .app[data-collapsed="true"] .side-top{flex-direction:column;padding:14px 0 8px;gap:10px}
 .app[data-collapsed="true"] .new-chat,.app[data-collapsed="true"] .search-btn{justify-content:center;padding:0;margin-left:12px;margin-right:12px}
 .app[data-collapsed="true"] .nav-item{justify-content:center;padding:0}
@@ -208,7 +219,7 @@ kbd{font:600 11px/1 var(--font);color:var(--muted);border:1px solid var(--line-2
 .app[data-collapsed="true"] .mode-btn{justify-content:center;padding:0;width:40px;flex:none}
 .main-col{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;isolation:isolate}
 .main-col::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(120deg,rgba(255,255,255,.012),transparent 32%),radial-gradient(700px 360px at 72% 18%,rgba(255,106,26,.028),transparent 72%)}
-.top{display:flex;align-items:center;gap:10px;height:56px;padding:0 16px;flex:none;position:relative;z-index:5;background:linear-gradient(180deg,rgba(5,5,6,.88),rgba(5,5,6,.60));border-bottom:1px solid rgba(255,255,255,.035);backdrop-filter:blur(18px) saturate(1.15)}
+.top{display:flex;align-items:center;gap:10px;height:56px;padding:0 16px;flex:none;position:relative;z-index:5;background:linear-gradient(180deg,var(--b1),var(--b0));border-bottom:1px solid var(--line);backdrop-filter:blur(18px) saturate(1.15)}
 .top-title{font:600 14px/1 var(--font);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
 .privacy{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:999px;border:1px solid var(--o-line);background:rgba(255,106,26,.07);color:var(--ink);font:550 12.5px/1 var(--font);cursor:default}
@@ -240,23 +251,10 @@ main>section.chat{max-width:none;margin:0;padding:0;height:100%;display:flex;fle
 .hero h2{font:650 clamp(30px,3.2vw,40px)/1.08 var(--display);letter-spacing:-.035em;margin:0;color:var(--ink);background:linear-gradient(180deg,#fff 0%,#e6dfd6 55%,#b5ab9f 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 html[data-theme="system"] .hero h2{-webkit-text-fill-color:currentColor;background:none}
 .hero p{color:var(--muted);margin:12px 0 0;font-size:15.5px}
-.hero-mark{--hero-rx:0deg;--hero-ry:0deg;position:relative;width:92px;height:92px;margin:0 auto 18px;perspective:720px;transform-style:preserve-3d;transform:rotateX(var(--hero-rx)) rotateY(var(--hero-ry));transition:transform .22s var(--ease-out);will-change:transform}
-.hero-mark::before,.hero-mark::after{content:"";position:absolute;border-radius:50%;background:var(--o-hot);box-shadow:0 0 14px rgba(255,106,26,.75);transform:translateZ(28px)}
-.hero-mark::before{width:4px;height:4px;left:6px;top:28px}.hero-mark::after{width:3px;height:3px;right:12px;bottom:25px;background:#ffd0ac}
-.hero-glow{position:absolute;inset:-70px;border-radius:50%;background:radial-gradient(circle,rgba(255,106,26,.25) 0%,rgba(255,90,0,.07) 40%,transparent 68%);transform:translateZ(-18px);filter:saturate(1.12)}
-.orbit{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(255,138,61,.34);transform:rotateX(72deg);animation:orbit-a 16s linear infinite}
-.orbit.o2{inset:14px;border-color:rgba(255,255,255,.14);animation:orbit-b 24s linear infinite}
-.orbit.o3{inset:-16px;border-color:rgba(255,106,26,.16);animation:orbit-c 32s linear infinite}
-.orbit::after{content:"";position:absolute;top:-3px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--o-hot);box-shadow:0 0 10px 2px rgba(255,122,40,.8)}
-.orbit.o2::after{background:#fff;box-shadow:0 0 8px rgba(255,255,255,.7);width:4px;height:4px;margin-left:-2px}
-.hero-core{position:absolute;inset:22px;transform:translateZ(30px);filter:drop-shadow(0 14px 28px rgba(255,90,0,.22))}
-.flow{stroke-dasharray:5 9;animation:flow 2.6s linear infinite}
-@keyframes orbit-a{from{transform:rotateX(72deg) rotateZ(0)}to{transform:rotateX(72deg) rotateZ(360deg)}}
-@keyframes orbit-b{from{transform:rotateX(66deg) rotateY(18deg) rotateZ(360deg)}to{transform:rotateX(66deg) rotateY(18deg) rotateZ(0)}}
-@keyframes orbit-c{from{transform:rotateX(78deg) rotateY(-12deg) rotateZ(0)}to{transform:rotateX(78deg) rotateY(-12deg) rotateZ(360deg)}}
-@keyframes flow{to{stroke-dashoffset:-56}}
+.hero-mark{--hero-rx:0deg;--hero-ry:0deg;position:relative;display:grid;place-items:center;width:104px;height:104px;margin:0 auto 18px;perspective:720px;transform-style:preserve-3d;transform:rotateX(var(--hero-rx)) rotateY(var(--hero-ry));transition:transform .22s var(--ease-out);will-change:transform}
+.hero-glow{position:absolute;inset:-58px;border-radius:50%;background:radial-gradient(circle,rgba(255,106,26,.2) 0%,rgba(255,90,0,.06) 42%,transparent 70%);transform:translateZ(-18px);filter:saturate(1.08)}
+.hero-brand-mark{position:relative;width:76px;height:76px;transform:translateZ(20px);filter:drop-shadow(0 14px 28px rgba(255,90,0,.24))}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-body.paused .orbit,body.paused .flow{animation-play-state:paused}
 .suggest{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;max-width:650px;margin:18px auto 0;position:relative;z-index:1;animation:rise .6s .08s var(--ease-out) both}
 .chip-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--line-2);background:rgba(255,255,255,.02);color:var(--ink-2);font:500 13.5px/1 var(--font);cursor:pointer;transition:border-color .2s,color .2s,background .2s,transform .12s}
 .chip-btn:hover{border-color:var(--o-line);color:var(--ink);background:rgba(255,106,26,.06)}.chip-btn:active{transform:scale(.97)}
@@ -519,14 +517,14 @@ details.adv>div{padding:0 18px 16px}
 
 /* ---------- Responsive ---------- */
 @media (max-width:1100px){.settings{grid-template-columns:1fr}.settings-nav{position:static;flex-direction:row;flex-wrap:wrap}}
-@media (max-width:520px){.tool span{display:none}.tool{padding:0;width:34px}.setup-actions{grid-template-columns:1fr}.suggest{grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.setup-copy p{display:none}}
+@media (max-width:520px){.tool span{display:none}.tool{padding:0;width:34px}.setup-actions{grid-template-columns:1fr}.suggest{grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.setup-copy p{display:none}.top-brand .wordmark{display:none}}
 @media (max-width:860px){
   .app{grid-template-columns:minmax(0,1fr)}
   .side{position:fixed;z-index:80;top:0;bottom:0;left:0;width:min(300px,86vw);transform:translateX(-102%);transition:transform .26s var(--ease-out);box-shadow:30px 0 80px rgba(0,0,0,.6)}
   .app[data-drawer="open"] .side{transform:none}
   .app[data-drawer="open"] .scrim{display:block;position:fixed;inset:0;z-index:79;background:rgba(0,0,0,.5)}
   .app[data-collapsed="true"]{--side-w:272px}
-  .desktop-only{display:none}.mobile-only{display:inline-grid}
+  .desktop-only{display:none}.mobile-only{display:inline-grid}.top-brand{display:flex}
   main>section{padding:8px 16px 40px}
   .chat-scroll{padding:8px 14px}.dock{padding:0 12px 12px}
   .hero-mark{width:92px;height:92px;margin-bottom:20px}
@@ -537,7 +535,7 @@ details.adv>div{padding:0 18px 16px}
 .set-row-stack{align-items:flex-start}.set-row-stack>div:last-child{min-width:min(520px,100%);flex:1}.set-row-stack textarea{min-height:92px}
 .effort-select{width:auto;min-width:96px;max-width:132px;height:34px;padding:0 9px;border-radius:9px;font-size:12px;background:var(--surface-2);border:1px solid var(--line);color:var(--text)}
 .autopilot-grid{align-items:start}.autopilot-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}.autopilot-stat{padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.autopilot-stat b{display:block;margin-bottom:4px}.autopilot-stat span{font-size:12px;color:var(--muted)}
-.extension-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.extension-card{margin:0}.extension-meta{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.extension-card .risk-RESTRICTED{color:var(--danger)}.creator-name{font-size:24px;font-weight:750;letter-spacing:-.02em}.voice-listening{box-shadow:0 0 0 3px rgba(255,122,26,.18);color:var(--accent)}.support-btn{display:inline-flex;align-items:center;gap:8px}
+.extension-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.extension-card{margin:0}.extension-meta{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.extension-card .risk-RESTRICTED{color:var(--danger)}.creator-name{font-size:24px;font-weight:750;letter-spacing:-.02em}.support-brand{display:flex;align-items:center;gap:11px;margin-bottom:14px}.support-brand-mark{width:48px;height:48px;flex:none;filter:drop-shadow(0 0 12px rgba(255,106,26,.26))}.support-brand .wordmark{font-size:24px;font-weight:700}.brand-tagline{margin:0;color:var(--muted);font:650 10px/1 var(--font);letter-spacing:.28em;text-transform:uppercase}.voice-listening{box-shadow:0 0 0 3px rgba(255,122,26,.18);color:var(--accent)}.support-btn{display:inline-flex;align-items:center;gap:8px}
 @media (max-width:860px){.effort-select{max-width:104px}.extension-grid{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
 html[data-motion="reduced"] *,html[data-motion="reduced"] *::before,html[data-motion="reduced"] *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
@@ -2528,19 +2526,15 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   const nav = (view: string, level: string, label: string) => `<li data-level="${level}"><a class="nav-item" href="#/${view}" data-view="${view}" title="${label}">${icon(view)}<span class="label">${label}</span></a></li>`;
   const seg = (name: string, options: readonly (readonly [string, string])[]) => `<div class="seg" role="radiogroup" aria-label="${name}">${options.map(([v, t]) => `<label><input type="radio" name="pref-${name}" value="${v}"><span>${t}</span></label>`).join('')}</div>`;
   const modeItem = (mode: string, name: string, desc: string) => `<button type="button" class="opt" role="menuitemradio" aria-checked="false" data-mode="${mode}"><span class="t"><span class="n">${name}</span><span class="d">${desc}</span></span>${icon('check', 'i ck')}</button>`;
+  const faviconHref = `data:image/svg+xml,${encodeURIComponent(FURYPIPE_FAVICON_SVG)}`;
   const html = `<!doctype html>
 <html lang="${initialLocale}" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark light"><meta name="theme-color" content="#050506">
+<meta name="color-scheme" content="dark light"><meta name="theme-color" content="#050506"><meta name="application-name" content="FuryPipe Studio"><link rel="icon" type="image/svg+xml" href="${faviconHref}">
 <title>Chat · FuryPipe Studio</title><style nonce="${nonce}">${CSS}</style></head>
 <body data-mode="simple" data-view="chat"><a class="skip" href="#main" tabindex="0">Skip to content</a>
-<svg class="defs" aria-hidden="true" focusable="false"><defs>
-<radialGradient id="fury-core" cx="45%" cy="40%" r="60%"><stop offset="0" stop-color="#ffe2c7"/><stop offset=".45" stop-color="#ff8a3d"/><stop offset="1" stop-color="#d9480f"/></radialGradient>
-<linearGradient id="fury-ring" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff9a52"/><stop offset=".6" stop-color="rgba(255,138,61,.25)"/><stop offset="1" stop-color="rgba(255,255,255,.08)"/></linearGradient>
-<linearGradient id="fury-flow" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#d9480f"/><stop offset=".5" stop-color="#ff7a1a"/><stop offset="1" stop-color="#ffc08a"/></linearGradient>
-</defs></svg>
 <div class="app" id="app" data-collapsed="false" data-drawer="closed">
 <aside class="side" id="side" aria-label="FuryPipe">
-  <div class="side-top"><a class="brand" href="#/chat" aria-label="FuryPipe home">${MARK}<span>Fury<b>Pipe</b></span></a>
+  <div class="side-top"><a class="brand" data-brand="furypipe" href="#/chat" aria-label="FuryPipe home">${MARK}${WORDMARK}</a>
     <button type="button" id="side-collapse" class="icon-btn desktop-only" aria-label="Collapse sidebar" aria-expanded="true">${icon('panel')}</button></div>
   <button type="button" id="new-chat" class="new-chat" title="New chat">${icon('compose')}<span class="label">New chat</span></button>
   <button type="button" id="search-btn" class="search-btn" title="Search and commands (Ctrl K)">${icon('search')}<span class="label">Search</span><kbd>Ctrl K</kbd></button>
@@ -2564,6 +2558,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
 <div class="main-col">
 <header class="top">
   <button type="button" id="side-open" class="icon-btn mobile-only" aria-label="Open sidebar" aria-expanded="false" aria-controls="side">${icon('menu')}</button>
+  <a class="top-brand" data-brand="furypipe" href="#/chat" aria-label="FuryPipe home">${TOP_MARK}${WORDMARK}</a>
   <div class="top-title" id="top-title"></div>
   <div class="top-right"><span class="privacy" id="privacy" hidden title="This conversation runs on your computer. Nothing is sent to a cloud provider.">${icon('shield')}Private · on this PC</span></div>
 </header>
@@ -2573,8 +2568,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div class="chat-scroll" id="chat-scroll"><div id="chat-log" class="log" role="log" aria-live="polite" aria-label="Conversation"></div></div>
   <div class="dock"><div class="dock-inner">
     <div class="hero">
-      <div class="hero-mark" aria-hidden="true"><div class="hero-glow"></div><div class="orbit o3"></div><div class="orbit"></div><div class="orbit o2"></div>
-        <svg class="hero-core" viewBox="0 0 80 80" focusable="false"><circle cx="40" cy="40" r="17" fill="url(#fury-core)"/><circle cx="40" cy="40" r="25" fill="none" stroke="rgba(255,160,90,.35)" stroke-width=".8"/><path class="flow" d="M2 52c14 0 20-24 38-24s24 24 38 24" fill="none" stroke="url(#fury-flow)" stroke-width="2.4" stroke-linecap="round"/></svg></div>
+      <div class="hero-mark" aria-hidden="true"><div class="hero-glow"></div>${HERO_MARK}</div>
       <h2>How can FuryPipe help?</h2>
       <p>One workspace for every model, agent and tool, starting with the AI on this machine.</p>
     </div>
@@ -2770,7 +2764,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
 <section data-view="integrations" aria-labelledby="h-integrations" hidden><h1 id="h-integrations">Integrations</h1><p class="lead">MCP servers, APIs (OpenAPI) and webhooks in one registry, with how each one authenticates, what it may do and whether you trust it. Declare APIs and webhooks in .furypipe/integrations.json.</p>
   <div class="card"><table><thead><tr><th scope="col">Integration</th><th scope="col">Kind</th><th scope="col">Status</th><th scope="col">Auth</th><th scope="col">Can</th><th scope="col">Default</th><th scope="col">Trust</th><th scope="col">Notes</th></tr></thead><tbody id="int-body"></tbody></table><p id="int-status" class="status muted" role="status"></p></div></section>
 <section data-view="support" aria-labelledby="h-support" hidden><h1 id="h-support">Support FuryPipe</h1><p class="lead">FuryPipe is an independent project built to keep model, agent, skill, MCP, memory and evidence workflows in one governed workspace.</p>
-  <div class="grid"><div class="card creator-card"><h2>Creator</h2><p class="creator-name">LégendeUrbaine</p><p class="muted">Creator and project lead of FuryPipe.</p></div><div class="card"><h2>Support development</h2><p id="support-copy">Loading support options…</p><div id="support-action"></div><p class="muted">FuryPipe never invents or redirects donation destinations. The button appears only when FURYPIPE_SUPPORT_URL is configured to a valid HTTPS address.</p></div></div>
+  <div class="grid"><div class="card creator-card"><div class="support-brand" data-brand="furypipe">${SUPPORT_MARK}${WORDMARK}</div><p class="brand-tagline">BUILD · AUTOMATE · CREATE · BEYOND</p><h2>Creator</h2><p class="creator-name">LégendeUrbaine</p><p class="muted">Creator and project lead of FuryPipe.</p></div><div class="card"><h2>Support development</h2><p id="support-copy">Loading support options…</p><div id="support-action"></div><p class="muted">FuryPipe never invents or redirects donation destinations. The button appears only when FURYPIPE_SUPPORT_URL is configured to a valid HTTPS address.</p></div></div>
 </section>
 <section data-view="settings" aria-labelledby="h-settings" hidden><h1 id="h-settings">Settings</h1><p class="lead">Make FuryPipe yours. Preferences are stored in this browser.</p>
   <div class="settings"><nav class="settings-nav" aria-label="Settings sections"><a href="#/settings/general">General</a><a href="#/settings/appearance">Appearance</a><a href="#/settings/privacy">Privacy</a><a href="#/settings/advanced">Advanced</a></nav>

@@ -152,6 +152,9 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
 
     await page.goto(`${origins.normal}/`, { waitUntil: 'load' });
     assert(await page.title() === 'Chat · FuryPipe Studio', `${name}: title ${await page.title()}`);
+    assert(await page.locator('a.brand[data-brand="furypipe"] svg[data-brand="furypipe-monogram"]').count() === 1, `${name}: sidebar brand mark missing`);
+    assert(await page.locator('link[rel="icon"][type="image/svg+xml"]').count() === 1, `${name}: favicon missing`);
+    assert(!(await page.content()).includes('fury-ring'), `${name}: legacy non-brand ring remains in shell`);
     assert(await page.evaluate(() => document.activeElement === document.body), `${name}: focus moved on first load`);
     // Keyboard: skip link is the first tab stop and moves focus to main.
     await page.keyboard.press('Tab');
@@ -390,7 +393,12 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
         await page.locator(`section[data-view="${view}"] h1`).waitFor();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         assert(overflow <= 1, `${name}: horizontal overflow ${overflow}px on ${view} at ${width}px`);
+        if (view === 'support') assert(await page.locator('.support-brand[data-brand="furypipe"]').isVisible(), `${name}: support brand missing at ${width}px`);
       }
+    }
+    await page.goto(`${origins.normal}/#/chat`);
+    if (await page.evaluate(() => window.innerWidth <= 860)) {
+      assert(await page.locator('a.top-brand[data-brand="furypipe"]').isVisible(), `${name}: responsive topbar brand missing`);
     }
 
     // Locale: browser language is detected automatically; a persisted override wins.

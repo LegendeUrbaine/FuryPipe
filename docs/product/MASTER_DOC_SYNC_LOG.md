@@ -315,3 +315,26 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
   human/client/production gates.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-28 — FuryPipe Provider SDK authoring foundation
+
+- Added public `furypipe/fury-provider-sdk` metadata-only authoring contracts
+  for providers and models. The contract requires explicit `yes` / `no` /
+  `unknown` modality and capability values and carries only power controls the
+  provider declares.
+- `compileFuryProviderSdkManifest()` produces a deterministic SHA-256 digest;
+  registration, network, filesystem and execution authority remain false.
+  Existing Provider Fabric, Transport, Health and Retry/Fallback modules remain
+  the only runtime authorities; no provider call or credential read was added.
+- Remaining: host-approved runtime adapter registration/isolation, Studio
+  power-control UX backed by real evidence, and live provider/resilience proof.
+- Local proof: focused Provider SDK `2/2`; full Vitest `341` files / `3,572`
+  passed / `6` skipped; source and hosted-MCP typechecks; build version smoke
+  `0.16.0`; installed package smoke including the new public export, Gateway,
+  MCP, Phase 6/7/8, benchmark-claim, provider-attempt and governed-provider
+  checks; Gateway smoke tarball SHA-256
+  `807b6d74f750fb9c33be057bcfc33212ff838a44831a78d931b770ccf9a64916`;
+  Chromium/Firefox/WebKit Browser QA.
+- Status: `PARTIAL_PROVIDER_SDK_FOUNDATION_LOCAL_CONTRACT_VERIFIED`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.

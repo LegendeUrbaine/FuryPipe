@@ -710,6 +710,12 @@ try {
     "const m = await import('furypipe/fury-marketplace'); if (typeof m.createFuryMarketplaceCatalog !== 'function' || typeof m.verifyFuryMarketplaceSource !== 'function' || m.FURY_MARKETPLACE_CATALOG_FORMAT !== 'furypipe-marketplace-catalog/v1') process.exit(1);",
   ], installDir);
   assert(marketplaceExport.stderr === '', `Marketplace package export wrote stderr: ${marketplaceExport.stderr}`);
+  const providerSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-provider-sdk'); if (typeof m.defineFuryProviderAdapter !== 'function' || typeof m.compileFuryProviderSdkManifest !== 'function' || m.FURY_PROVIDER_SDK_MANIFEST_FORMAT !== 'furypipe-provider-sdk-manifest/v1') process.exit(1);",
+  ], installDir);
+  assert(providerSdkExport.stderr === '', `Provider SDK package export wrote stderr: ${providerSdkExport.stderr}`);
   const controlRoomEvidenceExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

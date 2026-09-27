@@ -500,7 +500,7 @@
     },
     {
       "name": "Provider SDK and resilience UX",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_SDK_FOUNDATION_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {

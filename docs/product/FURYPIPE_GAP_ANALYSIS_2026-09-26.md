@@ -98,7 +98,7 @@ Primary evidence:
 | FuryContext | IMPLEMENTED_PENDING_EXACT_HEAD | Retrieval + budget + inspector + compaction + diff-aware context | Context compiler remains core; bounded Context Inspector exposes loaded/available-not-loaded/not-present/unknown categories and explicit byte/token-estimate basis; deterministic Context Diff compares added/removed/changed entries and hard constraints. Advanced semantic compaction/history UX remains P2. | P1/P2 | memory, graph | High | context compiler/inspector/diff tests + FuryBench + Studio/browser QA + exact-head CI |
 | FuryMemory | DONE core / PARTIAL Time Machine / LOCAL CONTRACT VERIFIED | Multi-layer memory graph, provenance, management, time machine | Existing Memory VNext remains authoritative; bounded history, digest-only snapshots/diff/export, governed restore, archive/delete mappings and cross-project metadata graph now exist. Persistent pin authority, raw-content export policy, recall/false-memory evaluation, migration coverage and broader cross-workspace graph remain open. | P2 | graph, storage | High | focused memory/API tests + full suite + browser QA; recall/false-memory eval and migration tests remain |
 | Model Hub | IMPLEMENTED_PENDING_EXACT_HEAD | Unified local/cloud providers with real capability detection and per-model power controls | Studio now exposes a governed Model Hub snapshot combining Provider Fabric registration, safe AI connection discovery and reachable local Model Fabric entries. Truth states distinguish AVAILABLE_VERIFIED / CONFIGURED_UNVERIFIED / RUNTIME_DETECTED / NOT_CONFIGURED / UNKNOWN; unregistered connections remain visible but never executable. Cloud model catalog breadth and provider-specific power controls remain P2 and must stay unknown until provider evidence proves them. | P1/P2 | provider runtime, model fabric, secrets | High | model hub/unit/API/browser QA + live opt-in verification |
-| Provider architecture | DONE CORE / PARTIAL SDK/UX | Stable ProviderAdapter/SDK, health routing, retries/fallback/circuit breakers | Existing governed provider boundary already includes exact request envelopes, fresh-health execution gates, process-local single-use permits, production OpenAI/Anthropic/Google transports, conservative transport-health promotion, bounded retry/fallback orchestration, cancellation, Retry-After handling and explicit cross-provider fallback authority. Remaining gap is a higher-level extension SDK/Studio configuration surface, not execution governance. | P1/P2 | model hub, observability | High | existing provider executor/transport/health/retry-fallback suites + installed package smoke + optional live verification |
+| Provider architecture | DONE CORE / PARTIAL SDK/UX / LOCAL CONTRACT VERIFIED | Stable ProviderAdapter/SDK, health routing, retries/fallback/circuit breakers | Existing governed provider boundary remains authoritative for request envelopes, fresh-health execution gates, single-use permits, production transports, bounded retry/fallback, cancellation and explicit cross-provider authority. New public `furypipe/fury-provider-sdk` adds metadata-only adapter authoring with explicit model capabilities and declared power controls; it does not register transports, read credentials, call providers or grant execution. Runtime adapter loading/isolation, Studio power-control UX and live provider proof remain open. | P1/P2 | model hub, observability | High | SDK/unit + installed package smoke + future adapter isolation/live verification |
 | Media Generation Runtime | DONE CORE / PARTIAL PROVIDER | Common image/audio/video request, plan, approval, permit, adapter, ingestion, Artifact, receipt/provenance and durable async job path | Provider-neutral sync/async runtime, bounded polling with deterministic jitter, cancellation, idempotency, RecoveryStore restart reconciliation and deterministic adapter proof exist locally. Studio now exposes preview-only surfaces; concrete provider, provider SDK/live execution and hosted exact-head evidence for this candidate remain open | P1/P2 | plugin contracts, media ingestion, artifacts, RecoveryStore, provider adapters | Critical | focused/full tests + build/package smoke + exact-head hosted checks + provider-optional E2E |
 | Image Studio | PARTIAL / PREVIEW-ONLY LOCALLY VERIFIED | text/image editing, history, controls, artifacts | FuryImage surface now exposes capability-driven Provider/AUTO, Model, aspect ratio, resolution, quality and bounded advanced controls; API preview, read-only job-history projection and browser-rendered preview are locally verified. Provider-backed generation, history mutation and artifact creation from Studio remain unproven | P2 | media runtime, provider adapters, artifacts | Medium | provider-optional E2E + human visual review |
 | Video Studio | PARTIAL / PREVIEW-ONLY LOCALLY VERIFIED | provider-backed generation + storyboard/timeline | FuryVideo surface now exposes capability-driven Provider/AUTO and Model choices, Reference, Duration, FPS, aspect ratio and resolution controls; bounded preview and a digest-only storyboard/timeline foundation are locally verified. Dedicated editor/rendering, provider execution, Helios integration and queue recovery remain unproven | P2 | media runtime, queue, media providers, GPU | Medium | provider-optional E2E + queue recovery |
@@ -313,6 +313,37 @@ Implemented on the continuation branch:
 - no model/tool/MCP/agent execution is introduced by FuryEval.
 
 Status: `IMPLEMENTED_PENDING_EXACT_HEAD` until the final code/documentation SHA completes all hosted gates. Curated production datasets and longitudinal effectiveness history remain a later P2 extension.
+
+No merge, tag, release, npm publish or deploy performed.
+
+
+## Provider SDK authoring contract — 2026-09-28
+
+Implemented on the continuation branch:
+
+- public `furypipe/fury-provider-sdk` authoring surface;
+- `defineFuryProviderAdapter()` validates a bounded adapter/model contract
+  without creating a second runtime registry;
+- every modality and model capability is declared as `yes`, `no` or
+  `unknown`; no capability is inferred from a model name;
+- reasoning effort, thinking budget, temperature, max tokens, latency
+  profiles, tool use and context strategies are emitted only when the adapter
+  explicitly declares them;
+- `compileFuryProviderSdkManifest()` emits deterministic metadata with a
+  SHA-256 digest;
+- manifest flags remain `registrationAuthorized:false`,
+  `networkAuthorized:false`, `filesystemAuthorized:false` and
+  `executionAuthorized:false`;
+- the existing Provider Fabric, Transport, Health and Retry/Fallback layers
+  remain the runtime authorities.
+
+Remaining P2 work:
+
+- host-approved runtime adapter registration and isolation;
+- Studio power-control UX backed by real provider/model evidence;
+- provider-specific live capability and resilience verification.
+
+Status: `PARTIAL_PROVIDER_SDK_FOUNDATION_LOCAL_CONTRACT_VERIFIED`.
 
 No merge, tag, release, npm publish or deploy performed.
 

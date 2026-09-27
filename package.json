@@ -625,6 +625,18 @@
       "types": "./dist/media-generation-runtime.d.ts",
       "import": "./dist/media-generation-runtime.js"
     },
+    "./media-generation-job-engine": {
+      "types": "./dist/media-generation-job-engine.d.ts",
+      "import": "./dist/media-generation-job-engine.js"
+    },
+    "./media-generation-deterministic-adapter": {
+      "types": "./dist/media-generation-deterministic-adapter.d.ts",
+      "import": "./dist/media-generation-deterministic-adapter.js"
+    },
+    "./media-studio": {
+      "types": "./dist/media-studio.d.ts",
+      "import": "./dist/media-studio.js"
+    },
     "./fury-plugin-runtime": {
       "types": "./dist/fury-plugin-runtime.d.ts",
       "import": "./dist/fury-plugin-runtime.js"

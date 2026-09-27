@@ -256,6 +256,21 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.goto(`${origins.normal}/#/models`);
     await page.locator('#backends .model-row .fit.ok').filter({ hasText: 'FITS' }).first().waitFor();
     assert(await page.locator('#backends .backend.up').count() === 1, `${name}: running backend card`);
+    await page.goto(`${origins.normal}/#/media`);
+    await page.locator('#media-surfaces .card').filter({ hasText: 'FuryImage Studio' }).waitFor();
+    await page.locator('#media-surfaces .card').filter({ hasText: 'FuryVideo Studio' }).waitFor();
+    await page.locator('#media-provider-status').filter({ hasText: 'preview-only' }).waitFor();
+    await page.locator('#media-operation option[value="text-to-image"]').waitFor({ state: 'attached' });
+    await page.locator('#media-prompt').fill('A bounded browser preview');
+    await page.locator('#media-preview-form button[type=submit]').click();
+    await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
+    assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: media preview did not remain preview-only`);
+    assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded browser preview'), `${name}: media preview leaked the raw prompt`);
+    const rejectedMedia = await page.evaluate(async () => {
+      const response = await fetch('/api/studio/media/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'video', operation: 'text-to-image', prompt: 'invalid', outputMimeType: 'image/png' }) });
+      return response.status;
+    });
+    assert(rejectedMedia === 422, `${name}: invalid media preview status ${rejectedMedia}`);
     await page.goto(`${origins.normal}/#/runtimes`);
     await page.locator('#runtimes-body tr').filter({ hasText: 'Claude Code' }).filter({ hasText: '2.1.282' }).waitFor();
     await page.goto(`${origins.normal}/#/skills`);
@@ -372,6 +387,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#flow-trace li').filter({ hasText: 'Paused at human approval: approve' }).waitFor();
 
     await page.goto(`${origins.normal}/#/does-not-exist`);
+    await page.locator('#h-notfound').waitFor({ state: 'visible' });
     assert(await visible(page, '#h-notfound'), `${name}: 404 view`);
     await page.goto(`${origins.normal}/#/settings`);
     await page.locator('a[href="/control-plane"]').click();
@@ -388,7 +404,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await setMode(page, 'expert');
     for (const width of [1280, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 844 });
-      for (const view of ['chat', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'skills', 'mcp', 'integrations', 'settings']) {
+      for (const view of ['chat', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
         await page.goto(`${origins.normal}/#/${view}`);
         await page.locator(`section[data-view="${view}"] h1`).waitFor();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -461,6 +477,9 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await page.goto(`${origins.normal}/#/models`);
     await page.locator('#backends .model-row').first().waitFor();
     await shot('06-models.png');
+    await page.goto(`${origins.normal}/#/media`);
+    await page.locator('#media-surfaces .card').filter({ hasText: 'FuryImage Studio' }).waitFor();
+    await shot('06b-media-studio-preview.png');
     await page.goto(`${origins.normal}/#/settings`);
     await shot('07-settings.png');
     await setMode(page, 'expert');

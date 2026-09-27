@@ -6,6 +6,7 @@ import {
   FuryMediaGenerationError,
   createFuryMediaGenerationAdapterRegistry,
   createFuryMediaGenerationCoordinator,
+  createFuryMediaGenerationExecutionSession,
   isGeneratedFuryMediaGenerationPermit,
   isGeneratedFuryMediaGenerationPlan,
   isGeneratedFuryMediaGenerationRequest,
@@ -421,6 +422,14 @@ describe('FuryPipe governed media generation runtime', () => {
       executionAuthority: false,
     })).toThrowError(expect.objectContaining({ code: 'plan-request-mismatch' }));
     await expect(h.coordinator.execute(prepared.request, prepared.plan, copiedPermit as typeof prepared.permit)).rejects.toMatchObject({ code: 'execution-not-authorized' });
+  });
+
+  it('rejects a look-alike adapter outside the coordinator registry', async () => {
+    const rawAdapter = adapter('image-text', 'image-generation', ['text-to-image'], async () => ({ outputs: [{ bytes: png(), mimeType: 'image/png' }] }));
+    const h = harness([rawAdapter]);
+    const prepared = prepareAndAuthorize(h, { profileId: 'image-text', kind: 'image', mode: 'text-to-image', outputMimeType: 'image/png' });
+    const session = createFuryMediaGenerationExecutionSession({ coordinator: h.coordinator, request: prepared.request, plan: prepared.plan, permit: prepared.permit });
+    await expect(session.execute(rawAdapter)).rejects.toMatchObject({ code: 'adapter-not-registered', outcome: 'not-started' });
   });
 
   it('does not consume a permit before a missing adapter or released input is detected', async () => {

@@ -148,7 +148,56 @@ export interface FuryMediaGenerationAdapterContext {
   readonly outputMimeType: string;
   readonly maxOutputBytes: number;
   readonly maxItems: number;
+  readonly idempotencyKey?: string;
   readonly signal?: AbortSignal;
+}
+
+export type FuryMediaGenerationAdapterStatus =
+  | 'SUBMITTED'
+  | 'QUEUED'
+  | 'RUNNING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'UNKNOWN';
+
+export interface FuryMediaGenerationAdapterCapabilities {
+  readonly synchronous: boolean;
+  readonly asynchronous: boolean;
+  readonly supportsPolling: boolean;
+  readonly supportsCancellation: boolean;
+  readonly supportsIdempotencyKey: boolean;
+  readonly supportedOperations: readonly FuryMediaGenerationMode[];
+  readonly supportedMimeTypes: readonly string[];
+  readonly limits: Readonly<{
+    readonly maxInputBytes?: number;
+    readonly maxOutputBytes?: number;
+    readonly maxItems?: number;
+    readonly maxDurationMs?: number;
+  }>;
+}
+
+export interface FuryMediaGenerationAdapterSubmission {
+  readonly providerJobId: string;
+  readonly status?: Exclude<FuryMediaGenerationAdapterStatus, 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'UNKNOWN'>;
+}
+
+export interface FuryMediaGenerationAdapterPoll {
+  readonly status: FuryMediaGenerationAdapterStatus;
+  readonly progress?: number;
+  readonly failureClass?: string;
+  readonly providerRequestId?: string;
+  readonly result?: unknown;
+}
+
+export type FuryMediaGenerationAdapterCancellationOutcome =
+  | 'LOCAL_CANCELLED'
+  | 'PROVIDER_CANCEL_CONFIRMED'
+  | 'PROVIDER_CANCEL_UNSUPPORTED'
+  | 'PROVIDER_STATE_UNKNOWN';
+
+export interface FuryMediaGenerationAdapterCancellation {
+  readonly outcome: FuryMediaGenerationAdapterCancellationOutcome;
 }
 
 export interface FuryMediaGenerationAdapter {
@@ -157,7 +206,13 @@ export interface FuryMediaGenerationAdapter {
   readonly profileId: string;
   readonly family: FuryMediaGenerationFamily;
   readonly supportedModes: readonly FuryMediaGenerationMode[];
-  execute(input: FuryMediaGenerationAdapterInput, context: FuryMediaGenerationAdapterContext): Promise<unknown>;
+  readonly capabilities?: FuryMediaGenerationAdapterCapabilities;
+  execute?(input: FuryMediaGenerationAdapterInput, context: FuryMediaGenerationAdapterContext): Promise<unknown>;
+  submit?(input: FuryMediaGenerationAdapterInput, context: FuryMediaGenerationAdapterContext): Promise<FuryMediaGenerationAdapterSubmission>;
+  poll?(providerJobId: string, context: FuryMediaGenerationAdapterContext): Promise<FuryMediaGenerationAdapterPoll>;
+  cancel?(providerJobId: string, context: FuryMediaGenerationAdapterContext): Promise<FuryMediaGenerationAdapterCancellation>;
+  fetchResult?(providerJobId: string, context: FuryMediaGenerationAdapterContext): Promise<unknown>;
+  reconcile?(idempotencyKey: string, context: FuryMediaGenerationAdapterContext): Promise<FuryMediaGenerationAdapterSubmission | undefined>;
 }
 
 export interface FuryMediaGenerationAdapterOutput {
@@ -282,6 +337,21 @@ export interface FuryMediaGenerationCoordinator {
   ): Promise<FuryMediaGenerationResult>;
 }
 
+export interface FuryMediaGenerationExecutionSession {
+  readonly request: FuryMediaGenerationRequest;
+  readonly plan: FuryMediaGenerationPlan;
+  readonly permit: FuryMediaGenerationPermit;
+  submit(
+    adapter: FuryMediaGenerationAdapter,
+    idempotencyKey: string,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<FuryMediaGenerationAdapterSubmission>;
+  execute(
+    adapter: FuryMediaGenerationAdapter,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<unknown>;
+}
+
 export type FuryMediaGenerationErrorCode =
   | 'invalid-config'
   | 'invalid-input'
@@ -348,6 +418,7 @@ interface PermitState {
 interface NormalizedAdapterOutput {
   readonly bytes: Uint8Array;
   readonly mimeType: string;
+  readonly durationMs?: number;
   readonly providerRequestId?: string;
 }
 
@@ -357,6 +428,8 @@ const PERMIT_STATE = new WeakMap<object, PermitState>();
 const GENERATED_RESULTS = new WeakSet<object>();
 const GENERATED_ADAPTER_REGISTRIES = new WeakSet<object>();
 const GENERATED_COORDINATORS = new WeakSet<object>();
+const GENERATED_EXECUTION_SESSIONS = new WeakSet<object>();
+const COORDINATOR_ADAPTERS = new WeakMap<object, FuryMediaGenerationAdapterRegistry>();
 
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,127}$/u;
@@ -581,7 +654,18 @@ function zeroAdapterBytes(raw: unknown): void {
   }
 }
 
-function normalizeAdapterResult(raw: unknown, state: RequestState, plan: FuryMediaGenerationPlan): NormalizedAdapterOutput[] {
+export interface FuryMediaGenerationOutputConstraints {
+  readonly outputMimeType: string;
+  readonly supportedMediaTypes: readonly string[];
+  readonly maxItems: number;
+  readonly maxOutputBytes: number;
+  readonly maxDurationMs?: number;
+}
+
+export function normalizeFuryMediaGenerationAdapterResult(
+  raw: unknown,
+  constraints: FuryMediaGenerationOutputConstraints,
+): readonly FuryMediaGenerationAdapterOutput[] {
   let record: Readonly<Record<string, unknown>>;
   try {
     record = plainRecord(raw, 'media generation adapter result');
@@ -589,10 +673,10 @@ function normalizeAdapterResult(raw: unknown, state: RequestState, plan: FuryMed
   } catch {
     fail('adapter-result-invalid', 'media generation adapter result must contain only bounded output data', true);
   }
-  if (!Array.isArray(record.outputs) || record.outputs.length < 1 || record.outputs.length > plan.maxItems) {
+  if (!Array.isArray(record.outputs) || record.outputs.length < 1 || record.outputs.length > constraints.maxItems) {
     fail('output-limit', 'media generation output item count exceeds its bound', true);
   }
-  const normalized: NormalizedAdapterOutput[] = [];
+  const normalized: FuryMediaGenerationAdapterOutput[] = [];
   let totalBytes = 0;
   for (const rawOutput of record.outputs) {
     let output: Readonly<Record<string, unknown>>;
@@ -605,11 +689,14 @@ function normalizeAdapterResult(raw: unknown, state: RequestState, plan: FuryMed
     if (!(output.bytes instanceof Uint8Array) || output.bytes.byteLength < 1 || typeof output.mimeType !== 'string' || !MIME.test(output.mimeType)) {
       fail('adapter-result-invalid', 'media generation adapter output bytes or MIME is invalid', true);
     }
-    if (output.mimeType !== plan.outputMimeType || !state.profile.supportedMediaTypes.includes(output.mimeType)) {
+    if (output.mimeType !== constraints.outputMimeType || !constraints.supportedMediaTypes.includes(output.mimeType)) {
       fail('media-type-not-supported', 'media generation adapter returned an undeclared MIME', true);
     }
     if (output.durationMs !== undefined && (typeof output.durationMs !== 'number' || !Number.isSafeInteger(output.durationMs) || output.durationMs < 0)) {
       fail('adapter-result-invalid', 'media generation adapter duration is invalid', true);
+    }
+    if (constraints.maxDurationMs !== undefined && output.durationMs !== undefined && output.durationMs > constraints.maxDurationMs) {
+      fail('output-limit', 'media generation output duration exceeds its bound', true);
     }
     let providerRequestId: string | undefined;
     if (output.providerRequestId !== undefined) {
@@ -617,14 +704,108 @@ function normalizeAdapterResult(raw: unknown, state: RequestState, plan: FuryMed
       providerRequestId = output.providerRequestId;
     }
     totalBytes += output.bytes.byteLength;
-    if (!Number.isSafeInteger(totalBytes) || totalBytes > plan.maxOutputBytes) fail('output-limit', 'media generation output exceeds its byte bound', true);
+    if (!Number.isSafeInteger(totalBytes) || totalBytes > constraints.maxOutputBytes) fail('output-limit', 'media generation output exceeds its byte bound', true);
     normalized.push(Object.freeze({
       bytes: new Uint8Array(output.bytes),
       mimeType: output.mimeType,
+      ...(output.durationMs === undefined ? {} : { durationMs: output.durationMs }),
       ...(providerRequestId === undefined ? {} : { providerRequestId }),
     }));
   }
-  return normalized;
+  return Object.freeze(normalized);
+}
+
+function normalizeAdapterResult(raw: unknown, state: RequestState, plan: FuryMediaGenerationPlan): NormalizedAdapterOutput[] {
+  return [...normalizeFuryMediaGenerationAdapterResult(raw, {
+    outputMimeType: plan.outputMimeType,
+    supportedMediaTypes: state.profile.supportedMediaTypes,
+    maxItems: plan.maxItems,
+    maxOutputBytes: plan.maxOutputBytes,
+    maxDurationMs: plan.maxDurationMs,
+  })];
+}
+
+function normalizeAdapterCapabilities(
+  raw: FuryMediaGenerationAdapter,
+  modes: readonly FuryMediaGenerationMode[],
+): FuryMediaGenerationAdapterCapabilities {
+  const inferred: FuryMediaGenerationAdapterCapabilities = {
+    synchronous: typeof raw.execute === 'function',
+    asynchronous: typeof raw.submit === 'function',
+    supportsPolling: typeof raw.poll === 'function',
+    supportsCancellation: typeof raw.cancel === 'function',
+    supportsIdempotencyKey: typeof raw.submit === 'function',
+    supportedOperations: Object.freeze([...modes]),
+    supportedMimeTypes: Object.freeze([]),
+    limits: Object.freeze({}),
+  };
+  if (raw.capabilities === undefined) return Object.freeze(inferred);
+  let record: Readonly<Record<string, unknown>>;
+  try {
+    record = plainRecord(raw.capabilities, 'media generation adapter capabilities');
+    exactKeys(record, [
+      'synchronous', 'asynchronous', 'supportsPolling', 'supportsCancellation',
+      'supportsIdempotencyKey', 'supportedOperations', 'supportedMimeTypes', 'limits',
+    ], [
+      'synchronous', 'asynchronous', 'supportsPolling', 'supportsCancellation',
+      'supportsIdempotencyKey', 'supportedOperations', 'supportedMimeTypes', 'limits',
+    ], 'media generation adapter capabilities');
+  } catch {
+    throw new TypeError('media generation adapter capabilities are invalid');
+  }
+  const booleans = ['synchronous', 'asynchronous', 'supportsPolling', 'supportsCancellation', 'supportsIdempotencyKey'] as const;
+  if (booleans.some((key) => typeof record[key] !== 'boolean')) throw new TypeError('media generation adapter capability flags are invalid');
+  if (record.synchronous !== (typeof raw.execute === 'function') || record.asynchronous !== (typeof raw.submit === 'function')) {
+    throw new TypeError('media generation adapter capability execution flags do not match methods');
+  }
+  if (record.supportsPolling !== (typeof raw.poll === 'function') || record.supportsCancellation !== (typeof raw.cancel === 'function')) {
+    throw new TypeError('media generation adapter capability lifecycle flags do not match methods');
+  }
+  if (record.supportsIdempotencyKey && typeof raw.submit !== 'function') {
+    throw new TypeError('media generation adapter idempotency support requires submit');
+  }
+  if (!Array.isArray(record.supportedOperations) || record.supportedOperations.length < 1 || record.supportedOperations.length > MAX_SUPPORTED_MODES) {
+    throw new TypeError('media generation adapter supported operations are invalid');
+  }
+  const operationSet = new Set<string>();
+  for (const mode of record.supportedOperations) {
+    if (typeof mode !== 'string' || !MODES.has(mode as FuryMediaGenerationMode) || operationSet.has(mode) || !modes.includes(mode as FuryMediaGenerationMode)) {
+      throw new TypeError('media generation adapter supported operations are invalid');
+    }
+    operationSet.add(mode);
+  }
+  if (operationSet.size !== modes.length) throw new TypeError('media generation adapter capabilities must declare every supported mode');
+  if (!Array.isArray(record.supportedMimeTypes) || record.supportedMimeTypes.length > 64) throw new TypeError('media generation adapter supported MIME types are invalid');
+  const mimeSet = new Set<string>();
+  for (const mime of record.supportedMimeTypes) {
+    if (typeof mime !== 'string' || !MIME.test(mime) || mimeSet.has(mime)) throw new TypeError('media generation adapter supported MIME types are invalid');
+    mimeSet.add(mime);
+  }
+  let limits: Readonly<Record<string, unknown>>;
+  try {
+    limits = plainRecord(record.limits, 'media generation adapter capability limits');
+    exactKeys(limits, ['maxInputBytes', 'maxOutputBytes', 'maxItems', 'maxDurationMs'], [], 'media generation adapter capability limits');
+  } catch {
+    throw new TypeError('media generation adapter capability limits are invalid');
+  }
+  const normalizedLimits: Record<string, number> = {};
+  for (const key of ['maxInputBytes', 'maxOutputBytes', 'maxItems', 'maxDurationMs'] as const) {
+    const value = limits[key];
+    if (value !== undefined) {
+      if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1 || value > 2 ** 31 - 1) throw new TypeError('media generation adapter capability limit is invalid');
+      normalizedLimits[key] = value;
+    }
+  }
+  return Object.freeze({
+    synchronous: record.synchronous as boolean,
+    asynchronous: record.asynchronous as boolean,
+    supportsPolling: record.supportsPolling as boolean,
+    supportsCancellation: record.supportsCancellation as boolean,
+    supportsIdempotencyKey: record.supportsIdempotencyKey as boolean,
+    supportedOperations: Object.freeze([...record.supportedOperations] as FuryMediaGenerationMode[]),
+    supportedMimeTypes: Object.freeze([...record.supportedMimeTypes] as string[]),
+    limits: Object.freeze(normalizedLimits),
+  });
 }
 
 export function isGeneratedFuryMediaGenerationRequest(value: unknown): value is FuryMediaGenerationRequest {
@@ -651,19 +832,32 @@ export function isGeneratedFuryMediaGenerationCoordinator(value: unknown): value
   return typeof value === 'object' && value !== null && GENERATED_COORDINATORS.has(value);
 }
 
+export function isGeneratedFuryMediaGenerationExecutionSession(value: unknown): value is FuryMediaGenerationExecutionSession {
+  return typeof value === 'object' && value !== null && GENERATED_EXECUTION_SESSIONS.has(value);
+}
+
 export function createFuryMediaGenerationAdapterRegistry(adapters: readonly FuryMediaGenerationAdapter[]): FuryMediaGenerationAdapterRegistry {
   if (!Array.isArray(adapters) || adapters.length > MAX_ADAPTERS) throw new TypeError(`media generation adapter registry must contain at most ${MAX_ADAPTERS} entries`);
   const byKey = new Map<string, FuryMediaGenerationAdapter>();
   for (const raw of adapters) {
     const record = plainRecord(raw, 'media generation adapter');
-    exactKeys(record, ['bundleId', 'bundleVersion', 'profileId', 'family', 'supportedModes', 'execute'], ['bundleId', 'bundleVersion', 'profileId', 'family', 'supportedModes', 'execute'], 'media generation adapter');
+    exactKeys(record, [
+      'bundleId', 'bundleVersion', 'profileId', 'family', 'supportedModes', 'capabilities',
+      'execute', 'submit', 'poll', 'cancel', 'fetchResult', 'reconcile',
+    ], ['bundleId', 'bundleVersion', 'profileId', 'family', 'supportedModes'], 'media generation adapter');
     if (
       typeof raw.bundleId !== 'string' || !ID.test(raw.bundleId)
       || typeof raw.bundleVersion !== 'string' || raw.bundleVersion.length < 1 || raw.bundleVersion.length > 64
       || typeof raw.profileId !== 'string' || !ID.test(raw.profileId)
       || typeof raw.family !== 'string' || !FAMILIES.has(raw.family as FuryMediaGenerationFamily)
       || !Array.isArray(raw.supportedModes) || raw.supportedModes.length < 1 || raw.supportedModes.length > MAX_SUPPORTED_MODES
-      || typeof raw.execute !== 'function'
+      || (raw.execute !== undefined && typeof raw.execute !== 'function')
+      || (raw.submit !== undefined && typeof raw.submit !== 'function')
+      || (raw.poll !== undefined && typeof raw.poll !== 'function')
+      || (raw.cancel !== undefined && typeof raw.cancel !== 'function')
+      || (raw.fetchResult !== undefined && typeof raw.fetchResult !== 'function')
+      || (raw.reconcile !== undefined && typeof raw.reconcile !== 'function')
+      || (typeof raw.execute !== 'function' && typeof raw.submit !== 'function')
     ) {
       throw new TypeError('media generation adapter registration is invalid');
     }
@@ -676,6 +870,10 @@ export function createFuryMediaGenerationAdapterRegistry(adapters: readonly Fury
       seen.add(mode);
       modes.push(mode as FuryMediaGenerationMode);
     }
+    const capabilities = normalizeAdapterCapabilities(raw, modes);
+    if (typeof raw.submit === 'function' && raw.capabilities === undefined) {
+      throw new TypeError('asynchronous media generation adapters must declare capabilities');
+    }
     const key = `${raw.bundleId}\0${raw.bundleVersion}\0${raw.profileId}\0${raw.family}`;
     if (byKey.has(key)) throw new TypeError('media generation adapter registration is duplicated');
     byKey.set(key, Object.freeze({
@@ -684,7 +882,13 @@ export function createFuryMediaGenerationAdapterRegistry(adapters: readonly Fury
       profileId: raw.profileId,
       family: raw.family as FuryMediaGenerationFamily,
       supportedModes: Object.freeze([...modes]),
-      execute: raw.execute,
+      capabilities,
+      ...(raw.execute === undefined ? {} : { execute: raw.execute }),
+      ...(raw.submit === undefined ? {} : { submit: raw.submit }),
+      ...(raw.poll === undefined ? {} : { poll: raw.poll }),
+      ...(raw.cancel === undefined ? {} : { cancel: raw.cancel }),
+      ...(raw.fetchResult === undefined ? {} : { fetchResult: raw.fetchResult }),
+      ...(raw.reconcile === undefined ? {} : { reconcile: raw.reconcile }),
     }));
   }
   const registry: FuryMediaGenerationAdapterRegistry = Object.freeze({
@@ -1129,5 +1333,165 @@ export function createFuryMediaGenerationCoordinator(options: FuryMediaGeneratio
     },
   });
   GENERATED_COORDINATORS.add(coordinator);
+  COORDINATOR_ADAPTERS.set(coordinator, options.adapters);
   return coordinator;
+}
+
+export function createFuryMediaGenerationExecutionSession(input: {
+  readonly coordinator: FuryMediaGenerationCoordinator;
+  readonly request: FuryMediaGenerationRequest;
+  readonly plan: FuryMediaGenerationPlan;
+  readonly permit: FuryMediaGenerationPermit;
+  readonly now?: () => number;
+}): FuryMediaGenerationExecutionSession {
+  const record = plainRecord(input, 'media generation execution session input');
+  exactKeys(record, ['coordinator', 'request', 'plan', 'permit', 'now'], ['coordinator', 'request', 'plan', 'permit'], 'media generation execution session input');
+  if (!isGeneratedFuryMediaGenerationCoordinator(input.coordinator)) fail('execution-not-authorized', 'generated media generation coordinator is required');
+  const requestState = REQUEST_STATE.get(input.request);
+  const planState = PLAN_STATE.get(input.plan);
+  const permitState = PERMIT_STATE.get(input.permit);
+  if (!requestState || requestState.coordinator !== input.coordinator || requestState.request !== input.request) fail('execution-not-authorized', 'process-local generation request is required');
+  if (!planState || planState.coordinator !== input.coordinator || planState.plan !== input.plan || planState.request !== input.request) fail('plan-request-mismatch', 'generation plan does not match exact request');
+  if (!permitState || permitState.coordinator !== input.coordinator || permitState.permit !== input.permit || permitState.request !== input.request || permitState.plan !== input.plan) fail('execution-not-authorized', 'process-local generation permit is required');
+  if (
+    input.permit.requestDigestSha256 !== input.request.requestDigestSha256
+    || input.permit.planDigestSha256 !== input.plan.planDigestSha256
+    || input.permit.kind !== input.request.kind
+    || input.permit.mode !== input.request.mode
+    || input.permit.bundleId !== input.request.bundleId
+    || input.permit.bundleVersion !== input.request.bundleVersion
+    || input.permit.profileId !== input.request.profileId
+  ) fail('permit-request-mismatch', 'generation permit does not match exact request and plan');
+  const nowSource = input.now ?? Date.now;
+  if (typeof nowSource !== 'function') throw new TypeError('media generation execution session clock must be a function');
+
+  const resolveAdapter = (adapter: FuryMediaGenerationAdapter): FuryMediaGenerationAdapter => {
+    const registered = COORDINATOR_ADAPTERS.get(input.coordinator)?.get(input.request.bundleId, input.request.bundleVersion, input.request.profileId, MODE_FAMILY[input.request.mode]);
+    if (
+      !adapter
+      || adapter !== registered
+      || adapter.bundleId !== input.request.bundleId
+      || adapter.bundleVersion !== input.request.bundleVersion
+      || adapter.profileId !== input.request.profileId
+      || adapter.family !== MODE_FAMILY[input.request.mode]
+      || !adapter.supportedModes.includes(input.request.mode)
+    ) fail('adapter-not-registered', 'exact media generation adapter is not registered');
+    return adapter;
+  };
+
+  const signalFrom = (options: { readonly signal?: AbortSignal } | undefined): AbortSignal | undefined => {
+    if (options === undefined) return undefined;
+    const optionsRecord = plainRecord(options, 'media generation execution options');
+    exactKeys(optionsRecord, ['signal'], [], 'media generation execution options');
+    return options.signal === undefined ? undefined : validateAbortSignal(options.signal);
+  };
+
+  const readInputs = (): FuryMediaGenerationAdapterMediaInput[] => {
+    const adapterInputs: FuryMediaGenerationAdapterMediaInput[] = [];
+    try {
+      for (let index = 0; index < requestState.inputHandles.length; index += 1) {
+        const handle = requestState.inputHandles[index]!;
+        const expected = requestState.inputEvidence[index]!;
+        const current = requestState.mediaCoordinator.inspect(handle);
+        if (
+          current.mediaSha256 !== expected.mediaSha256
+          || current.mimeType !== expected.mimeType
+          || current.kind !== expected.kind
+          || current.byteCount !== expected.byteCount
+        ) fail('media-input-invalid', 'generation media evidence changed before dispatch');
+        adapterInputs.push(Object.freeze({ kind: current.kind, mimeType: current.mimeType, bytes: requestState.mediaCoordinator.readBytes(handle) }));
+      }
+      return adapterInputs;
+    } catch (error) {
+      for (const adapterInput of adapterInputs) adapterInput.bytes.fill(0);
+      if (error instanceof FuryMediaGenerationError) throw error;
+      fail('media-input-invalid', 'generation media became unavailable before dispatch');
+    }
+  };
+
+  const beginDispatch = (): void => {
+    const startedAt = safeNow(nowSource);
+    if (startedAt >= input.permit.expiresAt) fail('permit-expired', 'generation permit expired');
+    if (permitState.consumed) fail('permit-already-consumed', 'generation permit was already consumed');
+    permitState.consumed = true;
+  };
+
+  const normalizeSubmission = (raw: unknown): FuryMediaGenerationAdapterSubmission => {
+    let submission: Readonly<Record<string, unknown>>;
+    try {
+      submission = plainRecord(raw, 'media generation adapter submission');
+      exactKeys(submission, ['providerJobId', 'status'], ['providerJobId'], 'media generation adapter submission');
+    } catch {
+      fail('adapter-result-invalid', 'media generation adapter submission schema is invalid', true);
+    }
+    if (typeof submission.providerJobId !== 'string' || !ID.test(submission.providerJobId)) fail('adapter-result-invalid', 'provider job identity is invalid', true);
+    const status = submission.status;
+    if (status !== undefined && status !== 'SUBMITTED' && status !== 'QUEUED' && status !== 'RUNNING') {
+      fail('adapter-result-invalid', 'media generation adapter submission status is invalid', true);
+    }
+    return Object.freeze({
+      providerJobId: submission.providerJobId,
+      ...(status === undefined ? {} : { status }),
+    });
+  };
+
+  const dispatch = async (
+    adapter: FuryMediaGenerationAdapter,
+    kind: 'submit' | 'execute',
+    idempotencyKey: string | undefined,
+    options: { readonly signal?: AbortSignal } | undefined,
+  ): Promise<unknown> => {
+    const resolved = resolveAdapter(adapter);
+    if (kind === 'submit' && typeof resolved.submit !== 'function') fail('adapter-not-registered', 'media generation adapter does not support asynchronous submission');
+    if (kind === 'execute' && typeof resolved.execute !== 'function') fail('adapter-not-registered', 'media generation adapter does not support synchronous execution');
+    if (idempotencyKey !== undefined && (typeof idempotencyKey !== 'string' || idempotencyKey.length < 1 || idempotencyKey.length > 512 || /[\u0000-\u001f\u007f]/u.test(idempotencyKey))) {
+      fail('invalid-input', 'media generation idempotency key is invalid');
+    }
+    const signal = signalFrom(options);
+    const adapterInputs = readInputs();
+    try {
+      beginDispatch();
+      const context: FuryMediaGenerationAdapterContext = Object.freeze({
+        family: MODE_FAMILY[input.request.mode],
+        kind: input.request.kind,
+        mode: input.request.mode,
+        requestDigestSha256: input.request.requestDigestSha256,
+        outputMimeType: input.request.outputMimeType,
+        maxOutputBytes: input.plan.maxOutputBytes,
+        maxItems: input.plan.maxItems,
+        ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+        ...(signal === undefined ? {} : { signal }),
+      });
+      if (kind === 'submit') {
+        try {
+          return normalizeSubmission(await resolved.submit!(Object.freeze({ prompt: requestState.prompt, parameters: requestState.parameters, inputs: Object.freeze(adapterInputs) }), context));
+        } catch (error) {
+          if (error instanceof FuryMediaGenerationError && error.adapterInvoked) throw error;
+          fail('adapter-error', 'media generation adapter submission failed after dispatch began', true);
+        }
+      }
+      try {
+        return await resolved.execute!(Object.freeze({ prompt: requestState.prompt, parameters: requestState.parameters, inputs: Object.freeze(adapterInputs) }), context);
+      } catch (error) {
+        if (error instanceof FuryMediaGenerationError && error.adapterInvoked) throw error;
+        fail('adapter-error', 'media generation adapter failed after dispatch began', true);
+      }
+    } finally {
+      for (const adapterInput of adapterInputs) adapterInput.bytes.fill(0);
+    }
+  };
+
+  const session: FuryMediaGenerationExecutionSession = Object.freeze({
+    request: input.request,
+    plan: input.plan,
+    permit: input.permit,
+    submit(adapter: FuryMediaGenerationAdapter, idempotencyKey: string, options?: { readonly signal?: AbortSignal }) {
+      return dispatch(adapter, 'submit', idempotencyKey, options) as Promise<FuryMediaGenerationAdapterSubmission>;
+    },
+    execute(adapter: FuryMediaGenerationAdapter, options?: { readonly signal?: AbortSignal }) {
+      return dispatch(adapter, 'execute', undefined, options);
+    },
+  });
+  GENERATED_EXECUTION_SESSIONS.add(session);
+  return session;
 }

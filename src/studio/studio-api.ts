@@ -63,6 +63,8 @@ import {
   type FuryCodeScriptName,
   type FuryCodeScriptPlan,
 } from '../fury-code-advanced-node.js';
+import { createFuryMediaStudioPreview, createFuryMediaStudioSnapshot } from '../media-studio.js';
+import type { FuryMediaGenerationAdapter, FuryMediaGenerationMode } from '../media-generation-runtime.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
@@ -76,6 +78,7 @@ export type StudioRoute =
   | 'web' | 'visual-render'
   | 'memory' | 'memory-remember' | 'memory-search' | 'memory-act'
   | 'integrations' | 'connections' | 'connection-login' | 'support'
+  | 'media' | 'media-preview'
   | 'artifacts' | 'artifact-get' | 'artifact-create' | 'artifact-version' | 'artifact-search' | 'artifact-restore-plan' | 'artifact-restore' | 'artifact-export'
   | 'chats' | 'chat-get' | 'chat-save' | 'chat-branch' | 'chat-delete'
   | 'code-tree' | 'code-file' | 'code-worktrees' | 'code-diff'
@@ -98,6 +101,8 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/eval': { route: 'eval', method: 'POST' },
   '/api/studio/extensions.json': { route: 'extensions', method: 'GET' },
   '/api/studio/support.json': { route: 'support', method: 'GET' },
+  '/api/studio/media.json': { route: 'media', method: 'GET' },
+  '/api/studio/media/preview': { route: 'media-preview', method: 'POST' },
   '/api/studio/artifacts.json': { route: 'artifacts', method: 'GET' },
   '/api/studio/artifacts/get': { route: 'artifact-get', method: 'POST' },
   '/api/studio/artifacts/create': { route: 'artifact-create', method: 'POST' },
@@ -196,6 +201,8 @@ export interface StudioApiOptions {
   readonly artifactRepository?: FuryArtifactRepository;
   /** Artifact RecoveryStore root (default ~/.furypipe/studio/artifacts/<project>). */
   readonly artifactsDir?: string;
+  /** Provider-neutral media adapters observed by Studio; observation never grants execution authority. */
+  readonly mediaAdapters?: readonly FuryMediaGenerationAdapter[];
 }
 
 interface StudioRun {
@@ -635,6 +642,26 @@ export function createStudioApi(options: StudioApiOptions) {
               }),
               installation: 'LOCAL_REVIEW_REQUIRED: catalog entries are never downloaded or activated automatically',
             });
+          }
+          case 'media':
+            return json(createFuryMediaStudioSnapshot({
+              ...(options.mediaAdapters === undefined ? {} : { adapters: options.mediaAdapters }),
+              now,
+            }));
+          case 'media-preview': {
+            const body = await readJson(request) as { surface?: unknown; operation?: unknown; prompt?: unknown; outputMimeType?: unknown };
+            if (body?.surface !== 'image' && body?.surface !== 'video' && body?.surface !== 'audio') return problem(400, 'invalid-input', 'media surface must be image, video or audio');
+            if (typeof body.operation !== 'string' || typeof body.prompt !== 'string' || typeof body.outputMimeType !== 'string') return problem(400, 'invalid-input', 'media operation, prompt and outputMimeType are required');
+            try {
+              return json(createFuryMediaStudioPreview({
+                surface: body.surface,
+                operation: body.operation as FuryMediaGenerationMode,
+                prompt: body.prompt,
+                outputMimeType: body.outputMimeType,
+              }));
+            } catch (error) {
+              return problem(422, 'media-preview-rejected', (error as Error).message.slice(0, 300));
+            }
           }
           case 'artifacts':
             return json({ artifacts: (await artifacts.list()).map(artifactSummary), authority: 'persistent-artifact-store' });

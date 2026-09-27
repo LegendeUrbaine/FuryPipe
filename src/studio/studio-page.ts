@@ -79,6 +79,7 @@ const ICONS: Readonly<Record<string, string>> = Object.freeze({
   web: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
   memory: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
   models: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
+  media: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="10" r="1.5"/><path d="m5 17 4-4 3 3 2-2 5 3"/>',
   runtimes: '<path d="m4 17 6-5-6-5"/><path d="M12 19h8"/>',
   skills: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
   autopilot: '<path d="M12 2l2.1 6.1L20 10l-5.9 1.9L12 18l-2.1-6.1L4 10l5.9-1.9z"/><path d="M5 18l.8 2.2L8 21l-2.2.8L5 24l-.8-2.2L2 21l2.2-.8z"/>',
@@ -552,11 +553,11 @@ const SCRIPT = String.raw`
   const tpl = document.createElement('template');
   function ic(name, cls) { tpl.innerHTML = '<svg class="' + (cls || 'i') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || '') + '</svg>'; return tpl.content.firstChild; }
   const store = { get(k, d) { try { const v = localStorage.getItem('furypipe.studio.' + k); return v === null ? d : v; } catch { return d; } }, set(k, v) { try { localStorage.setItem('furypipe.studio.' + k, v); } catch {} } };
-  const views = ['chat','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
-  const VIEW_TITLES = { chat: 'Chat', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
+  const views = ['chat','media','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
+  const VIEW_TITLES = { chat: 'Chat', media: 'Media Studio', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
   const PROVIDER = { ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp', vllm: 'vLLM', sglang: 'SGLang', localai: 'LocalAI', jan: 'Jan', 'openai-compatible': 'OpenAI-compatible', 'anthropic-compatible': 'Anthropic-compatible' };
   const SETUP = { ollama: 'https://ollama.com/download', lmstudio: 'https://lmstudio.ai', llamacpp: 'https://github.com/ggml-org/llama.cpp', vllm: 'https://docs.vllm.ai', sglang: 'https://docs.sglang.ai', localai: 'https://localai.io', jan: 'https://jan.ai' };
-  const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
+  const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, media: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
   /* ---------- Locale / i18n ---------- */
   const SUPPORTED_LANGUAGES = Object.freeze(['en', 'fr']);
   const FR = Object.freeze({
@@ -1053,6 +1054,7 @@ const SCRIPT = String.raw`
     }
     firstRoute = false;
     if (name === 'chat' || name === 'models') loadLocal();
+    if (name === 'media') loadMedia();
     if (name === 'autopilot') $('#autopilot-effort').value = $('#effort-select').value;
     if (name === 'chat') autosize();
     if (name === 'connections') loadConnections();
@@ -1469,6 +1471,81 @@ const SCRIPT = String.raw`
     const box = $('#composer'); const before = box.getBoundingClientRect();
     return () => { if (reduceMotion() || !box.animate) return; const after = box.getBoundingClientRect(); const dy = before.top - after.top; if (Math.abs(dy) > 4) box.animate([{ transform: 'translateY(' + dy + 'px)' }, { transform: 'none' }], { duration: 420, easing: 'cubic-bezier(.16,1,.3,1)' }); };
   }
+  function syncMediaForm(snapshot) {
+    const surfaceSelect = $('#media-surface');
+    const operationSelect = $('#media-operation');
+    const mimeSelect = $('#media-mime');
+    if (!surfaceSelect || !operationSelect || !mimeSelect || !snapshot || !Array.isArray(snapshot.surfaces)) return;
+    const surface = snapshot.surfaces.find((item) => item.id === surfaceSelect.value) || snapshot.surfaces[0];
+    if (!surface) return;
+    surfaceSelect.value = surface.id;
+    const currentOperation = operationSelect.value;
+    operationSelect.replaceChildren(...(Array.isArray(surface.operations) ? surface.operations : []).map((operation) => el('option', { value: operation, text: operation })));
+    if (surface.operations.includes(currentOperation)) operationSelect.value = currentOperation;
+    const currentMime = mimeSelect.value;
+    mimeSelect.replaceChildren(...(Array.isArray(surface.outputMimeTypes) ? surface.outputMimeTypes : []).map((mime) => el('option', { value: mime, text: mime })));
+    if (surface.outputMimeTypes.includes(currentMime)) mimeSelect.value = currentMime;
+  }
+  function renderMediaSnapshot(snapshot) {
+    const surfaces = $('#media-surfaces');
+    if (surfaces) {
+      surfaces.replaceChildren(...(Array.isArray(snapshot.surfaces) ? snapshot.surfaces : []).map((surface) => {
+        const card = el('div', { class: 'card' });
+        const meta = el('div', { class: 'extension-meta' }, badge(surface.state, 'muted'), badge(surface.executionAuthorized ? 'execution authorized' : 'preview only', surface.executionAuthorized ? 'good' : 'muted'));
+        const controls = Array.isArray(surface.controls) ? surface.controls.map((control) => control.id).join(' · ') : '';
+        card.append(el('h2', { text: surface.title }), el('p', { class: 'muted', text: surface.family + ' · ' + (Array.isArray(surface.operations) ? surface.operations.length : 0) + ' operation(s)' }), meta, el('p', { class: 'muted', text: controls ? 'Bounded controls: ' + controls : 'No controls declared.' }));
+        return card;
+      }));
+    }
+    const providerStatus = $('#media-provider-status');
+    if (providerStatus) providerStatus.textContent = snapshot.providerExecution === 'NOT_CONFIGURED'
+      ? 'No provider adapter registered. Studio remains preview-only.'
+      : 'Adapter capability observed. Live provider execution is not validated here.';
+    const adapters = $('#media-adapters');
+    if (adapters) {
+      const observations = Array.isArray(snapshot.adapters) ? snapshot.adapters : [];
+      adapters.replaceChildren(...(observations.length ? observations.map((adapter) => {
+        const card = el('div', { class: 'card extension-card' });
+        card.append(el('h3', { text: adapter.bundleId + ' · ' + adapter.profileId }), el('p', { class: 'muted', text: adapter.family + ' · ' + adapter.bundleVersion }), el('p', { class: 'muted', text: 'Modes: ' + (Array.isArray(adapter.supportedModes) ? adapter.supportedModes.join(', ') : 'none') + ' · MIME: ' + (Array.isArray(adapter.supportedMimeTypes) && adapter.supportedMimeTypes.length ? adapter.supportedMimeTypes.join(', ') : 'not declared') }), badge(adapter.lifecycle, 'muted'));
+        return card;
+      }) : [el('p', { class: 'muted', text: 'No adapter capability observation available.' })]));
+    }
+    syncMediaForm(snapshot);
+  }
+  async function loadMedia() {
+    try {
+      const snapshot = await getJson('/api/studio/media.json');
+      state.media = snapshot;
+      renderMediaSnapshot(snapshot);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const providerStatus = $('#media-provider-status');
+      if (providerStatus) providerStatus.textContent = 'Media capability load failed: ' + message;
+    }
+  }
+  const mediaSurface = $('#media-surface');
+  if (mediaSurface) mediaSurface.addEventListener('change', () => syncMediaForm(state.media));
+  const mediaPreviewForm = $('#media-preview-form');
+  if (mediaPreviewForm) mediaPreviewForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const status = $('#media-status');
+    const output = $('#media-preview-out');
+    if (status) status.textContent = 'Building preview…';
+    if (output) output.hidden = true;
+    try {
+      const preview = await post('/api/studio/media/preview', {
+        surface: $('#media-surface').value,
+        operation: $('#media-operation').value,
+        outputMimeType: $('#media-mime').value,
+        prompt: $('#media-prompt').value,
+      });
+      if (output) { output.textContent = JSON.stringify(preview, null, 2); output.hidden = false; }
+      if (status) status.textContent = 'Preview built. No provider call or billable generation executed.';
+    } catch (error) {
+      if (status) status.textContent = 'Preview rejected: ' + (error instanceof Error ? error.message : String(error));
+    }
+  });
+
   async function loadConversations() {
     try { const r = await getJson('/api/studio/chats.json'); const ul = $('#chat-list'); ul.replaceChildren();
       if (!r.conversations.length) ul.append(el('li', { class: 'empty-note', text: 'Your conversations appear here.' }));
@@ -2540,7 +2617,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <button type="button" id="search-btn" class="search-btn" title="Search and commands (Ctrl K)">${icon('search')}<span class="label">Search</span><kbd>Ctrl K</kbd></button>
   <nav class="side-nav" aria-label="Workspace"><ul>
     <li class="nav-label label" data-level="simple">Workspace</li>
-    ${nav('chat', 'simple', 'Chat')}${nav('autopilot', 'power', 'Autopilot')}${nav('cowork', 'power', 'Work')}${nav('code', 'engineer', 'Code')}${nav('agents', 'engineer', 'Agents')}${nav('automations', 'engineer', 'Automations')}
+    ${nav('chat', 'simple', 'Chat')}${nav('media', 'power', 'Media')}${nav('autopilot', 'power', 'Autopilot')}${nav('cowork', 'power', 'Work')}${nav('code', 'engineer', 'Code')}${nav('agents', 'engineer', 'Agents')}${nav('automations', 'engineer', 'Automations')}
     <li class="nav-more-row"><details class="nav-more" id="nav-more"><summary>${icon('more')}<span class="label">More</span>${icon('chevron','i more-chevron')}</summary><ul>
       ${nav('knowledge', 'power', 'Knowledge')}${nav('web', 'power', 'Web')}${nav('memory', 'power', 'Memory')}
       ${nav('models', 'simple', 'Models')}${nav('connections', 'simple', 'Connections')}${nav('mission', 'expert', 'Mission Control')}
@@ -2623,6 +2700,12 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
     <div class="card"><h2>Automatic, not uncontrolled</h2><ul class="reasons"><li>Relevant SKILL.md instructions are loaded progressively and checksummed.</li><li>MCP tools are selected by intent but still obey trust and per-tool policy.</li><li>Visual context compression is used only when the request benefits from it.</li><li>Mutation, network and external actions still require the existing FuryPipe gates.</li></ul></div>
   </div>
   <div id="autopilot-out" aria-live="polite"></div>
+</section>
+<section data-view="media" class="media-workspace" aria-labelledby="h-media" hidden><h1 id="h-media">Media Studio</h1><p class="lead">FuryImage, FuryVideo and FuryAudio share the governed media runtime. This surface builds bounded previews only; no provider call, credential use or billable generation starts here.</p>
+  <div class="cap-rail" aria-label="Media Studio guarantees"><span>${icon('shield')}Preview authority only</span><span>${icon('check')}Bounded prompt + MIME</span><span>${icon('artifacts')}Artifact references after runtime proof</span></div>
+  <div class="grid" id="media-surfaces"></div>
+  <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><div class="row"><button type="submit">Preview governed request</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
+  <div class="card"><h2>Provider boundary</h2><p id="media-provider-status" class="muted">Loading registered capability observations…</p><div id="media-adapters"></div></div>
 </section>
 <section data-view="cowork" class="work-view" aria-labelledby="h-cowork" hidden><h1 id="h-cowork">Work</h1><p class="lead">Give FuryPipe a goal. It can plan first, or run with the exact permissions you allow.</p>
   <div class="card work-brief"><label for="cowork-intent">What should FuryPipe do?</label><textarea id="cowork-intent" placeholder="e.g. Review the project, fix the issue and verify the result"></textarea>

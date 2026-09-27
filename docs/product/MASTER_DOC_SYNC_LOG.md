@@ -80,3 +80,41 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - Remaining work: governed runtime isolation, UI extension lifecycle, compatibility/migration coverage.
 - Status: `IMPLEMENTED_PENDING_EXACT_HEAD`.
 - No merge, release, tag, npm publish or deploy performed.
+
+
+## 2026-09-27 — Media async job engine
+
+- Added the provider-neutral async media job contract and bounded lifecycle:
+  `CREATED`, `SUBMITTED`, `QUEUED`, `RUNNING`, `SUCCEEDED`, `FAILED`,
+  `CANCELLED`, `UNKNOWN`.
+- Reused the existing `RecoveryStore` for atomic job creation, revision-guarded
+  updates, immutable output references, receipts and restart reconciliation.
+- Added deterministic idempotency, duplicate suppression, bounded polling,
+  cancellation outcomes and no-blind-resubmit handling for unknown outcomes.
+- Added a deterministic test adapter and local tests covering queue/poll,
+  restart reconciliation, invalid media, idempotency and cancellation.
+- Local proof: 337 Vitest files passed, 3,551 tests passed, 6 skipped; source
+  and hosted-MCP typechecks, build and package smoke passed.
+- Remaining: concrete provider SDK/credentials/live execution, Studio history
+  and artifact UX, hosted exact-head evidence for this tranche, client/provider/
+  production validation and release gates.
+- Status: `IMPLEMENTED_LOCAL_VERIFIED_ASYNC_PROVIDER_OPTIONAL`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.
+
+## 2026-09-27 — Media Studio preview surface
+
+- Added provider-neutral FuryImage, FuryVideo and FuryAudio Studio surfaces
+  with bounded operation/MIME controls and a digest-only preview route.
+- Preview authority is explicit: no provider invocation, credentials, billable
+  generation or execution permit is created by the Studio surface.
+- Browser QA now covers valid/invalid media previews, raw-prompt non-leakage,
+  responsive overflow and all three engines: Chromium, Firefox and WebKit
+  passed locally. A screenshot was inspected; no human screen-reader sign-off
+  is inferred.
+- Remaining: concrete provider SDK/credentials/live execution, Studio history
+  and artifact UX, hosted exact-head evidence for this tranche,
+  production/client release gates.
+- Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.

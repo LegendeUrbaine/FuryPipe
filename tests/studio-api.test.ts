@@ -69,7 +69,53 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/autopilot/preview')).toEqual({ route: 'autopilot-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/eval')).toEqual({ route: 'eval', method: 'POST' });
     expect(studioApiRoute('/api/studio/connections/login')).toEqual({ route: 'connection-login', method: 'POST' });
+    expect(studioApiRoute('/api/studio/media.json')).toEqual({ route: 'media', method: 'GET' });
+    expect(studioApiRoute('/api/studio/media/preview')).toEqual({ route: 'media-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/../control-room.json')).toBeNull();
+  });
+
+  it('exposes Media Studio as a preview-only surface with explicit provider boundaries', async () => {
+    const studio = createStudioApi({ projectRoot: process.cwd(), now: () => 123, discoverHarnesses: async () => harnesses, discoverLocal: async () => ({ backends: [] }) });
+    const snapshotResponse = await studio.handle('media', new Request('http://127.0.0.1/api/studio/media.json'));
+    expect(snapshotResponse.status).toBe(200);
+    const snapshot = await snapshotResponse.json() as {
+      authority: string;
+      executionAuthorized: boolean;
+      providerExecution: string;
+      surfaces: { id: string; title: string; executionAuthorized: boolean }[];
+      adapters: unknown[];
+    };
+    expect(snapshot).toMatchObject({
+      authority: 'studio-preview-only',
+      executionAuthorized: false,
+      providerExecution: 'NOT_CONFIGURED',
+    });
+    expect(snapshot.surfaces.map((surface) => surface.id)).toEqual(['image', 'video', 'audio']);
+    expect(snapshot.surfaces.map((surface) => surface.title)).toEqual(['FuryImage Studio', 'FuryVideo Studio', 'FuryAudio Studio']);
+    expect(snapshot.surfaces.every((surface) => surface.executionAuthorized === false)).toBe(true);
+    expect(snapshot.adapters).toEqual([]);
+
+    const previewResponse = await studio.handle('media-preview', post({
+      surface: 'image', operation: 'text-to-image', prompt: 'A bounded preview prompt', outputMimeType: 'image/png',
+    }));
+    expect(previewResponse.status).toBe(200);
+    const preview = await previewResponse.json() as Record<string, unknown>;
+    expect(preview).toMatchObject({
+      surface: 'image', operation: 'text-to-image', outputMimeType: 'image/png',
+      state: 'PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY', requiresApproval: true, executionAuthorized: false,
+    });
+    expect(preview).not.toHaveProperty('prompt');
+
+    const rejectedResponse = await studio.handle('media-preview', post({
+      surface: 'video', operation: 'text-to-image', prompt: 'bad operation', outputMimeType: 'image/png',
+    }));
+    expect(rejectedResponse.status).toBe(422);
+
+    const page = renderStudioHtml().html;
+    expect(page).toContain('href="#/media"');
+    expect(page).toContain('FuryImage Studio');
+    expect(page).toContain('FuryVideo Studio');
+    expect(page).toContain('preview-only');
   });
 
   it('exposes a read-only model hub without treating configuration as execution authority', async () => {

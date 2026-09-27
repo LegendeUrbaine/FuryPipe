@@ -415,16 +415,27 @@
     {
       "id": "media.generation-runtime",
       "kind": "MEDIA_GENERATION_RUNTIME",
-      "state": "IMPLEMENTED_EXACT_HEAD_HOSTED_VERIFIED_PROVIDER_OPTIONAL",
+      "state": "IMPLEMENTED_LOCAL_VERIFIED_ASYNC_PROVIDER_OPTIONAL",
       "evidence": [
         "src/media-generation-runtime.ts",
         "tests/media-generation-runtime.test.ts",
+        "src/media-generation-job-engine.ts",
+        "src/media-generation-deterministic-adapter.ts",
+        "tests/media-generation-job-engine.test.ts",
+        "src/media-studio.ts",
+        "tests/media-studio.test.ts",
+        "src/studio/studio-api.ts",
+        "src/studio/studio-page.ts",
+        "tests/studio-api.test.ts",
+        "scripts/studio-browser-qa.ts",
+        "src/core/recovery-store.ts",
         "src/media-plugin-contracts.ts",
         "src/media-ingestion.ts",
         "src/fury-artifacts.ts",
-        "docs/evidence/FURYPIPE_MEDIA_GENERATION_RUNTIME_2026-09-27.md"
+        "docs/evidence/FURYPIPE_MEDIA_GENERATION_RUNTIME_2026-09-27.md",
+        "docs/evidence/FURYPIPE_MEDIA_ASYNC_JOB_ENGINE_2026-09-27.md"
       ],
-      "note": "Common image/audio/video Request→plan→approval→single-use permit→exact adapter→bounded output→governed ingestion→Artifact→receipt/provenance path. No concrete provider, Studio UI or async provider recovery authority is claimed."
+      "note": "Common image/audio/video runtime plus bounded async submit/poll/cancel/reconcile job engine, deterministic idempotency, RecoveryStore restart proof and safe output references. FuryImage/FuryVideo/FuryAudio expose bounded preview-only Studio surfaces and API routes; browser QA passed locally on Chromium, Firefox and WebKit. No concrete provider, provider credentials, live generation, hosted exact-head or production claim."
     }
   ],
   "targetFamilies": [
@@ -480,17 +491,17 @@
     },
     {
       "name": "FuryImage Studio",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {
       "name": "FuryVideo Studio",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {
       "name": "Audio/Voice realtime",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_AUDIO_PREVIEW_ONLY_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {

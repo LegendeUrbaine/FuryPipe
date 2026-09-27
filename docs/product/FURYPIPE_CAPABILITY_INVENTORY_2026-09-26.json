@@ -206,7 +206,7 @@
       "dependsOn": "CORE-10",
       "acceptance": "Explicit, shell-free, bounded",
       "testStrategy": "unit",
-      "status": "PARTIAL — refreshGraphify (explicit, shell-free, bounded) exists in src/fury-graph.ts; it is not triggered automatically after merge/checkout and not exposed in Studio"
+      "status": "PARTIAL — planGraphifyLifecycle preserves stale detection and native fallback; planGraphifyRefresh/executeGraphifyRefresh add confirm:true, shell-free bounded refresh receipts, with Studio lifecycle/refresh routes. No automatic post-merge/checkout trigger."
     },
     {
       "id": "UX-07",

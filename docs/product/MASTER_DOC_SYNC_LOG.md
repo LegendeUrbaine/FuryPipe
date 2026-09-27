@@ -289,3 +289,29 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
   exact-head evidence.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-28 — FuryGraph explicit refresh receipt
+
+- Extended the existing Graphify lifecycle planner with a deterministic,
+  metadata-only refresh plan and success/failure receipt. The plan requires
+  `confirm: true`; the execution boundary revalidates the absolute root and
+  command, uses `shell: false`, and enforces a timeout of at most one hour.
+- Added Studio `POST /api/studio/graph/lifecycle` and
+  `POST /api/studio/graph/refresh` routes. The refresh route rejects absent
+  approval and preserves a bounded failure receipt in its 502 response; no
+  route performs automatic post-merge, post-checkout or background refresh.
+- Hardened the lifecycle route against `null` JSON bodies and kept native
+  fallback explicit when Graphify is unavailable.
+- Focused local proof: Graphify/Studio API `38/38`; full Vitest `340` files /
+  `3,570` passed / `6` skipped; source and hosted-MCP typechecks; build
+  version smoke `0.16.0`; installed package smoke including Gateway, MCP,
+  Phase 6/7/8, benchmark-claim, provider-attempt and governed-provider
+  checks; Gateway smoke tarball SHA-256
+  `6fed695656ebbc31ea5503da9c2fc536dc2608d2d986684495b353167a4738fa`;
+  Chromium/Firefox/WebKit Browser QA.
+- Status: `PARTIAL_GRAPHIFY_LIFECYCLE_LOCAL_CONTRACT_VERIFIED`.
+- Remaining: automatic approval-bearing integration hook, host-specific
+  Graphify installation/runtime proof, hosted exact-head validation, and
+  human/client/production gates.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.

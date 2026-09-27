@@ -111,7 +111,7 @@ Primary evidence:
 | Agents / execution | DONE core / PARTIAL target | specialized agents, graph, message bus, parallel coordination, replay | Dispatcher/Run/Mission Control/Replay DONE; universal agent graph/message bus UX broader | P2 | FuryIR, registry | Medium | deterministic DAG tests + replay verification |
 | Workflows / automations | DONE core / PARTIAL target | richer builder, schedules/events/webhooks, reusable workflows | FuryFlow Studio exists; full automation breadth requires reconciliation | P2 | execution engine | Medium | DAG + persistence + E2E |
 | Artifacts | PARTIAL | first-class artifact graph, versioning, restore/export/search | Current master sync already records Artifact Graph as a gap | P2 | storage, graph | Medium | history/diff/restore tests |
-| Graphify lifecycle | PARTIAL — RECOMMENDATION WIRED | safe automatic recommendation/refresh after relevant changes | Explicit bounded `refreshGraphify` remains operator-triggered. New lifecycle planner detects stale Graphify output and relevant source-file changes, recommends refresh, and explicitly preserves native fallback without granting execution authority. Automatic post-merge/checkout execution remains intentionally unimplemented pending an approval-bearing runtime hook. | P2 | FuryGraph, integrator | Medium | lifecycle planner tests + future approved post-integration hook |
+| Graphify lifecycle | PARTIAL — APPROVAL + RECEIPT LOCAL VERIFIED | safe automatic recommendation/refresh after relevant changes | Lifecycle planner detects stale Graphify output and relevant source-file changes, recommends refresh, and preserves native fallback. `planGraphifyRefresh` / `executeGraphifyRefresh` require `confirm:true`, use a shell-free bounded subprocess, and return a receipt; Studio exposes lifecycle and refresh routes. Automatic post-merge/checkout execution remains intentionally unimplemented pending an approval-bearing runtime hook. | P2 | FuryGraph, integrator | Medium | lifecycle/receipt tests + future approved post-integration hook |
 | Marketplace | PARTIAL CONTROL-PLANE / LOCAL CONTRACT VERIFIED | catalog, download, hash, signature, license, trust, compatibility, permissions, approval, isolated install, verification, update, rollback, uninstall | Signed deterministic manifests now carry bounded compatibility metadata; Ed25519 verification recomputes the metadata digest; a bounded metadata-only catalog, supplied-byte source hash verification and approval-only DOWNLOAD/VERIFY/INSTALL/UPDATE/ROLLBACK/UNINSTALL plans exist. Network/filesystem/execution authority remains false. Actual downloader, persistent catalog, isolated installer and rollback executor remain P2. | P2 | registry, trust, signatures, sandbox | High | signature/tamper/source-hash tests + API/browser QA + future installer isolation tests |
 | Security / Zero Trust | DONE core / PARTIAL target | zero-trust extension/runtime policy across every new capability | Strong current controls; each new media/plugin/provider surface must inherit them | P0 continuous | FuryProof, trust | Critical | negative tests + SAST/dependency/secret scans |
 | Supply chain | DONE CORE / PARTIAL DISTRIBUTION | scanner, hashes/signatures, SBOM, license/dependency ledger | Exact candidate produces deterministic dependency evidence + CycloneDX 1.6 SBOM bound to package/lockfile hashes; detached Ed25519 attestations verify exact evidence digests and reject tampering/non-Ed25519 keys. Distribution key management/transparency and marketplace installer enforcement remain P2. | P1/P2 | registry | High | tamper/license/security fixtures + RC Preparation exact-head evidence |
@@ -334,6 +334,26 @@ Implemented on the continuation branch:
 This deliberately closes the recommendation half of the lifecycle gap without weakening the existing execution boundary. A future integration hook may request an approved refresh after successful repository mutations, but it must not silently execute Graphify.
 
 Status: `IMPLEMENTED_PENDING_EXACT_HEAD`.
+
+No merge, tag, release, npm publish or deploy performed.
+
+## Graphify explicit refresh receipt checkpoint — 2026-09-28
+
+The lifecycle boundary is now extended without granting silent execution:
+
+- `planGraphifyRefresh()` emits a deterministic bounded command plan;
+- `executeGraphifyRefresh()` rejects missing `confirm: true`;
+- the subprocess uses `shell: false`, an absolute project root and a timeout
+  bounded to one hour;
+- success and failure both return a metadata-only receipt with plan and
+  command digests, timestamps and bounded error text;
+- Studio exposes `POST /api/studio/graph/lifecycle` and
+  `POST /api/studio/graph/refresh`; the latter still rejects absent approval;
+- native fallback remains explicit when Graphify output is unavailable;
+- no post-merge, post-checkout or background refresh was introduced.
+
+Status: `PARTIAL_GRAPHIFY_LIFECYCLE_LOCAL_CONTRACT_VERIFIED`; hosted
+exact-head evidence remains a separate gate.
 
 No merge, tag, release, npm publish or deploy performed.
 

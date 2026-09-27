@@ -420,6 +420,13 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#int-body tr').filter({ hasText: 'qa-status-api' }).filter({ hasText: 'READ_ONLY' }).waitFor();
     await page.goto(`${origins.normal}/#/code`);
     await page.waitForFunction(() => document.querySelector('#graph-provider')?.textContent === 'graphify');
+    const graphLifecycle = await page.evaluate(async () => {
+      const response = await fetch('/api/studio/graph/lifecycle', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changedFiles: ['src/auth/login.ts', 'README.md'] }) });
+      return { status: response.status, body: await response.json() as { format?: string; action?: string; executionAuthorized?: boolean } };
+    });
+    assert(graphLifecycle.status === 200 && graphLifecycle.body.format === 'furypipe-graph-lifecycle/v1' && graphLifecycle.body.action === 'RECOMMEND_REFRESH' && graphLifecycle.body.executionAuthorized === false, `${name}: Graphify lifecycle recommendation boundary invalid`);
+    const graphRefreshWithoutApproval = (await context.request.post(`${origins.normal}/api/studio/graph/refresh`, { headers: { 'content-type': 'application/json' }, data: {} })).status();
+    assert(graphRefreshWithoutApproval === 400, `${name}: Graphify refresh bypassed confirmation with status ${graphRefreshWithoutApproval}`);
     await page.locator('#blast-files').fill('src/auth/session.ts');
     await page.locator('#blast-form button').click();
     await page.locator('#blast-out li').filter({ hasText: 'tests/login.test.ts' }).waitFor();

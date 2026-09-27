@@ -69,6 +69,8 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/setup/runtime/status')).toEqual({ route: 'runtime-setup-status', method: 'GET' });
     expect(studioApiRoute('/api/studio/autopilot/preview')).toEqual({ route: 'autopilot-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/eval')).toEqual({ route: 'eval', method: 'POST' });
+    expect(studioApiRoute('/api/studio/graph/lifecycle')).toEqual({ route: 'graph-lifecycle', method: 'POST' });
+    expect(studioApiRoute('/api/studio/graph/refresh')).toEqual({ route: 'graph-refresh', method: 'POST' });
     expect(studioApiRoute('/api/studio/connections/login')).toEqual({ route: 'connection-login', method: 'POST' });
     expect(studioApiRoute('/api/studio/media.json')).toEqual({ route: 'media', method: 'GET' });
     expect(studioApiRoute('/api/studio/media/preview')).toEqual({ route: 'media-preview', method: 'POST' });

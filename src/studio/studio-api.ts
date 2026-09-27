@@ -17,7 +17,7 @@ import {
 } from '../fury-local-fabric.js';
 import { compileFuryIr, FuryIrError } from '../fury-ir.js';
 import { FuryDispatchError, FURY_DISPATCH_MODES, planFuryDispatch, type FuryDispatchMode, type FuryRuntimeBinding } from '../fury-dispatcher.js';
-import { furyBlastRadius, furyScopeCoupling, loadFuryGraph, type FuryGraph } from '../fury-graph.js';
+import { executeGraphifyRefresh, furyBlastRadius, furyScopeCoupling, loadFuryGraph, planGraphifyLifecycle, planGraphifyRefresh, type FuryGraph, type FuryGraphDetection } from '../fury-graph.js';
 import { compileFuryFlow, dryRunFuryFlow, FuryFlowError } from '../fury-flow.js';
 import { execFile } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
@@ -76,7 +76,7 @@ const MAX_POST_BYTES = 256 * 1024;
 const CACHE_MS = 10_000;
 
 export type StudioRoute =
-  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'extensions' | 'chat' | 'flow-preview'
+  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'extensions' | 'chat' | 'flow-preview'
   | 'runs' | 'run-start' | 'run-act' | 'skills' | 'skill-act' | 'skill-select' | 'skill-install' | 'skill-create' | 'skill-compare'
   | 'mcp' | 'mcp-add' | 'mcp-act' | 'mcp-probe' | 'mcp-decide'
   | 'knowledge' | 'knowledge-ingest' | 'knowledge-search'
@@ -102,6 +102,8 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/setup/runtime/status': { route: 'runtime-setup-status', method: 'GET' },
   '/api/studio/bindings.json': { route: 'bindings', method: 'GET' },
   '/api/studio/graph.json': { route: 'graph', method: 'GET' },
+  '/api/studio/graph/lifecycle': { route: 'graph-lifecycle', method: 'POST' },
+  '/api/studio/graph/refresh': { route: 'graph-refresh', method: 'POST' },
   '/api/studio/blast-radius': { route: 'blast-radius', method: 'POST' },
   '/api/studio/dispatch-preview': { route: 'dispatch-preview', method: 'POST' },
   '/api/studio/autopilot/preview': { route: 'autopilot-preview', method: 'POST' },
@@ -193,7 +195,7 @@ export interface StudioApiOptions {
   /** Test hook for official CLI auth-status probes. */
   readonly accountStatusRunner?: FuryAccountStatusRunner;
   readonly accountStatusPlatform?: NodeJS.Platform;
-  readonly loadGraph?: (root: string) => Promise<{ readonly graph: FuryGraph }>;
+  readonly loadGraph?: (root: string) => Promise<{ readonly graph: FuryGraph; readonly detections?: readonly FuryGraphDetection[] }>;
   readonly now?: () => number;
   /** Task executor for real runs; defaults to the structured-CLI harness runner. */
   readonly executor?: FuryTaskExecutor;
@@ -331,7 +333,8 @@ export function createStudioApi(options: StudioApiOptions) {
     });
     return discoverFuryAiConnections(discovered, process.env, verification);
   }));
-  const graph = () => cached('graph', async () => (await (options.loadGraph ?? loadFuryGraph)(options.projectRoot)).graph);
+  const graphInspection = () => cached('graph-inspection', async () => (await (options.loadGraph ?? loadFuryGraph)(options.projectRoot)));
+  const graph = () => cached('graph', async () => (await graphInspection()).graph);
 
   const projectKey = createHash('sha256').update(path.resolve(options.projectRoot)).digest('hex').slice(0, 16);
   const skills = options.skillHub ?? createFurySkillHub({ projectRoot: options.projectRoot, stateDir: path.join(os.homedir(), '.furypipe', 'studio', 'skill-hub', projectKey) });
@@ -539,6 +542,24 @@ export function createStudioApi(options: StudioApiOptions) {
             const g = await graph();
             const files = g.nodes.filter((n) => n.kind === 'file').length;
             return json({ provider: g.provider, stale: g.stale, staleFiles: g.staleFiles.slice(0, 50), outputs: g.outputs, nodes: g.nodes.length, files, edges: g.edges.length });
+          }
+          case 'graph-lifecycle': {
+            const body = await readJson(request) as { changedFiles?: unknown };
+            if (body?.changedFiles !== undefined && (!Array.isArray(body.changedFiles) || body.changedFiles.length > 200 || !body.changedFiles.every((file) => typeof file === 'string'))) {
+              return problem(400, 'invalid-input', 'changedFiles must contain at most 200 text paths');
+            }
+            const loaded = await graphInspection();
+            const detections = loaded.detections ?? [{ provider: loaded.graph.provider, available: true, detail: 'custom graph loader' } satisfies FuryGraphDetection];
+            return json(planGraphifyLifecycle({ graph: loaded.graph, detections, changedFiles: body?.changedFiles as string[] | undefined }));
+          }
+          case 'graph-refresh': {
+            const body = await readJson(request) as { confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'Graphify refresh requires confirm: true');
+            const plan = planGraphifyRefresh(options.projectRoot);
+            const receipt = await executeGraphifyRefresh(plan, { confirm: true, now });
+            return receipt.outcome === 'SUCCEEDED'
+              ? json({ plan, receipt })
+              : json({ error: { code: 'graph-refresh-failed', message: receipt.error ?? 'Graphify refresh failed' }, plan, receipt }, 502);
           }
           case 'blast-radius': {
             const body = await readJson(request) as { files?: unknown; depth?: unknown };

@@ -63,8 +63,9 @@ import {
   type FuryCodeScriptName,
   type FuryCodeScriptPlan,
 } from '../fury-code-advanced-node.js';
-import { createFuryMediaStudioPreview, createFuryMediaStudioSnapshot, type FuryMediaStudioPreviewOptions } from '../media-studio.js';
+import { createFuryMediaStudioGallery, createFuryMediaStudioPreview, createFuryMediaStudioSnapshot, type FuryMediaStudioPreviewOptions } from '../media-studio.js';
 import type { FuryMediaGenerationAdapter, FuryMediaGenerationMode } from '../media-generation-runtime.js';
+import type { FuryMediaGenerationJobEngine } from '../media-generation-job-engine.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
@@ -78,7 +79,7 @@ export type StudioRoute =
   | 'web' | 'visual-render'
   | 'memory' | 'memory-remember' | 'memory-search' | 'memory-act'
   | 'integrations' | 'connections' | 'connection-login' | 'support'
-  | 'media' | 'media-preview'
+  | 'media' | 'media-preview' | 'media-jobs'
   | 'artifacts' | 'artifact-get' | 'artifact-create' | 'artifact-version' | 'artifact-search' | 'artifact-restore-plan' | 'artifact-restore' | 'artifact-export'
   | 'chats' | 'chat-get' | 'chat-save' | 'chat-branch' | 'chat-delete'
   | 'code-tree' | 'code-file' | 'code-worktrees' | 'code-diff'
@@ -103,6 +104,7 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/support.json': { route: 'support', method: 'GET' },
   '/api/studio/media.json': { route: 'media', method: 'GET' },
   '/api/studio/media/preview': { route: 'media-preview', method: 'POST' },
+  '/api/studio/media/jobs.json': { route: 'media-jobs', method: 'GET' },
   '/api/studio/artifacts.json': { route: 'artifacts', method: 'GET' },
   '/api/studio/artifacts/get': { route: 'artifact-get', method: 'POST' },
   '/api/studio/artifacts/create': { route: 'artifact-create', method: 'POST' },
@@ -203,6 +205,8 @@ export interface StudioApiOptions {
   readonly artifactsDir?: string;
   /** Provider-neutral media adapters observed by Studio; observation never grants execution authority. */
   readonly mediaAdapters?: readonly FuryMediaGenerationAdapter[];
+  /** Optional durable media job projection; Studio only reads jobs and never submits from this route. */
+  readonly mediaJobEngine?: Pick<FuryMediaGenerationJobEngine, 'list'>;
 }
 
 interface StudioRun {
@@ -648,6 +652,14 @@ export function createStudioApi(options: StudioApiOptions) {
               ...(options.mediaAdapters === undefined ? {} : { adapters: options.mediaAdapters }),
               now,
             }));
+          case 'media-jobs':
+            if (options.mediaJobEngine === undefined) return json({
+              format: 'furypipe-media-studio-gallery/v1',
+              authority: 'read-only-media-job-history',
+              state: 'NOT_CONFIGURED',
+              jobs: [],
+            });
+            return json(createFuryMediaStudioGallery(await options.mediaJobEngine.list({ limit: 1_000 })));
           case 'media-preview': {
             const body = await readJson(request) as { surface?: unknown; operation?: unknown; prompt?: unknown; outputMimeType?: unknown; options?: unknown };
             if (body?.surface !== 'image' && body?.surface !== 'video' && body?.surface !== 'audio') return problem(400, 'invalid-input', 'media surface must be image, video or audio');

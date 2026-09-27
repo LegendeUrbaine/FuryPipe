@@ -1539,11 +1539,38 @@ const SCRIPT = String.raw`
     }
     syncMediaForm(snapshot);
   }
+  function renderMediaGallery(gallery) {
+    const target = $('#media-gallery');
+    if (!target) return;
+    const jobs = Array.isArray(gallery && gallery.jobs) ? gallery.jobs : [];
+    if (!jobs.length) {
+      target.replaceChildren(el('p', { class: 'muted', text: gallery && gallery.state === 'NOT_CONFIGURED' ? 'Media job history not configured.' : 'No media jobs recorded.' }));
+      return;
+    }
+    target.replaceChildren(...jobs.map((job) => {
+      const card = el('article', { class: 'card media-gallery-item' });
+      const output = Array.isArray(job.outputMimeTypes) && job.outputMimeTypes.length ? job.outputMimeTypes.join(', ') : 'No output recorded';
+      const latency = job.latencyMs === null ? 'UNKNOWN' : String(job.latencyMs) + ' ms';
+      card.append(
+        el('h3', { text: job.surface + ' · ' + job.status }),
+        el('p', { class: 'muted', text: 'Provider: ' + job.provider + ' · Model: ' + job.model }),
+        el('p', { class: 'muted', text: 'Output: ' + output + ' · Dimensions: ' + job.dimensions + ' · Seed: ' + job.seed }),
+        el('p', { class: 'muted', text: 'Cost: ' + job.cost + ' · Latency: ' + latency + ' · Created: ' + new Date(job.createdAt).toISOString() }),
+        el('p', { class: 'muted', text: 'Prompt digest: sha256:' + String(job.promptDigestSha256).slice(0, 16) + '… · Provenance: ' + (job.provenance && job.provenance.artifactIds ? job.provenance.artifactIds.length : 0) + ' artifact(s)' }),
+      );
+      return card;
+    }));
+  }
   async function loadMedia() {
     try {
       const snapshot = await getJson('/api/studio/media.json');
       state.media = snapshot;
       renderMediaSnapshot(snapshot);
+      try {
+        renderMediaGallery(await getJson('/api/studio/media/jobs.json'));
+      } catch {
+        renderMediaGallery({ state: 'NOT_CONFIGURED', jobs: [] });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const providerStatus = $('#media-provider-status');
@@ -2758,6 +2785,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div class="grid" id="media-surfaces"></div>
   <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-provider">Provider / AUTO</label><select id="media-provider"><option value="AUTO">AUTO</option></select></div><div><label for="media-model">Model</label><select id="media-model"><option value="AUTO">AUTO</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><fieldset id="media-image-controls"><legend>FuryImage controls</legend><div class="row"><div><label for="media-aspect-ratio">Aspect ratio</label><select id="media-aspect-ratio"><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-resolution">Resolution</label><select id="media-resolution"><option value="1024x1024">1024×1024</option><option value="1536x1024">1536×1024</option><option value="1024x1536">1024×1536</option></select></div><div><label for="media-quality">Quality</label><select id="media-quality"><option value="standard">Standard</option><option value="high">High</option></select></div></div><details><summary>Advanced image controls</summary><div class="row"><div><label for="media-negative-prompt">Negative prompt</label><input id="media-negative-prompt" maxlength="100000" placeholder="Optional exclusions"></div><div><label for="media-seed">Seed</label><input id="media-seed" type="number" min="0" max="2147483647" step="1"></div><div><label for="media-guidance">Guidance</label><input id="media-guidance" type="number" min="0" max="30" step="0.1"></div><div><label for="media-steps">Steps</label><input id="media-steps" type="number" min="1" max="150" step="1"></div><div><label for="media-style">Style</label><select id="media-style"><option value="auto">Auto</option><option value="photorealistic">Photorealistic</option><option value="illustration">Illustration</option><option value="cinematic">Cinematic</option><option value="3d">3D</option></select></div><div><label for="media-input-strength">Input strength</label><input id="media-input-strength" type="number" min="0" max="1" step="0.01"></div></div></details></fieldset><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><div class="row"><button id="media-submit" type="submit">Generate image (preview-only)</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
   <div class="card"><h2>Provider boundary</h2><p id="media-provider-status" class="muted">Loading registered capability observations…</p><div id="media-adapters"></div></div>
+  <div class="card"><h2>Media job history / gallery</h2><div id="media-gallery"><p class="muted">Loading media job history…</p></div></div>
 </section>
 <section data-view="cowork" class="work-view" aria-labelledby="h-cowork" hidden><h1 id="h-cowork">Work</h1><p class="lead">Give FuryPipe a goal. It can plan first, or run with the exact permissions you allow.</p>
   <div class="card work-brief"><label for="cowork-intent">What should FuryPipe do?</label><textarea id="cowork-intent" placeholder="e.g. Review the project, fix the issue and verify the result"></textarea>

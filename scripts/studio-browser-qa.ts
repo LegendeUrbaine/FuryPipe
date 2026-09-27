@@ -259,6 +259,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.goto(`${origins.normal}/#/media`);
     await page.locator('#media-surfaces .card').filter({ hasText: 'FuryImage Studio' }).waitFor();
     await page.locator('#media-surfaces .card').filter({ hasText: 'FuryVideo Studio' }).waitFor();
+    await page.locator('#media-gallery').filter({ hasText: 'Media job history not configured' }).waitFor();
     await page.locator('#media-provider-status').filter({ hasText: 'No image provider configured' }).waitFor();
     await page.locator('#media-image-controls').waitFor({ state: 'visible' });
     await page.locator('#media-provider option[value="AUTO"]').waitFor({ state: 'attached' });

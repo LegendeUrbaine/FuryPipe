@@ -71,6 +71,7 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/connections/login')).toEqual({ route: 'connection-login', method: 'POST' });
     expect(studioApiRoute('/api/studio/media.json')).toEqual({ route: 'media', method: 'GET' });
     expect(studioApiRoute('/api/studio/media/preview')).toEqual({ route: 'media-preview', method: 'POST' });
+    expect(studioApiRoute('/api/studio/media/jobs.json')).toEqual({ route: 'media-jobs', method: 'GET' });
     expect(studioApiRoute('/api/studio/../control-room.json')).toBeNull();
   });
 
@@ -107,6 +108,12 @@ describe('Studio API', () => {
     });
     expect(preview.controlsDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
     expect(preview).not.toHaveProperty('prompt');
+
+    const galleryResponse = await studio.handle('media-jobs', new Request('http://127.0.0.1/api/studio/media/jobs.json'));
+    expect(galleryResponse.status).toBe(200);
+    expect(await galleryResponse.json()).toMatchObject({
+      format: 'furypipe-media-studio-gallery/v1', authority: 'read-only-media-job-history', state: 'NOT_CONFIGURED', jobs: [],
+    });
 
     const rejectedResponse = await studio.handle('media-preview', post({
       surface: 'video', operation: 'text-to-image', prompt: 'bad operation', outputMimeType: 'image/png',

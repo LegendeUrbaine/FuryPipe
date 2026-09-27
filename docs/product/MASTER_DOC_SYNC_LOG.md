@@ -119,6 +119,24 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
   validation for this follow-up.
 - Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
 
+## 2026-09-27 — Media read-only gallery projection
+
+- Added `GET /api/studio/media/jobs.json` as a read-only projection of the
+  existing durable media job engine; no second storage system and no submit
+  or provider mutation path were introduced.
+- Gallery metadata exposes status, prompt digest, provider/model, output MIME,
+  latency, date and provenance artifact IDs. Dimensions, seed and cost remain
+  `UNKNOWN` when the durable job contract has no observed value.
+- Without a configured job engine, API and UI report `NOT_CONFIGURED` instead
+  of presenting a fabricated empty success state.
+- Local proof: focused gallery/API tests, full suite `337` files / `3,553`
+  tests passed with `6` skipped, source and hosted-MCP typechecks, build,
+  package smoke and Chromium/Firefox/WebKit Browser QA passed.
+- Remaining: live provider execution, gallery mutation/actions, download or
+  export authority, human visual/screen-reader review and hosted exact-head
+  validation for this follow-up.
+- Status: `PARTIAL_READ_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
+
 ## 2026-09-27 — Media Studio preview surface
 
 - Added provider-neutral FuryImage, FuryVideo and FuryAudio Studio surfaces

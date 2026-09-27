@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { createFuryDeterministicMediaGenerationAdapter } from '../src/media-generation-deterministic-adapter.js';
-import { createFuryMediaStudioPreview, createFuryMediaStudioSnapshot } from '../src/media-studio.js';
+import { createFuryMediaStudioGallery, createFuryMediaStudioPreview, createFuryMediaStudioSnapshot } from '../src/media-studio.js';
+import type { FuryMediaGenerationJob } from '../src/media-generation-job-engine.js';
 
 describe('Media Studio preview boundary', () => {
   it('projects image, video and audio surfaces without execution authority', () => {
@@ -74,5 +75,23 @@ describe('Media Studio preview boundary', () => {
       surface: 'image', operation: 'text-to-image', prompt: 'x', outputMimeType: 'image/png',
       options: { aspectRatio: '2:1' },
     })).toThrow(/aspect ratio/u);
+  });
+
+  it('projects durable job history without inventing dimensions, seed or cost', () => {
+    const digest = 'a'.repeat(64);
+    const job: FuryMediaGenerationJob = {
+      format: 'furypipe-media-generation-job/v1', jobId: 'fpg_job_00000000-0000-4000-8000-000000000000',
+      family: 'image-generation', operation: 'text-to-image', kind: 'image', providerProfileId: 'image-text',
+      bundleId: 'media-lab', bundleVersion: '1.0.0', outputMimeType: 'image/png', promptDigestSha256: digest,
+      parametersDigestSha256: digest, inputDigestsSha256: [], inputKinds: [], inputMimeTypes: [], inputBytes: 0,
+      promptBytes: 12, requestDigestSha256: digest, planDigestSha256: digest, idempotencyKeyDigestSha256: digest,
+      maxOutputBytes: 1_000_000, maxItems: 1, createdAt: 100, updatedAt: 250, attempt: 1, revision: 2,
+      status: 'SUCCEEDED', outputReferences: [{ artifactId: 'media_artifact', version: 1, storageHandle: `furypipe-recovery/v1/sha256/${digest}`, mediaSha256: digest, mimeType: 'image/png', byteLength: 24 }],
+      receiptReferences: [],
+    };
+    const gallery = createFuryMediaStudioGallery([job]);
+    expect(gallery).toMatchObject({ format: 'furypipe-media-studio-gallery/v1', authority: 'read-only-media-job-history', state: 'READY' });
+    expect(gallery.jobs[0]).toMatchObject({ surface: 'image', provider: 'media-lab', model: 'image-text', status: 'SUCCEEDED', dimensions: 'UNKNOWN', seed: 'UNKNOWN', cost: 'UNKNOWN', latencyMs: 150 });
+    expect(gallery.jobs[0]?.provenance.artifactIds).toEqual(['media_artifact']);
   });
 });

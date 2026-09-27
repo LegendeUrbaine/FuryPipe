@@ -4,9 +4,11 @@ import type {
   FuryMediaGenerationAdapter,
   FuryMediaGenerationMode,
 } from './media-generation-runtime.js';
+import type { FuryMediaGenerationJob, FuryMediaGenerationJobOutputReference } from './media-generation-job-engine.js';
 
 export const FURY_MEDIA_STUDIO_FORMAT = 'furypipe-media-studio/v1' as const;
 export const FURY_MEDIA_STUDIO_PREVIEW_FORMAT = 'furypipe-media-studio-preview/v1' as const;
+export const FURY_MEDIA_STUDIO_GALLERY_FORMAT = 'furypipe-media-studio-gallery/v1' as const;
 
 export type FuryMediaStudioSurfaceId = 'image' | 'video' | 'audio';
 
@@ -80,6 +82,36 @@ export interface FuryMediaStudioPreview {
   readonly requiresApproval: true;
   readonly executionAuthorized: false;
   readonly next: 'REGISTER_PROVIDER_ADAPTER_AND_EXPLICITLY_AUTHORIZE';
+}
+
+export interface FuryMediaStudioGalleryItem {
+  readonly jobId: string;
+  readonly surface: FuryMediaStudioSurfaceId;
+  readonly operation: FuryMediaGenerationMode;
+  readonly status: FuryMediaGenerationJob['status'];
+  readonly promptDigestSha256: string;
+  readonly provider: string;
+  readonly model: string;
+  readonly outputMimeTypes: readonly string[];
+  readonly dimensions: 'UNKNOWN';
+  readonly seed: 'UNKNOWN';
+  readonly cost: 'UNKNOWN';
+  readonly latencyMs: number | null;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  readonly provenance: Readonly<{
+    readonly requestDigestSha256: string;
+    readonly planDigestSha256: string;
+    readonly mediaSha256: readonly string[];
+    readonly artifactIds: readonly string[];
+  }>;
+}
+
+export interface FuryMediaStudioGallery {
+  readonly format: typeof FURY_MEDIA_STUDIO_GALLERY_FORMAT;
+  readonly authority: 'read-only-media-job-history';
+  readonly state: 'READY' | 'NOT_CONFIGURED';
+  readonly jobs: readonly FuryMediaStudioGalleryItem[];
 }
 
 const MIME = /^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}\/[a-z0-9][a-z0-9!#$&^_.+-]{0,127}$/u;
@@ -274,5 +306,43 @@ export function createFuryMediaStudioPreview(input: {
     requiresApproval: true,
     executionAuthorized: false,
     next: 'REGISTER_PROVIDER_ADAPTER_AND_EXPLICITLY_AUTHORIZE',
+  });
+}
+
+export function createFuryMediaStudioGallery(jobs: readonly FuryMediaGenerationJob[]): FuryMediaStudioGallery {
+  if (!Array.isArray(jobs) || jobs.length > 1_000) throw new TypeError('media studio job history is invalid');
+  const items = jobs.map((job) => {
+    const surface: FuryMediaStudioSurfaceId = job.kind === 'image' ? 'image' : job.kind === 'video' ? 'video' : 'audio';
+    const outputReferences = job.outputReferences as readonly FuryMediaGenerationJobOutputReference[];
+    const outputMimeTypes = [...new Set<string>(outputReferences.map((reference) => reference.mimeType))];
+    const latencyMs = job.updatedAt >= job.createdAt ? job.updatedAt - job.createdAt : null;
+    return Object.freeze({
+      jobId: job.jobId,
+      surface,
+      operation: job.operation,
+      status: job.status,
+      promptDigestSha256: job.promptDigestSha256,
+      provider: job.bundleId,
+      model: job.providerProfileId,
+      outputMimeTypes: Object.freeze(outputMimeTypes),
+      dimensions: 'UNKNOWN' as const,
+      seed: 'UNKNOWN' as const,
+      cost: 'UNKNOWN' as const,
+      latencyMs,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+      provenance: Object.freeze({
+        requestDigestSha256: job.requestDigestSha256,
+        planDigestSha256: job.planDigestSha256,
+        mediaSha256: Object.freeze(outputReferences.map((reference) => reference.mediaSha256)),
+        artifactIds: Object.freeze(outputReferences.map((reference) => reference.artifactId)),
+      }),
+    });
+  });
+  return Object.freeze({
+    format: FURY_MEDIA_STUDIO_GALLERY_FORMAT,
+    authority: 'read-only-media-job-history',
+    state: 'READY',
+    jobs: Object.freeze(items),
   });
 }

@@ -69,8 +69,9 @@ aspect ratio, resolution, quality and bounded advanced controls. `GET
 /api/studio/media.json` projects capability observations only;
 `POST /api/studio/media/preview` returns digest-only preview evidence. Neither
 route invokes a provider, reads credentials, creates a billable job or grants
-execution authority. Studio renders these surfaces in `src/studio/studio-page.ts`
-and keeps provider capability observations explicitly unvalidated.
+execution authority. Studio renders these surfaces and a read-only job-history
+gallery projection in `src/studio/studio-page.ts`; provider capability
+observations remain explicitly unvalidated.
 
 Browser QA was extended in `scripts/studio-browser-qa.ts` and passed locally on
 Chromium, Firefox and WebKit. It covered media navigation, all three surfaces,
@@ -106,8 +107,8 @@ automatically resubmitted. `UNKNOWN` requires explicit reconciliation proof.
 
 - Focused media runtime, async job engine and Studio preview/API contracts:
   `43/43` tests passed.
-- Full Vitest suite: `337/337` files passed; `3,552` passed, `6` skipped,
-  `3,558` total.
+- Full Vitest suite: `337/337` files passed; `3,553` passed, `6` skipped,
+  `3,559` total.
 - TypeScript source typecheck: passed.
 - Hosted-MCP TypeScript typecheck: passed.
 - Build: `node scripts/build.mjs` passed.

@@ -296,7 +296,7 @@
       "dependsOn": "all",
       "acceptance": "Hosted checks",
       "testStrategy": "CI",
-      "status": "DONE — exact-head hosted evidence on implementation commit 96fa90b7a79955eac12ca9c0a1f1d25b06df9353: 13/13 workflows, 31 PR checks, CI 9/9, Cross-Browser QA run 36278188036 SUCCESS; the documentation candidate still requires its own exact-head hosted validation"
+      "status": "DONE — exact-head hosted evidence on implementation commit b1acaeb2b2dca24424627b00d4f854a585d68afe: 13/13 workflows, 31 PR checks, CI 9/9, Cross-Browser QA run 36281026112 SUCCESS; the documentation candidate still requires its own exact-head hosted validation"
     },
     {
       "id": "QA-04",
@@ -314,7 +314,7 @@
       "dependsOn": "–",
       "acceptance": "Disabled by default; no kernel impact",
       "testStrategy": "unit",
-      "status": "PARTIAL (media-realtime-voice exists)"
+      "status": "PARTIAL — media-realtime-voice and media-voice-operations exist; common provider-neutral audio-generation runtime is implemented and exact-head verified, but realtime UX/provider execution remains unproven"
     },
     {
       "id": "SHOULD-02",
@@ -411,6 +411,20 @@
         "src/fury-extension-catalog.ts"
       ],
       "note": "Curated catalog exists; signed marketplace remains NOT_STARTED in completion spec."
+    },
+    {
+      "id": "media.generation-runtime",
+      "kind": "MEDIA_GENERATION_RUNTIME",
+      "state": "IMPLEMENTED_EXACT_HEAD_HOSTED_VERIFIED_PROVIDER_OPTIONAL",
+      "evidence": [
+        "src/media-generation-runtime.ts",
+        "tests/media-generation-runtime.test.ts",
+        "src/media-plugin-contracts.ts",
+        "src/media-ingestion.ts",
+        "src/fury-artifacts.ts",
+        "docs/evidence/FURYPIPE_MEDIA_GENERATION_RUNTIME_2026-09-27.md"
+      ],
+      "note": "Common image/audio/video Request→plan→approval→single-use permit→exact adapter→bounded output→governed ingestion→Artifact→receipt/provenance path. No concrete provider, Studio UI or async provider recovery authority is claimed."
     }
   ],
   "targetFamilies": [

@@ -3,7 +3,7 @@
 Status: ACTIVE PRODUCT GAP LEDGER  
 Repository: `Mistermode45/FuryPipe`  
 Track: PR #233 — `claude/furypipe-studio-autopilot-extensions`  
-Audit input HEAD: `96fa90b7a79955eac12ca9c0a1f1d25b06df9353` (current Browser QA implementation checkpoint; historical checkpoints below retain their original SHAs)
+Audit input HEAD: `b1acaeb2b2dca24424627b00d4f854a585d68afe` (current Media Generation Runtime implementation checkpoint; historical checkpoints below retain their original SHAs)
 Product source: `docs/product/FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md`
 
 ## Scope and evidence rule
@@ -43,6 +43,31 @@ The documentation update creates a new candidate SHA. Its own exact-head
 hosted evidence is required before the documentation commit is promoted as
 the final PR checkpoint.
 
+## Media Generation Runtime foundation — 2026-09-27
+
+The common provider-neutral media generation runtime was added on
+implementation commit `b1acaeb2b2dca24424627b00d4f854a585d68afe` after the
+Browser Advanced gate closed.
+
+Evidence:
+
+- `src/media-generation-runtime.ts` reuses the existing media plugin contract,
+  governed media-ingestion coordinator and FuryArtifact store;
+- the flow is Request → profile/capability selection → plan → explicit
+  approval → single-use permit → exact adapter → bounded output → governed
+  ingestion → Artifact → receipt/provenance;
+- focused runtime tests: `10/10` passed;
+- full local Vitest: `334/334` files passed, `3,538` passed, `6` skipped;
+- typecheck, hosted-MCP typecheck, build and installed package smoke passed;
+- hosted exact-head evidence: Cross-Browser `36281026112`, CI `36281026119`,
+  13/13 hosted workflows and 31/31 PR checks `SUCCESS`.
+
+Status: `DONE CORE / PROVIDER-OPTIONAL` for the common governed runtime.
+Concrete provider wiring, Studio FuryImage/FuryVideo UI, async provider job
+states, polling/cancellation/recovery, real credentials, human client review
+and production validation remain separate gates. The documentation update
+creates a new candidate SHA and requires its own exact-head hosted evidence.
+
 ## Architecture finding
 
 FuryPipe already has a real Capability Catalog/Registry, Capability Router, governed Capability Activation path, FuryPrompt compiler, Instruction Fabric and the newer Fury Autopilot. The correct architecture is **convergence**, not a second parallel registry/router.
@@ -74,9 +99,10 @@ Primary evidence:
 | FuryMemory | DONE core / PARTIAL target | Multi-layer memory graph, provenance, management, time machine | Memory VNext + Studio memory exist; advanced management/time-machine/cross-project graph remain broader | P2 | graph, storage | High | recall/false-memory eval + migration tests |
 | Model Hub | IMPLEMENTED_PENDING_EXACT_HEAD | Unified local/cloud providers with real capability detection and per-model power controls | Studio now exposes a governed Model Hub snapshot combining Provider Fabric registration, safe AI connection discovery and reachable local Model Fabric entries. Truth states distinguish AVAILABLE_VERIFIED / CONFIGURED_UNVERIFIED / RUNTIME_DETECTED / NOT_CONFIGURED / UNKNOWN; unregistered connections remain visible but never executable. Cloud model catalog breadth and provider-specific power controls remain P2 and must stay unknown until provider evidence proves them. | P1/P2 | provider runtime, model fabric, secrets | High | model hub/unit/API/browser QA + live opt-in verification |
 | Provider architecture | DONE CORE / PARTIAL SDK/UX | Stable ProviderAdapter/SDK, health routing, retries/fallback/circuit breakers | Existing governed provider boundary already includes exact request envelopes, fresh-health execution gates, process-local single-use permits, production OpenAI/Anthropic/Google transports, conservative transport-health promotion, bounded retry/fallback orchestration, cancellation, Retry-After handling and explicit cross-provider fallback authority. Remaining gap is a higher-level extension SDK/Studio configuration surface, not execution governance. | P1/P2 | model hub, observability | High | existing provider executor/transport/health/retry-fallback suites + installed package smoke + optional live verification |
-| Image Studio | PARTIAL / NOT_VERIFIED | text/image editing, history, controls, artifacts | Visual engine primitives exist in foundation; complete Studio target not evidenced here | P2 | provider adapters, artifacts | Medium | provider-optional E2E |
-| Video Studio | NOT_VERIFIED | provider-backed generation + storyboard/timeline | Helios is cataloged; production Studio integration not proven | P2 | queue, media providers, GPU | Medium | provider-optional E2E + queue recovery |
-| Audio / Voice | PARTIAL | STT/TTS/realtime duplex with interruption and permissions | Current spec records media-realtime-voice primitive; Studio adds progressive dictation | P2 | permissions, model fabric | High | microphone/STT/TTS/realtime E2E |
+| Media Generation Runtime | DONE CORE / PARTIAL PROVIDER + ASYNC | Common image/audio/video request, plan, approval, permit, adapter, ingestion, Artifact, receipt and provenance path | Provider-neutral governed runtime exists and is tested; no concrete provider, async job/recovery layer or Studio surface is claimed | P1/P2 | plugin contracts, media ingestion, artifacts, provider adapters | Critical | focused/full tests + build/package smoke + exact-head hosted checks |
+| Image Studio | PARTIAL / NOT_VERIFIED | text/image editing, history, controls, artifacts | Common governed generation runtime now exists; provider-backed controls and complete Studio target remain unproven | P2 | media runtime, provider adapters, artifacts | Medium | provider-optional E2E + human visual review |
+| Video Studio | NOT_VERIFIED | provider-backed generation + storyboard/timeline | Common video generation contract exists; Helios/provider integration, storyboard/timeline and production Studio integration remain unproven | P2 | media runtime, queue, media providers, GPU | Medium | provider-optional E2E + queue recovery |
+| Audio / Voice | PARTIAL | STT/TTS/realtime duplex with interruption and permissions | Existing STT/TTS/realtime primitives plus common audio-generation contract exist; realtime UX, provider execution and interruption/recovery remain unproven | P2 | permissions, model fabric, media runtime | High | microphone/STT/TTS/realtime E2E |
 | Studio shell / adaptive UX | HUMAN_GATE | Professional adaptive workspace with progressive disclosure | Fury Lux automated QA exists; human visual/screen-reader retest remains | P0 gate | UX-01 | Medium | human retest + a11y |
 | FuryCode | DONE read-only / PARTIAL target | repo/editor/terminal/diff/problems/tests/git/GitHub/Graphify | Current Code view intentionally excludes editing/terminal; master target is broader | P2 | sandbox, permissions | High | browser QA + terminal security E2E |
 | Browser / Research | DONE core / PARTIAL target | search/fetch/extract/crawl/browser interaction with citations and provenance | FuryWeb core DONE; full browser-agent interaction breadth not reconciled | P2 | browser runtime, security | High | SSRF/injection + browser E2E |

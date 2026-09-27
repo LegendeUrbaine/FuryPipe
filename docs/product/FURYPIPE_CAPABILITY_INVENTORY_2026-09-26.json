@@ -428,6 +428,9 @@
         "src/studio/studio-page.ts",
         "tests/studio-api.test.ts",
         "scripts/studio-browser-qa.ts",
+        "src/fury-video-timeline.ts",
+        "tests/fury-video-timeline.test.ts",
+        "scripts/package-smoke.mjs",
         "src/core/recovery-store.ts",
         "src/media-plugin-contracts.ts",
         "src/media-ingestion.ts",
@@ -435,7 +438,7 @@
         "docs/evidence/FURYPIPE_MEDIA_GENERATION_RUNTIME_2026-09-27.md",
         "docs/evidence/FURYPIPE_MEDIA_ASYNC_JOB_ENGINE_2026-09-27.md"
       ],
-      "note": "Common image/audio/video runtime plus bounded async submit/poll/cancel/reconcile job engine, deterministic idempotency, RecoveryStore restart proof and safe output references. FuryImage/FuryVideo/FuryAudio expose bounded preview-only Studio surfaces and API routes; browser QA passed locally on Chromium, Firefox and WebKit. No concrete provider, provider credentials, live generation, hosted exact-head or production claim."
+      "note": "Common image/audio/video runtime plus bounded async submit/poll/cancel/reconcile job engine, deterministic idempotency, RecoveryStore restart proof and safe output references. FuryImage/FuryVideo/FuryAudio expose bounded preview-only Studio surfaces and API routes; FuryVideo also exposes a digest-only storyboard/timeline foundation with reference-only job/artifact links. Browser QA passed locally on Chromium, Firefox and WebKit. No concrete provider, provider credentials, live generation, hosted exact-head or production claim."
     }
   ],
   "targetFamilies": [

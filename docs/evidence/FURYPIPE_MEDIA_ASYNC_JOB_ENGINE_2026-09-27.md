@@ -75,6 +75,12 @@ execution authority. Studio renders these surfaces and a read-only job-history
 gallery projection in `src/studio/studio-page.ts`; provider capability
 observations remain explicitly unvalidated.
 
+`src/fury-video-timeline.ts` adds a bounded Project → Scene → Shot → Asset
+contract with digest-only prompts/titles, duration, transitions, audio asset
+references and explicit `REFERENCE_ONLY` generation-job/output-artifact
+references. `POST /api/studio/media/timeline/preview` validates and projects
+that plan without creating jobs, artifacts or provider authority.
+
 Browser QA was extended in `scripts/studio-browser-qa.ts` and passed locally on
 Chromium, Firefox and WebKit. It covered media navigation, all three surfaces,
 valid image/video previews, invalid operation rejection, raw-prompt non-leakage
@@ -90,6 +96,7 @@ Package exports added:
 - `furypipe/media-generation-job-engine`
 - `furypipe/media-generation-deterministic-adapter`
 - `furypipe/media-studio`
+- `furypipe/fury-video-timeline`
 
 ## Durable safety boundary
 

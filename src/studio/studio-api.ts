@@ -66,6 +66,7 @@ import {
 import { createFuryMediaStudioGallery, createFuryMediaStudioPreview, createFuryMediaStudioSnapshot, type FuryMediaStudioPreviewOptions } from '../media-studio.js';
 import type { FuryMediaGenerationAdapter, FuryMediaGenerationMode } from '../media-generation-runtime.js';
 import type { FuryMediaGenerationJobEngine } from '../media-generation-job-engine.js';
+import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } from '../fury-video-timeline.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
@@ -79,7 +80,7 @@ export type StudioRoute =
   | 'web' | 'visual-render'
   | 'memory' | 'memory-remember' | 'memory-search' | 'memory-act'
   | 'integrations' | 'connections' | 'connection-login' | 'support'
-  | 'media' | 'media-preview' | 'media-jobs'
+  | 'media' | 'media-preview' | 'media-jobs' | 'media-timeline-preview'
   | 'artifacts' | 'artifact-get' | 'artifact-create' | 'artifact-version' | 'artifact-search' | 'artifact-restore-plan' | 'artifact-restore' | 'artifact-export'
   | 'chats' | 'chat-get' | 'chat-save' | 'chat-branch' | 'chat-delete'
   | 'code-tree' | 'code-file' | 'code-worktrees' | 'code-diff'
@@ -105,6 +106,7 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/media.json': { route: 'media', method: 'GET' },
   '/api/studio/media/preview': { route: 'media-preview', method: 'POST' },
   '/api/studio/media/jobs.json': { route: 'media-jobs', method: 'GET' },
+  '/api/studio/media/timeline/preview': { route: 'media-timeline-preview', method: 'POST' },
   '/api/studio/artifacts.json': { route: 'artifacts', method: 'GET' },
   '/api/studio/artifacts/get': { route: 'artifact-get', method: 'POST' },
   '/api/studio/artifacts/create': { route: 'artifact-create', method: 'POST' },
@@ -675,6 +677,14 @@ export function createStudioApi(options: StudioApiOptions) {
               }));
             } catch (error) {
               return problem(422, 'media-preview-rejected', (error as Error).message.slice(0, 300));
+            }
+          }
+          case 'media-timeline-preview': {
+            const body = await readJson(request) as { project?: unknown };
+            try {
+              return json(createFuryVideoTimelinePreview(body.project as FuryVideoTimelineProjectInput));
+            } catch (error) {
+              return problem(422, 'media-timeline-preview-rejected', (error as Error).message.slice(0, 300));
             }
           }
           case 'artifacts':

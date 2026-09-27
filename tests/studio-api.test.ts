@@ -72,6 +72,7 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/media.json')).toEqual({ route: 'media', method: 'GET' });
     expect(studioApiRoute('/api/studio/media/preview')).toEqual({ route: 'media-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/media/jobs.json')).toEqual({ route: 'media-jobs', method: 'GET' });
+    expect(studioApiRoute('/api/studio/media/timeline/preview')).toEqual({ route: 'media-timeline-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/../control-room.json')).toBeNull();
   });
 
@@ -125,6 +126,33 @@ describe('Studio API', () => {
     expect(page).toContain('FuryImage Studio');
     expect(page).toContain('FuryVideo Studio');
     expect(page).toContain('preview-only');
+  });
+
+  it('builds a bounded FuryVideo storyboard/timeline preview without creating jobs or artifacts', async () => {
+    const studio = createStudioApi({ projectRoot: process.cwd(), discoverHarnesses: async () => harnesses, discoverLocal: async () => ({ backends: [] }) });
+    const response = await studio.handle('media-timeline-preview', post({
+      project: {
+        projectId: 'demo-project', title: 'Private project title', assets: [{ assetId: 'hero-image', kind: 'image', mimeType: 'image/png' }],
+        scenes: [{
+          sceneId: 'opening', title: 'Private scene title',
+          shots: [{ shotId: 'shot-one', prompt: 'Private shot prompt', durationMs: 2_000, assetIds: ['hero-image'] }],
+        }],
+      },
+    }));
+    expect(response.status).toBe(200);
+    const preview = await response.json() as Record<string, unknown>;
+    expect(preview).toMatchObject({
+      format: 'furypipe-furyvideo-timeline/v1', authority: 'studio-preview-only', executionAuthorized: false,
+      state: 'PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY', shotCount: 1,
+    });
+    expect(JSON.stringify(preview)).not.toContain('Private');
+
+    const rejected = await studio.handle('media-timeline-preview', post({
+      project: {
+        projectId: 'demo-project', title: 'Project', scenes: [{ sceneId: 'opening', title: 'Scene', shots: [{ shotId: 'shot-one', prompt: 'Prompt', durationMs: 1, assetIds: ['missing'] }] }],
+      },
+    }));
+    expect(rejected.status).toBe(422);
   });
 
   it('exposes a read-only model hub without treating configuration as execution authority', async () => {

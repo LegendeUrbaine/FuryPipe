@@ -173,3 +173,22 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-27 — FuryVideo storyboard/timeline foundation
+
+- Added a bounded Project → Scene → Shot → Asset contract with prompt/title
+  digests, duration, transitions and audio asset references.
+- Added explicit `REFERENCE_ONLY` generation-job and output-artifact links;
+  `POST /api/studio/media/timeline/preview` validates and returns a digest-only
+  plan without creating jobs, artifacts, provider calls or execution authority.
+- Local proof: focused storyboard/API tests `27` passed, full suite `338`
+  files / `3,557` tests passed with `6` skipped, source and hosted-MCP
+  typechecks, build, package smoke and Chromium/Firefox/WebKit Browser QA
+  passed.
+- Remaining: dedicated timeline editor/rendering/playback, live provider
+  execution, queue recovery, artifact mutation/download authority, human
+  visual/screen-reader review and hosted exact-head validation for this
+  follow-up.
+- Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.

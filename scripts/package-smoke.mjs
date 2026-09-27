@@ -435,6 +435,13 @@ try {
   ], installDir);
   assert(browserPlaywrightHostExport.stderr === '', `Playwright browser host package export wrote stderr: ${browserPlaywrightHostExport.stderr}`);
 
+  const furyVideoTimelineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-video-timeline'); if (typeof m.createFuryVideoTimelinePreview !== 'function' || m.FURY_VIDEO_TIMELINE_FORMAT !== 'furypipe-furyvideo-timeline/v1') process.exit(1);",
+  ], installDir);
+  assert(furyVideoTimelineExport.stderr === '', `FuryVideo timeline package export wrote stderr: ${furyVideoTimelineExport.stderr}`);
+
   const capabilityIndexExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

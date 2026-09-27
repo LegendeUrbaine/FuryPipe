@@ -291,6 +291,21 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
     assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: video preview did not remain preview-only`);
     assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded video preview'), `${name}: video preview leaked the raw prompt`);
+    const timelinePreview = await page.evaluate(async () => {
+      const response = await fetch('/api/studio/media/timeline/preview', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          project: {
+            projectId: 'qa-project', title: 'QA project', assets: [{ assetId: 'hero-image', kind: 'image', mimeType: 'image/png' }],
+            scenes: [{ sceneId: 'opening', title: 'QA scene', shots: [{ shotId: 'shot-one', prompt: 'Private QA timeline prompt', durationMs: 2_000, assetIds: ['hero-image'] }] }],
+          },
+        }),
+      });
+      return { status: response.status, body: await response.text() };
+    });
+    assert(timelinePreview.status === 200, `${name}: timeline preview status ${timelinePreview.status}`);
+    assert(timelinePreview.body.includes('furypipe-furyvideo-timeline/v1'), `${name}: timeline preview format missing`);
+    assert(!timelinePreview.body.includes('Private QA timeline prompt'), `${name}: timeline preview leaked the raw prompt`);
     const rejectedMedia = await page.evaluate(async () => {
       const response = await fetch('/api/studio/media/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'video', operation: 'text-to-image', prompt: 'invalid', outputMimeType: 'image/png' }) });
       return response.status;

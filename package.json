@@ -637,6 +637,10 @@
       "types": "./dist/media-studio.d.ts",
       "import": "./dist/media-studio.js"
     },
+    "./fury-video-timeline": {
+      "types": "./dist/fury-video-timeline.d.ts",
+      "import": "./dist/fury-video-timeline.js"
+    },
     "./fury-plugin-runtime": {
       "types": "./dist/fury-plugin-runtime.d.ts",
       "import": "./dist/fury-plugin-runtime.js"

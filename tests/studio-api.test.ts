@@ -75,6 +75,8 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/media/jobs.json')).toEqual({ route: 'media-jobs', method: 'GET' });
     expect(studioApiRoute('/api/studio/media/timeline/preview')).toEqual({ route: 'media-timeline-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/observability.json')).toEqual({ route: 'observability', method: 'GET' });
+    expect(studioApiRoute('/api/studio/memory/time-machine.json')).toEqual({ route: 'memory-time-machine', method: 'GET' });
+    expect(studioApiRoute('/api/studio/memory/time-machine/restore')).toEqual({ route: 'memory-time-machine-restore', method: 'POST' });
     expect(studioApiRoute('/api/studio/../control-room.json')).toBeNull();
   });
 
@@ -144,6 +146,7 @@ describe('Studio API', () => {
     expect(page).toContain('FuryImage Studio');
     expect(page).toContain('FuryVideo Studio');
     expect(page).toContain('Observability / Cost');
+    expect(page).toContain('Memory Time Machine');
     expect(page).toContain('preview-only');
   });
 
@@ -673,6 +676,15 @@ describe('Studio Memory', () => {
       expect(recall.hits[0]!.why).toMatch(/user-declared from user-message/u);
       const listed = await (await studio.handle('memory', new Request('http://127.0.0.1/'))).json() as { records: { memoryId: string; state: string }[] };
       expect(listed.records).toMatchObject([{ memoryId: saved.memoryId, state: 'active' }]);
+      const checkpointsResponse = await studio.handle('memory-time-machine', new Request('http://127.0.0.1/'));
+      expect(checkpointsResponse.status).toBe(200);
+      const checkpoints = await checkpointsResponse.json() as { snapshot: { timeline: { memoryId: string; version: number }[] } };
+      expect(checkpoints.snapshot.timeline.map((entry) => entry.version)).toEqual([1, 2]);
+      expect(JSON.stringify(checkpoints)).not.toContain('We deploy on Tuesdays only');
+      expect((await studio.handle('memory-time-machine-export', new Request('http://127.0.0.1/'))).status).toBe(200);
+      expect((await studio.handle('memory-time-machine-restore', post({ memoryId: saved.memoryId, scope: 'project', version: 1, confirm: false }))).status).toBe(400);
+      expect(await (await studio.handle('memory-time-machine-restore', post({ memoryId: saved.memoryId, scope: 'project', version: 1, confirm: true }))).json()).toMatchObject({ operation: 'restored', fromVersion: 1, version: 3, state: 'accepted' });
+      expect(await (await studio.handle('memory-time-machine-action', post({ action: 'pin', memoryId: saved.memoryId, scope: 'project' }))).json()).toMatchObject({ status: 'PLAN_ONLY' });
       await studio.handle('memory-act', post({ memoryId: saved.memoryId, scope: 'project', action: 'DISABLE' }));
       expect((await (await studio.handle('memory-search', post({ query: 'deploy' }))).json() as { hits: unknown[] }).hits).toEqual([]);
       expect((await studio.handle('memory-act', post({ memoryId: saved.memoryId, scope: 'project', action: 'FORGET' }))).status).toBe(200);

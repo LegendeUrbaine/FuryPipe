@@ -68,6 +68,7 @@ import type { FuryMediaGenerationAdapter, FuryMediaGenerationMode } from '../med
 import type { FuryMediaGenerationJobEngine } from '../media-generation-job-engine.js';
 import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } from '../fury-video-timeline.js';
 import { createFuryObservabilityNotConfiguredSnapshot, type FuryObservabilityRegistry } from '../fury-observability.js';
+import { createFuryMemoryTimeMachine, type FuryMemorySnapshot } from '../fury-memory-time-machine.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
@@ -82,6 +83,7 @@ export type StudioRoute =
   | 'memory' | 'memory-remember' | 'memory-search' | 'memory-act'
   | 'integrations' | 'connections' | 'connection-login' | 'support'
   | 'media' | 'media-preview' | 'media-jobs' | 'media-timeline-preview' | 'observability'
+  | 'memory-time-machine' | 'memory-time-machine-diff' | 'memory-time-machine-restore' | 'memory-time-machine-action' | 'memory-time-machine-export'
   | 'artifacts' | 'artifact-get' | 'artifact-create' | 'artifact-version' | 'artifact-search' | 'artifact-restore-plan' | 'artifact-restore' | 'artifact-export'
   | 'chats' | 'chat-get' | 'chat-save' | 'chat-branch' | 'chat-delete'
   | 'code-tree' | 'code-file' | 'code-worktrees' | 'code-diff'
@@ -109,6 +111,11 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/media/jobs.json': { route: 'media-jobs', method: 'GET' },
   '/api/studio/media/timeline/preview': { route: 'media-timeline-preview', method: 'POST' },
   '/api/studio/observability.json': { route: 'observability', method: 'GET' },
+  '/api/studio/memory/time-machine.json': { route: 'memory-time-machine', method: 'GET' },
+  '/api/studio/memory/time-machine/diff': { route: 'memory-time-machine-diff', method: 'POST' },
+  '/api/studio/memory/time-machine/restore': { route: 'memory-time-machine-restore', method: 'POST' },
+  '/api/studio/memory/time-machine/action': { route: 'memory-time-machine-action', method: 'POST' },
+  '/api/studio/memory/time-machine/export.json': { route: 'memory-time-machine-export', method: 'GET' },
   '/api/studio/artifacts.json': { route: 'artifacts', method: 'GET' },
   '/api/studio/artifacts/get': { route: 'artifact-get', method: 'POST' },
   '/api/studio/artifacts/create': { route: 'artifact-create', method: 'POST' },
@@ -399,6 +406,11 @@ export function createStudioApi(options: StudioApiOptions) {
     const m = memory();
     if (!m.enabled || !m.store) throw Object.assign(new Error(m.reason ?? 'memory is off'), { status: 409 });
     return m.store;
+  };
+  const memoryTimeMachine = () => createFuryMemoryTimeMachine({ memory: memoryStore(), now });
+  const studioMemoryScope = (value: unknown): 'project' | 'user' => {
+    if (value !== 'project' && value !== 'user') throw Object.assign(new Error('scope must be project or user'), { status: 400 });
+    return value;
   };
 
   const runs = new Map<string, StudioRun>();
@@ -693,6 +705,47 @@ export function createStudioApi(options: StudioApiOptions) {
           }
           case 'observability':
             return json(options.observability?.snapshot() ?? createFuryObservabilityNotConfiguredSnapshot(now));
+          case 'memory-time-machine': {
+            const scopes = studioMemoryScopes(options.projectRoot);
+            const snapshot = await memoryTimeMachine().snapshot({ scopes: [scopes.project, scopes.user], now: now() });
+            return json({ enabled: true, snapshot, authority: 'memory-vnext-read-only', executionAuthority: false });
+          }
+          case 'memory-time-machine-export': {
+            const scopes = studioMemoryScopes(options.projectRoot);
+            const snapshot = await memoryTimeMachine().snapshot({ scopes: [scopes.project, scopes.user], now: now() });
+            return json(memoryTimeMachine().exportSnapshot({ snapshot, now: now() }));
+          }
+          case 'memory-time-machine-diff': {
+            const body = await readJson(request) as { from?: unknown; to?: unknown };
+            if (!body?.from || !body?.to) return problem(400, 'invalid-input', 'from and to snapshots are required');
+            try {
+              return json(memoryTimeMachine().diff({ from: body.from as FuryMemorySnapshot, to: body.to as FuryMemorySnapshot }));
+            } catch (error) {
+              return problem(422, 'memory-time-machine-diff-rejected', (error as Error).message.slice(0, 300));
+            }
+          }
+          case 'memory-time-machine-restore': {
+            const body = await readJson(request) as { memoryId?: unknown; scope?: unknown; version?: unknown; confirm?: unknown };
+            if (typeof body?.memoryId !== 'string' || !body.memoryId.trim() || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) {
+              return problem(400, 'invalid-input', 'memoryId and positive version are required');
+            }
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'restoring memory requires confirm: true');
+            const scope = studioMemoryScope(body.scope);
+            return json(await memoryTimeMachine().executeAction({
+              action: 'restore', memoryId: body.memoryId, scope: studioMemoryScopes(options.projectRoot)[scope], version: body.version, confirm: true, now: now(),
+            }), 201);
+          }
+          case 'memory-time-machine-action': {
+            const body = await readJson(request) as { action?: unknown; memoryId?: unknown; scope?: unknown; version?: unknown; confirm?: unknown; execute?: unknown };
+            if (body.action !== 'archive' && body.action !== 'pin' && body.action !== 'delete') return problem(400, 'invalid-input', 'action must be archive, pin or delete');
+            if (typeof body.memoryId !== 'string' || !body.memoryId.trim()) return problem(400, 'invalid-input', 'memoryId is required');
+            if (body.version !== undefined && (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1)) return problem(400, 'invalid-input', 'version must be a positive integer');
+            if (body.confirm !== undefined && typeof body.confirm !== 'boolean') return problem(400, 'invalid-input', 'confirm must be boolean');
+            const scope = studioMemoryScope(body.scope);
+            const action = { action: body.action, memoryId: body.memoryId, scope: studioMemoryScopes(options.projectRoot)[scope], ...(body.version === undefined ? {} : { version: body.version as number }), ...(body.confirm === undefined ? {} : { confirm: body.confirm as boolean }), now: now() } as const;
+            if (body.execute === true) return json(await memoryTimeMachine().executeAction(action), 201);
+            return json(memoryTimeMachine().planAction(action));
+          }
           case 'artifacts':
             return json({ artifacts: (await artifacts.list()).map(artifactSummary), authority: 'persistent-artifact-store' });
           case 'artifact-get': {

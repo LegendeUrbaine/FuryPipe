@@ -381,6 +381,11 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#mem-query').fill(`when does QA ${name} deploy`);
     await page.locator('#mem-search-form button').click();
     await page.locator('#mem-results li').filter({ hasText: `QA ${name} deploys on Tuesdays only` }).filter({ hasText: 'why:' }).waitFor();
+    await page.locator('#mem-tm-timeline tbody tr').first().waitFor();
+    assert((await page.locator('#mem-tm-status').textContent())?.includes('metadata checkpoint'), `${name}: Memory Time Machine checkpoint missing`);
+    await page.locator('#mem-tm-export').click();
+    await page.locator('#mem-tm-export-out').waitFor({ state: 'visible' });
+    assert(!(await page.locator('#mem-tm-export-out').textContent())?.includes(`QA ${name} deploys on Tuesdays only`), `${name}: Memory Time Machine export leaked memory text`);
     await page.goto(`${origins.empty}/#/memory`);
     await page.waitForFunction(() => /Memory is off/u.test(document.querySelector('#mem-status')?.textContent ?? ''));
     assert(await page.locator('#mem-forms').isHidden(), `${name}: memory forms visible while off`);

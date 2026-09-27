@@ -577,6 +577,10 @@
       "types": "./dist/memory-vnext.d.ts",
       "import": "./dist/memory-vnext.js"
     },
+    "./fury-memory-time-machine": {
+      "types": "./dist/fury-memory-time-machine.d.ts",
+      "import": "./dist/fury-memory-time-machine.js"
+    },
     "./acp-v1-server-node": {
       "types": "./dist/acp-v1-server-node.d.ts",
       "import": "./dist/acp-v1-server-node.js"

@@ -2605,8 +2605,72 @@ const SCRIPT = String.raw`
         body.append(el('tr', {}, el('td', { class: 'code', text: m.memoryId.slice(0, 8) }), el('td', { text: m.state }), el('td', { text: m.memoryClass }), el('td', { text: m.scope }), el('td', { text: m.source + ' · ' + m.evidence }), el('td', { text: String(m.confidence) }), el('td', { text: age(m.ageMs) }), el('td', {}, toggle, forget)));
       }
       status.textContent = r.records.length + ' memory item(s). Recalled memory is data for the model, never instructions.';
+      loadMemoryTimeMachine();
     } catch (e) { status.textContent = 'Memory unavailable: ' + e.message; }
   }
+  function renderMemoryTimeMachine(snapshot) {
+    const status = $('#mem-tm-status'); const summary = $('#mem-tm-summary'); const timeline = $('#mem-tm-timeline');
+    if (!status || !summary || !timeline || !snapshot) return;
+    const entries = Array.isArray(snapshot.timeline) ? snapshot.timeline : [];
+    const latest = new Map(); for (const entry of entries) { const prior = latest.get(entry.memoryId); if (!prior || entry.version > prior.version) latest.set(entry.memoryId, entry); }
+    summary.replaceChildren(el('div', { class: 'autopilot-summary' },
+      el('div', { class: 'autopilot-stat' }, el('b', { text: String(entries.length) }), el('span', { text: 'checkpoints' })),
+      el('div', { class: 'autopilot-stat' }, el('b', { text: String(latest.size) }), el('span', { text: 'memories' })),
+      el('div', { class: 'autopilot-stat' }, el('b', { text: String(snapshot.graph && snapshot.graph.nodes ? snapshot.graph.nodes.length : 0) }), el('span', { text: 'graph nodes' })),
+      el('div', { class: 'autopilot-stat' }, el('b', { text: snapshot.graph && snapshot.graph.crossProject ? 'yes' : 'current scope' }), el('span', { text: 'cross-project graph' })),
+    ));
+    if (!entries.length) { timeline.replaceChildren(el('p', { class: 'muted', text: 'No memory checkpoint recorded.' })); status.textContent = 'Memory Time Machine ready; no checkpoint yet.'; return; }
+    const table = el('table');
+    table.append(el('thead', {}, el('tr', {}, el('th', { scope: 'col', text: 'Checkpoint' }), el('th', { scope: 'col', text: 'State' }), el('th', { scope: 'col', text: 'Scope' }), el('th', { scope: 'col', text: 'Updated' }), el('th', { scope: 'col', text: 'Provenance' }), el('th', { scope: 'col', text: 'Action' }))));
+    const body = el('tbody');
+    for (const entry of entries.slice().reverse()) {
+      const current = latest.get(entry.memoryId);
+      const actions = el('td');
+      if (entry.restorable && current && entry.version < current.version) {
+        const restore = el('button', { type: 'button', class: 'secondary', text: 'Restore' });
+        restore.setAttribute('aria-label', 'Restore memory checkpoint ' + entry.checkpointId);
+        restore.addEventListener('click', () => restoreMemoryCheckpoint(entry));
+        actions.append(restore);
+      } else {
+        actions.append(el('span', { class: 'muted', text: entry.restorable ? 'Current' : 'Not restorable' }));
+      }
+      body.append(el('tr', {},
+        el('td', { class: 'code', text: entry.checkpointId }),
+        el('td', { text: entry.state }),
+        el('td', { text: entry.scope.kind }),
+        el('td', { text: new Date(entry.updatedAt).toISOString() }),
+        el('td', { text: entry.source.kind + ' · ' + entry.source.evidenceClass + (entry.source.revoked ? ' · revoked' : '') }),
+        actions,
+      ));
+    }
+    table.append(body); timeline.replaceChildren(table);
+    status.textContent = entries.length + ' metadata checkpoint(s). Raw memory content stays outside this view.';
+  }
+  async function loadMemoryTimeMachine() {
+    const status = $('#mem-tm-status');
+    if (!status) return;
+    try {
+      const result = await getJson('/api/studio/memory/time-machine.json');
+      renderMemoryTimeMachine(result.snapshot);
+    } catch (error) {
+      status.textContent = 'Memory Time Machine unavailable: ' + (error instanceof Error ? error.message : String(error));
+    }
+  }
+  async function restoreMemoryCheckpoint(entry) {
+    if (!confirm('Restore this memory checkpoint as a new governed revision?')) return;
+    try {
+      await mcpPost('/api/studio/memory/time-machine/restore', { memoryId: entry.memoryId, scope: entry.scope.kind, version: entry.version, confirm: true });
+      $('#mem-tm-status').textContent = 'Checkpoint restored as a new governed revision.';
+      loadMemory();
+    } catch (error) {
+      $('#mem-tm-status').textContent = 'Restore refused: ' + (error instanceof Error ? error.message : String(error));
+    }
+  }
+  $('#mem-tm-export').addEventListener('click', async () => {
+    const output = $('#mem-tm-export-out'); const status = $('#mem-tm-status');
+    try { const result = await getJson('/api/studio/memory/time-machine/export.json'); output.textContent = JSON.stringify(result, null, 2); output.hidden = false; status.textContent = 'Metadata-only export prepared. Memory text is excluded.'; }
+    catch (error) { status.textContent = 'Export refused: ' + (error instanceof Error ? error.message : String(error)); }
+  });
   async function memAct(m, action) { try { await mcpPost('/api/studio/memory/act', { memoryId: m.memoryId, scope: m.scope === 'project' ? 'project' : 'user', action }); loadMemory(); } catch (e) { $('#mem-status').textContent = e.message; } }
   $('#mem-add-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -2999,7 +3063,8 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div id="mem-forms" hidden><div class="card"><h2>Persistent memory graph</h2><p class="muted">A local visual map of active/inactive memory records grouped by scope. The graph is derived from memory metadata; recalled text remains governed as data, never instructions.</p><div class="memory-graph-wrap"><svg id="memory-graph" viewBox="0 0 760 360" role="img" aria-label="Persistent memory graph"></svg></div><p id="memory-graph-status" class="status muted"></p></div><div class="card"><form id="mem-add-form"><label for="mem-text">Remember</label><textarea id="mem-text" required placeholder="e.g. We deploy on Tuesdays only"></textarea>
   <div class="row"><div><label for="mem-scope">For</label><select id="mem-scope"><option value="project">This project</option><option value="user">Me, everywhere</option></select></div><button type="submit">Save</button></div></form></div>
   <div class="card"><form id="mem-search-form"><label for="mem-query">Recall</label><input id="mem-query" required autocomplete="off"><div class="row"><button type="submit">Recall</button></div></form><div id="mem-results" aria-live="polite"></div></div>
-  <div class="card"><table><thead><tr><th scope="col">ID</th><th scope="col">State</th><th scope="col">Kind</th><th scope="col">Scope</th><th scope="col">Source</th><th scope="col">Confidence</th><th scope="col">Age</th><th scope="col">Actions</th></tr></thead><tbody id="mem-body"></tbody></table></div></div></section>
+  <div class="card"><table><thead><tr><th scope="col">ID</th><th scope="col">State</th><th scope="col">Kind</th><th scope="col">Scope</th><th scope="col">Source</th><th scope="col">Confidence</th><th scope="col">Age</th><th scope="col">Actions</th></tr></thead><tbody id="mem-body"></tbody></table></div>
+  <div class="card"><h2>Memory Time Machine</h2><p class="muted">History and checkpoints come from the existing encrypted Memory VNext store. Snapshots, diff and export contain metadata and digests only; restore appends a new governed revision after explicit confirmation.</p><p id="mem-tm-status" class="status muted" role="status">Loading memory checkpoints…</p><div id="mem-tm-summary"></div><div class="row"><button id="mem-tm-export" type="button" class="secondary">Export metadata snapshot</button></div><pre id="mem-tm-export-out" class="code-view" hidden tabindex="0" aria-label="Memory Time Machine metadata export"></pre><div id="mem-tm-timeline" aria-live="polite"></div></div></div></section>
 <section data-view="artifacts" aria-labelledby="h-artifacts" hidden><h1 id="h-artifacts">Artifacts</h1><p class="lead">Versioned project outputs with immutable history, SHA-256 evidence and approval-only restore.</p>
   <div class="grid">
     <div class="card"><h2>Create artifact</h2><form id="artifact-create-form">

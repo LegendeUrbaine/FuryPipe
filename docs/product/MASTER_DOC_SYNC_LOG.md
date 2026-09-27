@@ -241,3 +241,28 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - Status: `PARTIAL_OBSERVABILITY_COST_LOCAL_CONTRACT_VERIFIED`.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-27 — FuryMemory Time Machine
+
+- Reused the existing encrypted `RecoveryStore` through Memory VNext; no
+  second memory store or browser-only persistence was introduced.
+- Added bounded Memory VNext `history()` and explicit `restore()` operations.
+  Restore reads an existing immutable checkpoint and appends a new governed
+  version. Forgotten records, current checkpoints, revoked sources and
+  expired TTL checkpoints are rejected.
+- Added digest-only timeline/checkpoints, tamper-checked deterministic
+  snapshot diff, metadata-only export and scope → memory → source
+  cross-project graph projection in `src/fury-memory-time-machine.ts`.
+- Studio adds read-only Time Machine, metadata export, diff route, explicit
+  restore confirmation and governed archive/delete action plans. `pin` is
+  visibly `PLAN_ONLY` because no canonical persisted pin authority exists.
+- Local proof: focused Memory VNext / Time Machine / Studio API contracts
+  `35/35`; full Vitest `340` files / `3,568` passed / `6` skipped; source and
+  hosted-MCP typechecks; build; installed package smoke; Chromium/Firefox/
+  WebKit Browser QA.
+- Remaining: persistent pin schema, cross-process/hosted authorization,
+  recall/false-memory evaluation, migration coverage, human client review,
+  hosted exact-head validation and production/client gates.
+- Status: `PARTIAL_MEMORY_TIME_MACHINE_LOCAL_CONTRACT_VERIFIED`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.

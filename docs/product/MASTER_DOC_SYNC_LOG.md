@@ -153,3 +153,23 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-27 — FuryVideo Studio controls
+
+- Added a capability-driven FuryVideo form with `Provider / AUTO`, model,
+  reference, duration, FPS, aspect ratio and resolution controls.
+- Video controls use the existing governed media preview boundary and the same
+  async job engine contract; no second queue or provider execution path was
+  introduced. Preview output remains digest-only and does not expose the raw
+  prompt or reference.
+- Local proof: focused API/Media Studio tests `30` passed, full suite `337`
+  files / `3,554` tests passed with `6` skipped, source and hosted-MCP
+  typechecks, build, package smoke and Chromium/Firefox/WebKit Browser QA
+  passed.
+- Remaining: live video provider SDK/credentials, billable generation,
+  storyboard/timeline, Helios integration, queue recovery, human
+  visual/screen-reader review and hosted exact-head validation for this
+  follow-up.
+- Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.

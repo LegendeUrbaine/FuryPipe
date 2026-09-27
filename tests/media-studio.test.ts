@@ -77,6 +77,34 @@ describe('Media Studio preview boundary', () => {
     })).toThrow(/aspect ratio/u);
   });
 
+  it('keeps FuryVideo controls bounded and provider selection capability-driven', () => {
+    const adapter = createFuryDeterministicMediaGenerationAdapter({
+      bundleId: 'media-lab', bundleVersion: '1.0.0', profileId: 'video-text',
+      family: 'video-generation', supportedModes: ['text-to-video'], outputMimeType: 'video/mp4',
+    });
+    const snapshot = createFuryMediaStudioSnapshot({ adapters: [adapter], now: () => 7 });
+    const selectorId = snapshot.adapters[0]!.selectorId;
+    const preview = createFuryMediaStudioPreview({
+      surface: 'video', operation: 'text-to-video', prompt: 'A bounded video prompt', outputMimeType: 'video/mp4', adapters: [adapter],
+      options: {
+        provider: selectorId, model: 'video-text', reference: 'artifact_reference', durationMs: 4_000,
+        fps: 24, aspectRatio: '16:9', resolution: '1080p',
+      },
+    });
+    expect(preview).toMatchObject({ provider: selectorId, model: 'video-text' });
+    expect(preview.controlsDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
+    expect(preview).not.toHaveProperty('reference');
+    expect(preview).not.toHaveProperty('prompt');
+    expect(() => createFuryMediaStudioPreview({
+      surface: 'video', operation: 'text-to-video', prompt: 'x', outputMimeType: 'video/mp4', adapters: [adapter],
+      options: { provider: selectorId, model: 'video-text', durationMs: 400 },
+    })).toThrow(/duration/u);
+    expect(() => createFuryMediaStudioPreview({
+      surface: 'video', operation: 'text-to-video', prompt: 'x', outputMimeType: 'video/mp4', adapters: [adapter],
+      options: { provider: selectorId, model: 'image-text' },
+    })).toThrow(/model is not supported by the selected provider/u);
+  });
+
   it('projects durable job history without inventing dimensions, seed or cost', () => {
     const digest = 'a'.repeat(64);
     const job: FuryMediaGenerationJob = {

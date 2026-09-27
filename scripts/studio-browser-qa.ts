@@ -276,6 +276,21 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
     assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: media preview did not remain preview-only`);
     assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded browser preview'), `${name}: media preview leaked the raw prompt`);
+    await page.locator('#media-surface').selectOption('video');
+    await page.locator('#media-provider-status').filter({ hasText: 'No video provider configured' }).waitFor();
+    await page.locator('#media-video-controls').waitFor({ state: 'visible' });
+    await page.locator('#media-reference').fill('artifact_reference');
+    await page.locator('#media-duration').fill('4000');
+    await page.locator('#media-fps').fill('24');
+    await page.locator('#media-video-aspect-ratio').selectOption('16:9');
+    await page.locator('#media-video-resolution').selectOption('1080p');
+    await page.locator('#media-operation option[value="text-to-video"]').waitFor({ state: 'attached' });
+    await page.locator('#media-operation').selectOption('text-to-video');
+    await page.locator('#media-prompt').fill('A bounded video preview');
+    await page.locator('#media-preview-form button[type=submit]').click();
+    await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
+    assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: video preview did not remain preview-only`);
+    assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded video preview'), `${name}: video preview leaked the raw prompt`);
     const rejectedMedia = await page.evaluate(async () => {
       const response = await fetch('/api/studio/media/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'video', operation: 'text-to-image', prompt: 'invalid', outputMimeType: 'image/png' }) });
       return response.status;

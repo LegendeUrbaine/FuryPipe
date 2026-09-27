@@ -65,7 +65,9 @@ Implemented files:
 
 `src/media-studio.ts` defines bounded FuryImage, FuryVideo and FuryAudio
 surfaces. FuryImage additionally exposes capability-driven Provider/AUTO, Model,
-aspect ratio, resolution, quality and bounded advanced controls. `GET
+aspect ratio, resolution, quality and bounded advanced controls. FuryVideo
+exposes capability-driven Provider/AUTO, Model, Reference, duration, FPS, aspect
+ratio and resolution controls. `GET
 /api/studio/media.json` projects capability observations only;
 `POST /api/studio/media/preview` returns digest-only preview evidence. Neither
 route invokes a provider, reads credentials, creates a billable job or grants
@@ -75,9 +77,9 @@ observations remain explicitly unvalidated.
 
 Browser QA was extended in `scripts/studio-browser-qa.ts` and passed locally on
 Chromium, Firefox and WebKit. It covered media navigation, all three surfaces,
-valid preview, invalid operation rejection, raw-prompt non-leakage and the
-responsive no-overflow matrix. Automated browser rendering is not a human
-visual/screen-reader sign-off.
+valid image/video previews, invalid operation rejection, raw-prompt non-leakage
+and the responsive no-overflow matrix. Automated browser rendering is not a
+human visual/screen-reader sign-off.
 
 The first WebKit attempt exposed a harness timing false negative on the
 existing 404 assertion (`visible` was checked before route rendering). The

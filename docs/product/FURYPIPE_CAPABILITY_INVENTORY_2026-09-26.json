@@ -495,7 +495,7 @@
     },
     {
       "name": "Model Hub cloud+local unified adapters",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_MODEL_HUB_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {
@@ -545,7 +545,7 @@
     },
     {
       "name": "Agent graph/message bus/task DAG",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_AGENT_CONTRACT_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {

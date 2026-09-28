@@ -453,6 +453,10 @@
       "types": "./dist/fury-provider-sdk.d.ts",
       "import": "./dist/fury-provider-sdk.js"
     },
+    "./fury-agent-sdk": {
+      "types": "./dist/fury-agent-sdk.d.ts",
+      "import": "./dist/fury-agent-sdk.js"
+    },
     "./benchmark-claim-gate": {
       "types": "./dist/benchmark-claim-gate.d.ts",
       "import": "./dist/benchmark-claim-gate.js"

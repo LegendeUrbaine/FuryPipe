@@ -716,6 +716,12 @@ try {
     "const m = await import('furypipe/fury-provider-sdk'); if (typeof m.defineFuryProviderAdapter !== 'function' || typeof m.compileFuryProviderSdkManifest !== 'function' || m.FURY_PROVIDER_SDK_MANIFEST_FORMAT !== 'furypipe-provider-sdk-manifest/v1') process.exit(1);",
   ], installDir);
   assert(providerSdkExport.stderr === '', `Provider SDK package export wrote stderr: ${providerSdkExport.stderr}`);
+  const agentSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-agent-sdk'); if (typeof m.defineFuryAgentContract !== 'function' || typeof m.compileFuryAgentSdkManifest !== 'function' || m.FURY_AGENT_SDK_MANIFEST_FORMAT !== 'furypipe-agent-sdk-manifest/v1') process.exit(1);",
+  ], installDir);
+  assert(agentSdkExport.stderr === '', `Agent SDK package export wrote stderr: ${agentSdkExport.stderr}`);
   const controlRoomEvidenceExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

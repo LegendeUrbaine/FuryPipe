@@ -338,3 +338,28 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - Status: `PARTIAL_PROVIDER_SDK_FOUNDATION_LOCAL_CONTRACT_VERIFIED`.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-28 — FuryPipe Agent SDK contract foundation
+
+- Added public `furypipe/fury-agent-sdk` metadata-only contracts for the
+  master agent contract fields: role, goal, inputs, context, skills, tools,
+  permissions, budget and output schema.
+- Added deterministic dependency-DAG compilation, lexical topological order,
+  parallel groups and explicit message channels. A channel without a matching
+  declared dependency is rejected, preventing implicit scheduling edges.
+- The SDK has no callback registration, module loading, credential access,
+  network/filesystem operation or execution authority. Existing Agent Runtime,
+  FuryIR and Mission Control remain authoritative.
+- Machine inventory and gap analysis now record the locally verified Agent
+  contract state; Model Hub stale reconciliation is also recorded.
+- Local proof: focused Agent SDK `3/3`; full Vitest `342` files / `3,575`
+  passed / `6` skipped; source and hosted-MCP typechecks; inventory JSON parse;
+  build version smoke `0.16.0`; packed export smoke; Gateway installed-package
+  smoke with tarball SHA-256
+  `c8a24d707a21166172753e5419c04109d0c0dd4d492b802556741e0f8e6deb2a`;
+  Phase 6/7/8 ACP, benchmark-claim, provider-attempt and governed-provider
+  package smokes; Chromium/Firefox/WebKit Studio Browser QA.
+- Hosted exact-head evidence, distributed worker behavior, live provider/MCP
+  execution and human/client/production gates remain unproven.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.

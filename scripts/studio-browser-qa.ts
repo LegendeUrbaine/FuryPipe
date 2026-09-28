@@ -471,7 +471,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
 
     // Responsive: desktop, narrow desktop, tablet and phone widths, every view, no horizontal page overflow.
     await page.goto(`${origins.normal}/#/chat`);
-    for (const width of [1280, 1024, 768, 390]) {
+    for (const width of [2560, 1920, 1440, 1366, 1280, 1024, 768, 390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       for (const view of ['chat', 'projects', 'research', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'observability', 'marketplace', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
         await page.goto(`${origins.normal}/#/${view}`);

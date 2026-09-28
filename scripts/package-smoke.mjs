@@ -722,6 +722,12 @@ try {
     "const m = await import('furypipe/fury-agent-sdk'); if (typeof m.defineFuryAgentContract !== 'function' || typeof m.compileFuryAgentSdkManifest !== 'function' || m.FURY_AGENT_SDK_MANIFEST_FORMAT !== 'furypipe-agent-sdk-manifest/v1') process.exit(1);",
   ], installDir);
   assert(agentSdkExport.stderr === '', `Agent SDK package export wrote stderr: ${agentSdkExport.stderr}`);
+  const workflowSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-workflow-sdk'); if (typeof m.compileFuryWorkflowAutomationPlan !== 'function' || m.FURY_WORKFLOW_AUTOMATION_PLAN_FORMAT !== 'furypipe-workflow-automation-plan/v1') process.exit(1);",
+  ], installDir);
+  assert(workflowSdkExport.stderr === '', `Workflow SDK package export wrote stderr: ${workflowSdkExport.stderr}`);
   const controlRoomEvidenceExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

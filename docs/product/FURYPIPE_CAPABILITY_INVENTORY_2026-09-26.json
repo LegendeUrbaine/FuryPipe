@@ -550,7 +550,7 @@
     },
     {
       "name": "Workflow/automation expansion",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_WORKFLOW_AUTOMATION_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {

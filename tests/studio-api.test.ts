@@ -406,6 +406,33 @@ describe('Studio API', () => {
     expect(bad.status).toBe(422);
   });
 
+  it('previews a governed Gateway automation plan without registration or execution', async () => {
+    const studio = api('http://127.0.0.1:1');
+    const ok = await studio.handle('flow-automation-preview', post({ flow: STUDIO_EXAMPLE_FLOW }));
+    expect(ok.status).toBe(200);
+    const body = await ok.json() as {
+      format: string;
+      workflowId: string;
+      trigger: { kind: string; sourceId: string };
+      registrationAuthorized: boolean;
+      executionAuthorized: boolean;
+    };
+    expect(body).toMatchObject({
+      format: 'furypipe-workflow-automation-plan/v1',
+      workflowId: 'refund-triage',
+      trigger: { kind: 'webhook', sourceId: 'support' },
+      registrationAuthorized: false,
+      executionAuthorized: false,
+    });
+
+    const invalid = {
+      ...STUDIO_EXAMPLE_FLOW,
+      nodes: STUDIO_EXAMPLE_FLOW.nodes.map((node) => node.id === 'trigger' ? { ...node, config: { kind: 'webhook' } } : node),
+    };
+    const bad = await studio.handle('flow-automation-preview', post({ flow: invalid }));
+    expect(bad.status).toBe(422);
+  });
+
   it('validates blast-radius input', async () => {
     const studio = api('http://127.0.0.1:1');
     expect((await studio.handle('blast-radius', post({ files: [] }))).status).toBe(400);

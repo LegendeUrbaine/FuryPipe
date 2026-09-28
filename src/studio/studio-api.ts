@@ -19,6 +19,7 @@ import { compileFuryIr, FuryIrError } from '../fury-ir.js';
 import { FuryDispatchError, FURY_DISPATCH_MODES, planFuryDispatch, type FuryDispatchMode, type FuryRuntimeBinding } from '../fury-dispatcher.js';
 import { executeGraphifyRefresh, furyBlastRadius, furyScopeCoupling, loadFuryGraph, planGraphifyLifecycle, planGraphifyRefresh, type FuryGraph, type FuryGraphDetection } from '../fury-graph.js';
 import { compileFuryFlow, dryRunFuryFlow, FuryFlowError } from '../fury-flow.js';
+import { compileFuryWorkflowAutomationPlan, FuryWorkflowAutomationError } from '../fury-workflow-sdk.js';
 import { execFile } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import os from 'node:os';
@@ -76,7 +77,7 @@ const MAX_POST_BYTES = 256 * 1024;
 const CACHE_MS = 10_000;
 
 export type StudioRoute =
-  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'extensions' | 'chat' | 'flow-preview'
+  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
   | 'runs' | 'run-start' | 'run-act' | 'skills' | 'skill-act' | 'skill-select' | 'skill-install' | 'skill-create' | 'skill-compare'
   | 'mcp' | 'mcp-add' | 'mcp-act' | 'mcp-probe' | 'mcp-decide'
   | 'knowledge' | 'knowledge-ingest' | 'knowledge-search'
@@ -131,6 +132,7 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/artifacts/export': { route: 'artifact-export', method: 'GET' },
   '/api/studio/chat': { route: 'chat', method: 'POST' },
   '/api/studio/flow-preview': { route: 'flow-preview', method: 'POST' },
+  '/api/studio/flow-automation-preview': { route: 'flow-automation-preview', method: 'POST' },
   '/api/studio/runs.json': { route: 'runs', method: 'GET' },
   '/api/studio/runs': { route: 'run-start', method: 'POST' },
   '/api/studio/runs/act': { route: 'run-act', method: 'POST' },
@@ -875,6 +877,10 @@ export function createStudioApi(options: StudioApiOptions) {
             }
             return json({ flow, ...(run ? { run } : {}), execution: 'DRY_RUN: deterministic handlers are pass-through, agentic nodes use fixtures; no side effect' });
           }
+          case 'flow-automation-preview': {
+            const body = await readJson(request) as { flow?: unknown };
+            return json(compileFuryWorkflowAutomationPlan(body?.flow));
+          }
           case 'runs':
             return json({ runs: [...runs.values()].map(runSnapshot).reverse() });
           case 'run-act': {
@@ -1272,6 +1278,7 @@ export function createStudioApi(options: StudioApiOptions) {
         if (error instanceof FurySkillHubError) return problem(/^unknown skill/u.test(error.message) ? 404 : 422, 'skill-rejected', error.message);
         if (route.startsWith('artifact')) return problem(/^unknown artifact/u.test((error as Error).message) ? 404 : 422, 'artifact-rejected', (error as Error).message.slice(0, 300));
         if ((error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR') return problem(404, 'not-found', 'path not found');
+        if (error instanceof FuryWorkflowAutomationError) return problem(422, 'invalid-workflow-automation', error.message);
         if (error instanceof FuryFlowError) return problem(422, 'invalid-flow', error.message);
         if ((error as Error).name === 'FuryLocalFabricError') return problem(403, 'endpoint-denied', (error as Error).message);
         if ((error as Error).name === 'FuryGraphError') return problem(404, 'graph-unavailable', (error as Error).message);

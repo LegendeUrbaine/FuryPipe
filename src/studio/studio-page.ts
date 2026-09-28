@@ -45,7 +45,7 @@ export const STUDIO_EXAMPLE_IR = Object.freeze({
 export const STUDIO_EXAMPLE_FLOW = Object.freeze({
   format: 'furypipe-flow/v1', id: 'refund-triage', version: 1, name: 'Refund triage',
   nodes: [
-    { id: 'trigger', type: 'TRIGGER', label: 'Support webhook', config: { kind: 'webhook' } },
+    { id: 'trigger', type: 'TRIGGER', label: 'Support webhook', config: { kind: 'webhook', sourceId: 'support' } },
     { id: 'classify', type: 'LLM', label: 'Classify request' },
     { id: 'route', type: 'CONDITION', label: 'Refund?' },
     { id: 'approve', type: 'HUMAN_APPROVAL', label: 'Approve refund' },

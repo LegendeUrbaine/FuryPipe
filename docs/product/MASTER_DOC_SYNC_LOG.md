@@ -363,3 +363,27 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
   execution and human/client/production gates remain unproven.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-28 — FuryPipe workflow automation plan foundation
+
+- Added public `furypipe/fury-workflow-sdk` metadata-only planning for a
+  `FuryFlow` trigger bound to the existing Gateway automation trigger
+  authority. Interval, cron and webhook metadata are normalized by the
+  Gateway contract; malformed or unschedulable trigger metadata fails closed.
+- Added `POST /api/studio/flow-automation-preview` and a Studio API contract
+  test. The route returns a deterministic plan digest and explicit
+  `registrationAuthorized:false` / `executionAuthorized:false` flags; it does
+  not persist definitions, register schedules, dispatch runs or invoke flow
+  nodes.
+- Machine inventory, gap analysis and Studio architecture now record the
+  partial local workflow contract state.
+- Local proof: focused workflow SDK `5/5`; Studio API `27/27`; full Vitest
+  `343` files / `3,581` passed / `6` skipped; source and hosted-MCP
+  typechecks; inventory JSON parse; build version smoke `0.16.0`; packed
+  workflow export smoke; complete package smoke chain including Gateway,
+  MCP, Phase 6/7/8 ACP, benchmark-claim, provider-attempt and governed-
+  provider checks; current Gateway installed-package tarball SHA-256
+  `e9ee1fc15a87b510cedfaef30d175ad2db8ba0b1c9868227978c802ae105fe52`.
+- Remaining: durable workflow definition/registration, scheduler persistence,
+  execution/recovery, approval-bearing runtime integration and hosted/client/
+  production proof.

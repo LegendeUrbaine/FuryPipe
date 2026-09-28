@@ -476,6 +476,7 @@ describe('Studio page', () => {
     expect(a.html).toContain('&quot;format&quot;: &quot;furypipe-ir/v1&quot;');
     expect(a.html).toContain('rel="manifest" href="/studio.webmanifest"');
     expect(a.html).toContain("navigator.serviceWorker.register('/studio-service-worker.js'");
+    expect(studioHtmlResponse().headers.get('content-security-policy')).toContain("manifest-src 'self'");
     expect(studioHtmlResponse().headers.get('content-security-policy')).toContain("worker-src 'self'");
     const fr = renderStudioHtml({ locale: 'fr' });
     expect(fr.html).toContain('<html lang="fr"');

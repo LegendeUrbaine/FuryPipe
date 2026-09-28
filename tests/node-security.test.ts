@@ -561,6 +561,7 @@ describe('Node host serves FuryPipe Studio', () => {
     const csp = studio.headers.get('content-security-policy') ?? '';
     expect(csp).toMatch(/script-src 'nonce-[A-Za-z0-9+/=]+'/u);
     expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("manifest-src 'self'");
     expect(csp).toContain("worker-src 'self'");
     const html = await studio.text();
     expect(html).toContain('FuryPipe Studio');

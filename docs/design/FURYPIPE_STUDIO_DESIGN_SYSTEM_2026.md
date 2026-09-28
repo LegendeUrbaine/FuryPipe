@@ -1,7 +1,11 @@
 # FuryPipe Studio — design system "Fury Lux" (2026)
 
 Source of truth: `src/studio/studio-page.ts` (CSS tokens, icons, markup and
-client script). Market reasoning: `docs/research/FURYPIPE_STUDIO_UI_MARKET_2026.md`.
+client script) plus `src/studio/studio-navigation.ts` (route groups and
+progressive levels). The current Local shell contract is recorded in
+`docs/design/FURYPIPE_LOCAL_DESIGN_SYSTEM_2026.md` and
+`docs/product/FURYPIPE_LOCAL_INFORMATION_ARCHITECTURE_2026.md`. Market
+reasoning: `docs/research/FURYPIPE_STUDIO_UI_MARKET_2026.md`.
 
 ## Principles
 
@@ -67,8 +71,8 @@ then system-ui). Monospace: JetBrains Mono → Cascadia → SF Mono.
 
 | Component | Behaviour |
 |---|---|
-| **Sidebar** | Mark and wordmark, then New chat, Search (Ctrl K), mode-filtered nav with an orange bar on the active item, Recent (rename/delete via ⋯), and the mode button plus a Settings link. Collapsible (persisted). Below 860 px it becomes a drawer with a scrim; Escape closes it. |
-| **Hero (new chat)** | CSS 3D orbits around the Fury core, the headline "How can FuryPipe help?", and suggestion chips that only prefill the composer. Collapses into the conversation after the first message. |
+| **Sidebar** | Mark and wordmark, Local workspace boundary, New chat, Search (Ctrl K), grouped mode-filtered nav (Workspace / Explore / Operate / Connect / System) with an orange bar on the active item, Recent (rename/delete via ⋯), and the mode button plus a Settings link. Collapsible (persisted). Below 860 px it becomes a drawer with a scrim; Escape closes it. |
+| **Hero (new chat)** | CSS depth around the Fury core, a local-first workspace signal, privacy/routing/control guarantees, and suggestion chips that only prefill the composer. Collapses into the conversation after the first message. |
 | **FuryComposer** | Textarea that autosizes up to 384 px. Enter sends; Shift+Enter adds a line. **+** attaches text files (≤ 6 files, ≤ 256 KB each; binary files refused with a reason). Pasting more than 300 characters becomes a card. Drag and drop shows an overlay. **Web** reads linked URLs through the SSRF-hardened FuryWeb FETCH. **Knowledge** searches the local index. The model button (Fury Auto or a named local model) sits next to Send, and Send becomes Stop while streaming (AbortController). |
 | **Model picker** | Popover with search: Fury Auto, "On this machine" (fit pills FITS / SLOW / TOO BIG / UNKNOWN), and a Cloud entry that links to the governed Gateway WebChat. Arrow keys and Escape work. |
 | **Route chip → "Why this route?"** | Model, provider, runtime, where it ran, privacy, cost ($0 local), hardware fit, tools used, who chose (Fury Auto with the number of models considered, or you), and the reason in plain words. |

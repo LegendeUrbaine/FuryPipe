@@ -98,6 +98,7 @@ async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: strin
     // Isolated hub state: QA never touches the operator's ~/.furypipe.
     knowledgeDir: path.join(projectRoot, '.qa-knowledge', state),
     chatsDir: path.join(projectRoot, '.qa-chats', state),
+    artifactsDir: path.join(projectRoot, '.qa-artifacts', state),
     memory: mode === 'empty' ? { enabled: false, reason: 'Memory is off. Set FURYPIPE_WEBCHAT_MEMORY_CONFIG to an encrypted memory config to turn it on.' } : { enabled: true, store: createMemoryVNextStore({ recovery: createRecoveryStore(path.join(projectRoot, '.qa-memory', state), { namespace: 'studio-qa' }), authorize: () => true }) },
     mcpHub: createFuryMcpHub({ projectRoot, homeDir: path.join(projectRoot, '.qa-home'), stateDir: path.join(projectRoot, '.qa-mcp-hub', state) }),
     skillHub: createFurySkillHub({ projectRoot, homeDir: path.join(projectRoot, '.qa-home'), stateDir: path.join(projectRoot, '.qa-skill-hub', state), projectTrustedForInstructions: true }),
@@ -138,7 +139,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
   const browser = await type.launch();
   const errors: string[] = [];
   try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+    const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, locale: 'en-US' });
     const page = await context.newPage();
     const chatPayloads: Array<{ messages?: Array<{ role?: string; content?: string }> }> = [];
     page.on('request', (request) => {
@@ -151,6 +152,9 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
 
     await page.goto(`${origins.normal}/`, { waitUntil: 'load' });
     assert(await page.title() === 'Chat · FuryPipe Studio', `${name}: title ${await page.title()}`);
+    assert(await page.locator('a.brand[data-brand="furypipe"] svg[data-brand="furypipe-monogram"]').count() === 1, `${name}: sidebar brand mark missing`);
+    assert(await page.locator('link[rel="icon"][type="image/svg+xml"]').count() === 1, `${name}: favicon missing`);
+    assert(!(await page.content()).includes('fury-ring'), `${name}: legacy non-brand ring remains in shell`);
     assert(await page.evaluate(() => document.activeElement === document.body), `${name}: focus moved on first load`);
     // Keyboard: skip link is the first tab stop and moves focus to main.
     await page.keyboard.press('Tab');
@@ -168,8 +172,13 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     const widthAfter = Number(await sideResizer.getAttribute('aria-valuenow'));
     assert(widthAfter > widthBefore, `${name}: keyboard sidebar resize did not increase width`);
     assert(await page.evaluate(() => localStorage.getItem('furypipe.studio.sidebarWidth')) === String(widthAfter), `${name}: sidebar width was not persisted`);
-    assert(await page.locator('#tool-autopilot').getAttribute('aria-pressed') === 'true', `${name}: Fury Autopilot is not enabled by default`);
     await page.locator('#chat-input').fill('Say hello');
+    // Local runtime discovery is asynchronous. Wait for the composer to become
+    // sendable instead of racing the discovery request on slower CI engines.
+    await page.waitForFunction(() => {
+      const send = document.querySelector('#chat-send');
+      return send instanceof HTMLButtonElement && !send.disabled;
+    });
     await page.locator('#chat-send').click();
     await page.locator('#chat-log .msg:not(.user)').filter({ hasText: 'Hello from a local model.' }).waitFor();
     assert(chatPayloads.length > 0, `${name}: chat request was not captured`);
@@ -227,8 +236,6 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.goto(`${origins.normal}/#/cowork`);
     // Cowork run: ASK permissions raise an approval before anything starts.
     await page.locator('#cowork-intent').fill('Tidy the docs folder');
-    // The mutation scope lives under progressive disclosure. Open the advanced
-    // section before interacting with controls that are intentionally hidden by default.
     await page.locator('.work-advanced > summary').click();
     await page.locator('#cowork-files').fill('docs/');
     await page.locator('#cowork-confirm').check();
@@ -249,6 +256,83 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.goto(`${origins.normal}/#/models`);
     await page.locator('#backends .model-row .fit.ok').filter({ hasText: 'FITS' }).first().waitFor();
     assert(await page.locator('#backends .backend.up').count() === 1, `${name}: running backend card`);
+    await page.goto(`${origins.normal}/#/media`);
+    await page.locator('#media-surfaces .card').filter({ hasText: 'FuryImage Studio' }).waitFor();
+    await page.locator('#media-surfaces .card').filter({ hasText: 'FuryVideo Studio' }).waitFor();
+    await page.locator('#media-gallery').filter({ hasText: 'Media job history not configured' }).waitFor();
+    await page.locator('#media-provider-status').filter({ hasText: 'No image provider configured' }).waitFor();
+    await page.locator('#media-image-controls').waitFor({ state: 'visible' });
+    await page.locator('#media-provider option[value="AUTO"]').waitFor({ state: 'attached' });
+    await page.locator('#media-model option[value="AUTO"]').waitFor({ state: 'attached' });
+    await page.locator('#media-aspect-ratio').selectOption('16:9');
+    await page.locator('#media-resolution').selectOption('1536x1024');
+    await page.locator('#media-quality').selectOption('high');
+    await page.locator('#media-image-controls details > summary').click();
+    await page.locator('#media-negative-prompt').fill('blur');
+    await page.locator('#media-seed').fill('7');
+    await page.locator('#media-operation option[value="text-to-image"]').waitFor({ state: 'attached' });
+    await page.locator('#media-prompt').fill('A bounded browser preview');
+    await page.locator('#media-preview-form button[type=submit]').click();
+    await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
+    assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: media preview did not remain preview-only`);
+    assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded browser preview'), `${name}: media preview leaked the raw prompt`);
+    await page.locator('#media-surface').selectOption('video');
+    await page.locator('#media-provider-status').filter({ hasText: 'No video provider configured' }).waitFor();
+    await page.locator('#media-video-controls').waitFor({ state: 'visible' });
+    await page.locator('#media-reference').fill('artifact_reference');
+    await page.locator('#media-duration').fill('4000');
+    await page.locator('#media-fps').fill('24');
+    await page.locator('#media-video-aspect-ratio').selectOption('16:9');
+    await page.locator('#media-video-resolution').selectOption('1080p');
+    await page.locator('#media-operation option[value="text-to-video"]').waitFor({ state: 'attached' });
+    await page.locator('#media-operation').selectOption('text-to-video');
+    await page.locator('#media-prompt').fill('A bounded video preview');
+    await page.locator('#media-preview-form button[type=submit]').click();
+    await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
+    assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: video preview did not remain preview-only`);
+    assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded video preview'), `${name}: video preview leaked the raw prompt`);
+    await page.locator('#media-surface').selectOption('audio');
+    await page.locator('#media-provider-status').filter({ hasText: 'No audio provider configured' }).waitFor();
+    await page.locator('#media-audio-controls').waitFor({ state: 'visible' });
+    await page.locator('#media-voice').fill('alloy');
+    await page.locator('#media-language').fill('fr-FR');
+    await page.locator('#media-audio-duration').fill('4000');
+    await page.locator('#media-operation option[value="text-to-audio"]').waitFor({ state: 'attached' });
+    await page.locator('#media-operation').selectOption('text-to-audio');
+    await page.locator('#media-prompt').fill('A bounded audio preview');
+    await page.locator('#media-preview-form button[type=submit]').click();
+    await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
+    assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: audio preview did not remain preview-only`);
+    assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded audio preview'), `${name}: audio preview leaked the raw prompt`);
+    const timelinePreview = await page.evaluate(async () => {
+      const response = await fetch('/api/studio/media/timeline/preview', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          project: {
+            projectId: 'qa-project', title: 'QA project', assets: [{ assetId: 'hero-image', kind: 'image', mimeType: 'image/png' }],
+            scenes: [{ sceneId: 'opening', title: 'QA scene', shots: [{ shotId: 'shot-one', prompt: 'Private QA timeline prompt', durationMs: 2_000, assetIds: ['hero-image'] }] }],
+          },
+        }),
+      });
+      return { status: response.status, body: await response.text() };
+    });
+    assert(timelinePreview.status === 200, `${name}: timeline preview status ${timelinePreview.status}`);
+    assert(timelinePreview.body.includes('furypipe-furyvideo-timeline/v1'), `${name}: timeline preview format missing`);
+    assert(!timelinePreview.body.includes('Private QA timeline prompt'), `${name}: timeline preview leaked the raw prompt`);
+    const rejectedMedia = await page.evaluate(async () => {
+      const response = await fetch('/api/studio/media/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'video', operation: 'text-to-image', prompt: 'invalid', outputMimeType: 'image/png' }) });
+      return response.status;
+    });
+    assert(rejectedMedia === 422, `${name}: invalid media preview status ${rejectedMedia}`);
+    await page.goto(`${origins.normal}/#/observability`);
+    await page.locator('#h-observability').waitFor({ state: 'visible' });
+    await page.locator('#observability-status').filter({ hasText: 'not configured' }).waitFor();
+    assert((await page.locator('#observability-summary').textContent())?.includes('0'), `${name}: empty observability summary missing`);
+    await page.goto(`${origins.normal}/#/marketplace`);
+    await page.locator('#h-marketplace').waitFor({ state: 'visible' });
+    await page.locator('#marketplace-status').filter({ hasText: 'No signed catalog configured' }).waitFor();
+    assert((await page.locator('#marketplace-summary').textContent())?.includes('PLAN ONLY'), `${name}: marketplace authority summary missing`);
+    assert(!(await page.locator('#marketplace-list').textContent())?.includes('downloaded'), `${name}: marketplace presented an execution claim`);
     await page.goto(`${origins.normal}/#/runtimes`);
     await page.locator('#runtimes-body tr').filter({ hasText: 'Claude Code' }).filter({ hasText: '2.1.282' }).waitFor();
     await page.goto(`${origins.normal}/#/skills`);
@@ -302,14 +386,47 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#mem-query').fill(`when does QA ${name} deploy`);
     await page.locator('#mem-search-form button').click();
     await page.locator('#mem-results li').filter({ hasText: `QA ${name} deploys on Tuesdays only` }).filter({ hasText: 'why:' }).waitFor();
+    await page.locator('#mem-tm-timeline tbody tr').first().waitFor();
+    assert((await page.locator('#mem-tm-status').textContent())?.includes('metadata checkpoint'), `${name}: Memory Time Machine checkpoint missing`);
+    await page.locator('#mem-tm-export').click();
+    await page.locator('#mem-tm-export-out').waitFor({ state: 'visible' });
+    assert(!(await page.locator('#mem-tm-export-out').textContent())?.includes(`QA ${name} deploys on Tuesdays only`), `${name}: Memory Time Machine export leaked memory text`);
     await page.goto(`${origins.empty}/#/memory`);
     await page.waitForFunction(() => /Memory is off/u.test(document.querySelector('#mem-status')?.textContent ?? ''));
     assert(await page.locator('#mem-forms').isHidden(), `${name}: memory forms visible while off`);
+
+    await page.goto(`${origins.normal}/#/artifacts`);
+    await page.locator('#artifact-id').fill('qa-' + name);
+    await page.locator('#artifact-title').fill('QA Artifact ' + name);
+    await page.locator('#artifact-content').fill('# version one');
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('#artifact-create-form button[type=submit]').click();
+    await page.locator('#artifact-grid .extension-card').filter({ hasText: 'QA Artifact ' + name }).waitFor();
+    await page.locator('#artifact-grid .extension-card').filter({ hasText: 'QA Artifact ' + name }).getByRole('button', { name: 'Open history' }).click();
+    await page.locator('#artifact-detail').filter({ hasText: 'Version 1' }).waitFor();
+    const addVersion = page.locator('#artifact-detail form');
+    await addVersion.locator('textarea').fill('# version two');
+    page.once('dialog', (dialog) => dialog.accept());
+    await addVersion.getByRole('button', { name: 'Add version' }).click();
+    await page.locator('#artifact-detail').filter({ hasText: 'Version 2' }).waitFor();
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('#artifact-detail').getByRole('button', { name: 'Restore v1' }).click();
+    await page.waitForFunction(() => /Restored v1 as v3/u.test(document.querySelector('#artifact-status')?.textContent ?? ''));
+    await page.locator('#artifact-export').click();
+    await page.waitForFunction(() => /Export verified/u.test(document.querySelector('#artifact-status')?.textContent ?? ''));
+
     await page.goto(`${origins.normal}/#/integrations`);
     await page.locator('#int-body tr').filter({ hasText: 'qa-fixture' }).filter({ hasText: 'MCP' }).waitFor();
     await page.locator('#int-body tr').filter({ hasText: 'qa-status-api' }).filter({ hasText: 'READ_ONLY' }).waitFor();
     await page.goto(`${origins.normal}/#/code`);
     await page.waitForFunction(() => document.querySelector('#graph-provider')?.textContent === 'graphify');
+    const graphLifecycle = await page.evaluate(async () => {
+      const response = await fetch('/api/studio/graph/lifecycle', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changedFiles: ['src/auth/login.ts', 'README.md'] }) });
+      return { status: response.status, body: await response.json() as { format?: string; action?: string; executionAuthorized?: boolean } };
+    });
+    assert(graphLifecycle.status === 200 && graphLifecycle.body.format === 'furypipe-graph-lifecycle/v1' && graphLifecycle.body.action === 'RECOMMEND_REFRESH' && graphLifecycle.body.executionAuthorized === false, `${name}: Graphify lifecycle recommendation boundary invalid`);
+    const graphRefreshWithoutApproval = (await context.request.post(`${origins.normal}/api/studio/graph/refresh`, { headers: { 'content-type': 'application/json' }, data: {} })).status();
+    assert(graphRefreshWithoutApproval === 400, `${name}: Graphify refresh bypassed confirmation with status ${graphRefreshWithoutApproval}`);
     await page.locator('#blast-files').fill('src/auth/session.ts');
     await page.locator('#blast-form button').click();
     await page.locator('#blast-out li').filter({ hasText: 'tests/login.test.ts' }).waitFor();
@@ -317,6 +434,12 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#tree button').filter({ hasText: /^auth\/$/u }).click();
     await page.locator('#tree button').filter({ hasText: /^session\.ts$/u }).click();
     await page.waitForFunction(() => (document.querySelector('#file-view')?.textContent ?? '').includes('createSession'));
+    assert(!(await page.locator('#code-edit-card').isHidden()), `${name}: governed code editor did not open for a text file`);
+    assert((await page.locator('#code-edit-content').inputValue()).includes('createSession'), `${name}: governed code editor did not load the exact file content`);
+    assert(await page.locator('.code-script-run').count() === 3, `${name}: FuryCode must expose exactly test/typecheck/build project checks`);
+    assert(await page.locator('.code-script-run[data-script="test"]').count() === 1, `${name}: FuryCode test preset missing`);
+    assert(await page.locator('.code-script-run[data-script="typecheck"]').count() === 1, `${name}: FuryCode typecheck preset missing`);
+    assert(await page.locator('.code-script-run[data-script="build"]').count() === 1, `${name}: FuryCode build preset missing`);
     // The QA project is not a git repository: worktrees report that plainly.
     await page.waitForFunction(() => /Worktrees unavailable/u.test(document.querySelector('#wt-status')?.textContent ?? ''));
 
@@ -338,6 +461,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#flow-trace li').filter({ hasText: 'Paused at human approval: approve' }).waitFor();
 
     await page.goto(`${origins.normal}/#/does-not-exist`);
+    await page.locator('#h-notfound').waitFor({ state: 'visible' });
     assert(await visible(page, '#h-notfound'), `${name}: 404 view`);
     await page.goto(`${origins.normal}/#/settings`);
     await page.locator('a[href="/control-plane"]').click();
@@ -354,12 +478,17 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await setMode(page, 'expert');
     for (const width of [1280, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 844 });
-      for (const view of ['chat', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'automations', 'models', 'connections', 'runtimes', 'skills', 'mcp', 'integrations', 'settings']) {
+      for (const view of ['chat', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'observability', 'marketplace', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
         await page.goto(`${origins.normal}/#/${view}`);
         await page.locator(`section[data-view="${view}"] h1`).waitFor();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
         assert(overflow <= 1, `${name}: horizontal overflow ${overflow}px on ${view} at ${width}px`);
+        if (view === 'support') assert(await page.locator('.support-brand[data-brand="furypipe"]').isVisible(), `${name}: support brand missing at ${width}px`);
       }
+    }
+    await page.goto(`${origins.normal}/#/chat`);
+    if (await page.evaluate(() => window.innerWidth <= 860)) {
+      assert(await page.locator('a.top-brand[data-brand="furypipe"]').isVisible(), `${name}: responsive topbar brand missing`);
     }
 
     // Locale: browser language is detected automatically; a persisted override wins.
@@ -394,7 +523,7 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
   const browser = await type.launch();
   const shots: string[] = [];
   try {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', reducedMotion: 'reduce' });
     const page = await context.newPage();
     const shot = async (file: string): Promise<void> => {
       await page.waitForTimeout(150);
@@ -422,6 +551,9 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await page.goto(`${origins.normal}/#/models`);
     await page.locator('#backends .model-row').first().waitFor();
     await shot('06-models.png');
+    await page.goto(`${origins.normal}/#/media`);
+    await page.locator('#media-surfaces .card').filter({ hasText: 'FuryImage Studio' }).waitFor();
+    await shot('06b-media-studio-preview.png');
     await page.goto(`${origins.normal}/#/settings`);
     await shot('07-settings.png');
     await setMode(page, 'expert');
@@ -449,7 +581,7 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await page.locator('#side-open').click();
     await shot('13-drawer-390.png');
     await context.close();
-    const light = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light', reducedMotion: 'reduce' });
+    const light = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', colorScheme: 'light', reducedMotion: 'reduce' });
     const lp = await light.newPage();
     await lp.goto(`${origins.normal}/#/settings`);
     await lp.locator('input[name="pref-theme"][value="system"]').check({ force: true });

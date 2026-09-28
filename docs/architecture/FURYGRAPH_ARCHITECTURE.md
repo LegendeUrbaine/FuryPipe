@@ -8,7 +8,7 @@ FuryGraph is structure and relations only. It is separate from FuryMemory (persi
 
 | Provider | Source | Notes |
 |---|---|---|
-| `graphify` | `graphify-out/graph.json` (`nodes`, `links` with `relation`, `confidence` EXTRACTED/INFERRED), `manifest.json`, `GRAPH_REPORT.md`, `graph.html` | read-only, 128 MiB cap, relative paths only; staleness = source mtime newer than manifest. Never run implicitly; `refreshGraphify()` runs `graphify update <root>` without a shell when explicitly requested. |
+| `graphify` | `graphify-out/graph.json` (`nodes`, `links` with `relation`, `confidence` EXTRACTED/INFERRED), `manifest.json`, `GRAPH_REPORT.md`, `graph.html` | read-only, 128 MiB cap, relative paths only; staleness = source mtime newer than manifest. Never run implicitly; `planGraphifyRefresh()` plus `executeGraphifyRefresh()` run `graphify update <root>` without a shell only after explicit approval and return a bounded receipt. |
 | `native-codegraph` | existing `buildCodeGraph()` | fallback when Graphify output is absent |
 
 `loadFuryGraph(root)` tries Graphify first, then native, and returns the detections.

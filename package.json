@@ -373,6 +373,10 @@
       "types": "./dist/capability-router.d.ts",
       "import": "./dist/capability-router.js"
     },
+    "./capability-router-autopilot": {
+      "types": "./dist/capability-router-autopilot.d.ts",
+      "import": "./dist/capability-router-autopilot.js"
+    },
     "./capability-index": {
       "types": "./dist/capability-index.d.ts",
       "import": "./dist/capability-index.js"
@@ -428,6 +432,38 @@
     "./capability-catalog": {
       "types": "./dist/capability-catalog.d.ts",
       "import": "./dist/capability-catalog.js"
+    },
+    "./fury-marketplace": {
+      "types": "./dist/fury-marketplace.d.ts",
+      "import": "./dist/fury-marketplace.js"
+    },
+    "./fury-supply-chain": {
+      "types": "./dist/fury-supply-chain.d.ts",
+      "import": "./dist/fury-supply-chain.js"
+    },
+    "./fury-eval": {
+      "types": "./dist/fury-eval.d.ts",
+      "import": "./dist/fury-eval.js"
+    },
+    "./fury-plugin-sdk": {
+      "types": "./dist/fury-plugin-sdk.d.ts",
+      "import": "./dist/fury-plugin-sdk.js"
+    },
+    "./fury-provider-sdk": {
+      "types": "./dist/fury-provider-sdk.d.ts",
+      "import": "./dist/fury-provider-sdk.js"
+    },
+    "./fury-agent-sdk": {
+      "types": "./dist/fury-agent-sdk.d.ts",
+      "import": "./dist/fury-agent-sdk.js"
+    },
+    "./fury-workflow-sdk": {
+      "types": "./dist/fury-workflow-sdk.d.ts",
+      "import": "./dist/fury-workflow-sdk.js"
+    },
+    "./fury-headless": {
+      "types": "./dist/fury-headless.d.ts",
+      "import": "./dist/fury-headless.js"
     },
     "./benchmark-claim-gate": {
       "types": "./dist/benchmark-claim-gate.d.ts",
@@ -557,6 +593,10 @@
       "types": "./dist/memory-vnext.d.ts",
       "import": "./dist/memory-vnext.js"
     },
+    "./fury-memory-time-machine": {
+      "types": "./dist/fury-memory-time-machine.d.ts",
+      "import": "./dist/fury-memory-time-machine.js"
+    },
     "./acp-v1-server-node": {
       "types": "./dist/acp-v1-server-node.d.ts",
       "import": "./dist/acp-v1-server-node.js"
@@ -588,6 +628,66 @@
     "./a2a-remote-adapter-node": {
       "types": "./dist/a2a-remote-adapter-node.d.ts",
       "import": "./dist/a2a-remote-adapter-node.js"
+    },
+    "./fury-artifacts": {
+      "types": "./dist/fury-artifacts.d.ts",
+      "import": "./dist/fury-artifacts.js"
+    },
+    "./media-plugin-contracts": {
+      "types": "./dist/media-plugin-contracts.d.ts",
+      "import": "./dist/media-plugin-contracts.js"
+    },
+    "./media-ingestion": {
+      "types": "./dist/media-ingestion.d.ts",
+      "import": "./dist/media-ingestion.js"
+    },
+    "./media-generation-runtime": {
+      "types": "./dist/media-generation-runtime.d.ts",
+      "import": "./dist/media-generation-runtime.js"
+    },
+    "./media-generation-job-engine": {
+      "types": "./dist/media-generation-job-engine.d.ts",
+      "import": "./dist/media-generation-job-engine.js"
+    },
+    "./media-generation-deterministic-adapter": {
+      "types": "./dist/media-generation-deterministic-adapter.d.ts",
+      "import": "./dist/media-generation-deterministic-adapter.js"
+    },
+    "./media-studio": {
+      "types": "./dist/media-studio.d.ts",
+      "import": "./dist/media-studio.js"
+    },
+    "./fury-video-timeline": {
+      "types": "./dist/fury-video-timeline.d.ts",
+      "import": "./dist/fury-video-timeline.js"
+    },
+    "./fury-observability": {
+      "types": "./dist/fury-observability.d.ts",
+      "import": "./dist/fury-observability.js"
+    },
+    "./fury-plugin-runtime": {
+      "types": "./dist/fury-plugin-runtime.d.ts",
+      "import": "./dist/fury-plugin-runtime.js"
+    },
+    "./fury-artifact-repository-node": {
+      "types": "./dist/fury-artifact-repository-node.d.ts",
+      "import": "./dist/fury-artifact-repository-node.js"
+    },
+    "./fury-plugin-sandbox-node": {
+      "types": "./dist/fury-plugin-sandbox-node.d.ts",
+      "import": "./dist/fury-plugin-sandbox-node.js"
+    },
+    "./fury-plugin-ui-runtime-node": {
+      "types": "./dist/fury-plugin-ui-runtime-node.d.ts",
+      "import": "./dist/fury-plugin-ui-runtime-node.js"
+    },
+    "./fury-code-advanced-node": {
+      "types": "./dist/fury-code-advanced-node.d.ts",
+      "import": "./dist/fury-code-advanced-node.js"
+    },
+    "./browser-playwright-host-node": {
+      "types": "./dist/browser-playwright-host-node.d.ts",
+      "import": "./dist/browser-playwright-host-node.js"
     }
   },
   "files": [
@@ -704,7 +804,9 @@
     "vendor:ui": "node scripts/vendor-ui.mjs",
     "browser:webchat:qa": "tsx scripts/gateway-webchat-browser-qa.ts",
     "browser:studio:qa": "tsx scripts/studio-browser-qa.ts",
-    "bench:studio": "tsx scripts/furybench-studio.ts"
+    "bench:studio": "tsx scripts/furybench-studio.ts",
+    "validation:supply-chain": "tsx scripts/supply-chain-evidence.ts",
+    "browser:host:qa": "tsx scripts/browser-playwright-host-qa.ts"
   },
   "keywords": [
     "furypipe",

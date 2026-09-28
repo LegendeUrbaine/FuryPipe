@@ -18,6 +18,8 @@ Code: `src/studio/studio-page.ts`, `src/studio/studio-api.ts`, routing in `src/n
 | `POST /api/studio/chat` | streams a chat completion from a **local** endpoint only |
 | `GET chats.json`, `POST chats/{get,save,branch,delete}` | persisted conversations; each answer records its model |
 | `POST flow-preview` | FuryFlow validation and fixture dry-run |
+| `POST flow-automation-preview` | FuryFlow → governed Gateway trigger plan; metadata-only, no registration or execution |
+| `POST headless` | Shared-core analysis request for CLI/API/headless parity; no execution authority |
 | `GET runs.json`, `POST runs`, `POST runs/act` | real runs (confirm required, local unless `allowCloud`, ASK needs approval), live workers, STOP |
 | `POST code/{tree,file,diff}`, `GET code/worktrees.json` | read-only explorer, worktrees, diffs, agents and receipts per worktree |
 | `GET skills.json`, `POST skills/{act,select,install,compare}` | Skills Hub |

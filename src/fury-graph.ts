@@ -10,6 +10,7 @@
 // Consumers get file-level coupling (for graph-aware dispatch) and blast
 // radius (reverse traversal over dependency relations).
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { lstat, readFile, stat } from 'node:fs/promises';
 import { isAbsolute, join, normalize, relative, sep } from 'node:path';
 
@@ -293,16 +294,179 @@ export function furyScopeCoupling(graph: FuryGraph, scopeA: readonly string[], s
   return crossing;
 }
 
-/** Explicit, operator-requested refresh through the installed Graphify CLI (no LLM pass). */
-export function refreshGraphify(root: string, options: { readonly executable?: string; readonly timeoutMs?: number } = {}): Promise<void> {
+export interface FuryGraphLifecyclePlan {
+  readonly format: 'furypipe-graph-lifecycle/v1';
+  readonly provider: string;
+  readonly action: 'NONE' | 'RECOMMEND_REFRESH' | 'USE_NATIVE_FALLBACK';
+  readonly changedFiles: readonly string[];
+  readonly relevantChangedFiles: readonly string[];
+  readonly staleFiles: readonly string[];
+  readonly reason: string;
+  readonly executionAuthorized: false;
+}
+
+export const FURY_GRAPH_REFRESH_PLAN_FORMAT = 'furypipe-graph-refresh-plan/v1' as const;
+export const FURY_GRAPH_REFRESH_RECEIPT_FORMAT = 'furypipe-graph-refresh-receipt/v1' as const;
+
+export interface FuryGraphRefreshPlan {
+  readonly format: typeof FURY_GRAPH_REFRESH_PLAN_FORMAT;
+  readonly root: string;
+  readonly executable: string;
+  readonly timeoutMs: number;
+  readonly command: readonly string[];
+  readonly requiresExplicitApproval: true;
+  readonly executionAuthorized: false;
+}
+
+export interface FuryGraphRefreshReceipt {
+  readonly format: typeof FURY_GRAPH_REFRESH_RECEIPT_FORMAT;
+  readonly receiptId: string;
+  readonly planDigestSha256: string;
+  readonly commandDigestSha256: string;
+  readonly root: string;
+  readonly outcome: 'SUCCEEDED' | 'FAILED';
+  readonly startedAt: number;
+  readonly finishedAt: number;
+  readonly durationMs: number;
+  readonly operatorApproved: true;
+  readonly executionAuthorized: true;
+  readonly error?: string;
+}
+
+const GRAPH_RELEVANT_FILE_RE = /(?:^|\/)(?:[^/]+\.)?(?:ts|tsx|js|jsx|mjs|cjs|java|kt|kts|py|rs|go|cs|cpp|cc|cxx|c|h|hpp|php|rb|swift|scala|vue|svelte)$/iu;
+
+export function planGraphifyLifecycle(input: {
+  readonly graph: FuryGraph;
+  readonly detections: readonly FuryGraphDetection[];
+  readonly changedFiles?: readonly string[];
+}): FuryGraphLifecyclePlan {
+  if (!input || typeof input !== 'object' || !input.graph || !Array.isArray(input.detections)) {
+    throw new FuryGraphError('graph lifecycle input is invalid');
+  }
+  const changedFiles = Object.freeze([...new Set((input.changedFiles ?? [])
+    .map((file) => relFile(file))
+    .filter((file): file is string => Boolean(file)))].sort());
+  const relevantChangedFiles = Object.freeze(changedFiles.filter((file) => GRAPH_RELEVANT_FILE_RE.test(file)));
+  const graphify = input.detections.find((detection) => detection.provider === 'graphify');
+  const graphifyAvailable = graphify?.available === true;
+
+  let action: FuryGraphLifecyclePlan['action'] = 'NONE';
+  let reason = 'Current graph does not require a Graphify refresh.';
+  if (!graphifyAvailable) {
+    action = 'USE_NATIVE_FALLBACK';
+    reason = 'Graphify output is unavailable; keep using the native codegraph fallback.';
+  } else if (input.graph.provider === 'graphify' && input.graph.stale) {
+    action = 'RECOMMEND_REFRESH';
+    reason = 'Graphify reports stale source files; an explicit refresh is recommended.';
+  } else if (relevantChangedFiles.length > 0) {
+    action = 'RECOMMEND_REFRESH';
+    reason = 'Relevant repository source files changed after the current graph snapshot; an explicit refresh is recommended.';
+  }
+
+  return Object.freeze({
+    format: 'furypipe-graph-lifecycle/v1',
+    provider: input.graph.provider,
+    action,
+    changedFiles,
+    relevantChangedFiles,
+    staleFiles: Object.freeze([...input.graph.staleFiles]),
+    reason,
+    executionAuthorized: false,
+  });
+}
+
+function normalizeGraphifyRoot(root: string): string {
+  if (typeof root !== 'string' || !root.trim()) throw new FuryGraphError('root must be an absolute path');
   const normalized = normalize(root);
   if (!isAbsolute(normalized) || relative(normalized, normalized) !== '' || normalized.split(sep).includes('..')) {
-    return Promise.reject(new FuryGraphError('root must be an absolute path'));
+    throw new FuryGraphError('root must be an absolute path');
   }
-  return new Promise((resolve, reject) => {
-    execFile(options.executable ?? 'graphify', ['update', normalized], {
-      cwd: normalized, shell: false, windowsHide: true, timeout: Math.min(options.timeoutMs ?? 600_000, 3_600_000), maxBuffer: 4 * 1024 * 1024,
-    }, (error) => (error ? reject(new FuryGraphError(`graphify update failed: ${error.message.slice(0, 200)}`)) : resolve()));
+  return normalized;
+}
+
+function graphifyExecutable(value: string | undefined): string {
+  const executable = value ?? 'graphify';
+  if (typeof executable !== 'string' || !executable.trim() || executable.length > 512 || /[\u0000-\u001f\u007f]/u.test(executable)) {
+    throw new FuryGraphError('Graphify executable is invalid');
+  }
+  return executable;
+}
+
+function graphifyTimeout(value: number | undefined): number {
+  const timeoutMs = value ?? 600_000;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 3_600_000) throw new FuryGraphError('Graphify timeout must be 1..3600000ms');
+  return timeoutMs;
+}
+
+function graphifyPlanDigest(plan: FuryGraphRefreshPlan): string {
+  return createHash('sha256').update(JSON.stringify({ format: plan.format, root: plan.root, executable: plan.executable, timeoutMs: plan.timeoutMs, command: plan.command }), 'utf8').digest('hex');
+}
+
+export function planGraphifyRefresh(root: string, options: { readonly executable?: string; readonly timeoutMs?: number } = {}): FuryGraphRefreshPlan {
+  const normalizedRoot = normalizeGraphifyRoot(root);
+  const executable = graphifyExecutable(options.executable);
+  const timeoutMs = graphifyTimeout(options.timeoutMs);
+  return Object.freeze({
+    format: FURY_GRAPH_REFRESH_PLAN_FORMAT,
+    root: normalizedRoot,
+    executable,
+    timeoutMs,
+    command: Object.freeze([executable, 'update', normalizedRoot]),
+    requiresExplicitApproval: true,
+    executionAuthorized: false,
+  });
+}
+
+export function executeGraphifyRefresh(plan: FuryGraphRefreshPlan, options: { readonly confirm?: boolean; readonly now?: () => number } = {}): Promise<FuryGraphRefreshReceipt> {
+  if (!plan || typeof plan !== 'object' || plan.format !== FURY_GRAPH_REFRESH_PLAN_FORMAT || plan.requiresExplicitApproval !== true || plan.executionAuthorized !== false) {
+    return Promise.reject(new FuryGraphError('Graphify refresh plan is invalid'));
+  }
+  if (options.confirm !== true) return Promise.reject(new FuryGraphError('Graphify refresh requires confirm: true'));
+  const normalizedRoot = normalizeGraphifyRoot(plan.root);
+  const executable = graphifyExecutable(plan.executable);
+  const timeoutMs = graphifyTimeout(plan.timeoutMs);
+  const command = Object.freeze([executable, 'update', normalizedRoot]);
+  if (JSON.stringify(command) !== JSON.stringify(plan.command)) return Promise.reject(new FuryGraphError('Graphify refresh command does not match its plan'));
+  const clock = options.now ?? Date.now;
+  const startedAt = clock();
+  if (!Number.isSafeInteger(startedAt) || startedAt < 0) return Promise.reject(new FuryGraphError('Graphify refresh start time is invalid'));
+  const planDigestSha256 = graphifyPlanDigest(plan);
+  const commandDigestSha256 = createHash('sha256').update(JSON.stringify(command), 'utf8').digest('hex');
+  return new Promise((resolve) => {
+    execFile(executable, ['update', normalizedRoot], {
+      cwd: normalizedRoot,
+      shell: false,
+      windowsHide: true,
+      timeout: timeoutMs,
+      maxBuffer: 4 * 1024 * 1024,
+    }, (error) => {
+      const finishedAt = clock();
+      const safeFinishedAt = Number.isSafeInteger(finishedAt) && finishedAt >= startedAt ? finishedAt : startedAt;
+      const errorText = error ? error.message.slice(0, 200) : undefined;
+      const receiptId = `gfr-${createHash('sha256').update(`${planDigestSha256}\0${startedAt}\0${safeFinishedAt}\0${errorText ?? ''}`, 'utf8').digest('hex').slice(0, 48)}`;
+      resolve(Object.freeze({
+        format: FURY_GRAPH_REFRESH_RECEIPT_FORMAT,
+        receiptId,
+        planDigestSha256,
+        commandDigestSha256,
+        root: normalizedRoot,
+        outcome: error ? 'FAILED' : 'SUCCEEDED',
+        startedAt,
+        finishedAt: safeFinishedAt,
+        durationMs: safeFinishedAt - startedAt,
+        operatorApproved: true,
+        executionAuthorized: true,
+        ...(errorText ? { error: errorText } : {}),
+      }));
+    });
+  });
+}
+
+/** Explicit, operator-requested refresh through the installed Graphify CLI (no LLM pass). */
+export function refreshGraphify(root: string, options: { readonly executable?: string; readonly timeoutMs?: number } = {}): Promise<void> {
+  const plan = planGraphifyRefresh(root, options);
+  return executeGraphifyRefresh(plan, { confirm: true }).then((receipt) => {
+    if (receipt.outcome === 'FAILED') throw new FuryGraphError(`graphify update failed: ${receipt.error ?? 'unknown error'}`);
   });
 }
 

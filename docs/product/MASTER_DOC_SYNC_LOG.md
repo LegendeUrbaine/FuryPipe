@@ -409,3 +409,20 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
   including Gateway, MCP, Phase 6/7/8 ACP, benchmark-claim, provider-attempt
   and governed-provider checks; current Gateway installed-package tarball
   SHA-256 `af52bbd352bfbefa0396adf12fd3a322c0942c70c3ae700805ffa1517e070f7d`.
+
+## 2026-09-28 — FuryPipe CLI/API/headless shared-core boundary
+
+- Added `furypipe-headless-request/v1` / `furypipe-headless-response/v1` and
+  bounded operations for FuryEval and workflow automation planning.
+- Studio `POST /api/studio/headless`, `furypipe headless [--json]` stdin and
+  the public `furypipe/fury-headless` export all delegate to those existing
+  cores. No parallel evaluator, scheduler or executor was introduced.
+- Unknown request keys/operations and oversized stdin fail closed; every
+  response retains `executionAuthorized:false`.
+- Remaining: complete parity for every Studio surface, desktop integration,
+  durable headless service lifecycle and hosted/client/production proof.
+- Local proof: focused headless + Studio API `31/31`; full Vitest `344` files /
+  `3,587` passed / `6` skipped; source and hosted-MCP typechecks; build version
+  smoke `0.16.0`; compiled stdin CLI smoke; complete package smoke chain and
+  Gateway installed-package smoke PASS; current tarball SHA-256
+  `dd79e127cd39e1634041fa916cf7f6903914bae02184b6c4e96e1291c5870b84`.

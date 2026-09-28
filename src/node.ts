@@ -71,6 +71,7 @@ import { parseAcceptLanguage, resolveSupportedLocale } from './i18n/runtime.js';
 import { selectAgentSkillsForTask } from './agent-skill-selector.js';
 import { activateSelectedAgentSkillsNode } from './agent-skill-activation-node.js';
 import type { ProxyCapabilityPlanner } from './proxy-capability-runtime.js';
+import { runFuryHeadlessCli } from './fury-headless-cli.js';
 
 /** Runtime config. The core transform tuning comes from DEFAULTS in
  *  transform.ts; startup knobs cover deployment plus emergency GPT scope
@@ -384,6 +385,8 @@ Usage:
                         launch the interactive FuryPipe first-run setup
   furypipe task --plan <objective> [--json] [--task-first|--legacy|--expert]
                         show the governed task-first handoff without executing
+  furypipe headless [--json]
+                        read one bounded shared-core JSON request from stdin
   furypipe beta status [--json]
                         inspect the recommended/legacy beta entry
   furypipe beta opt-in|opt-out|legacy [--json]
@@ -1553,6 +1556,14 @@ async function main(): Promise<void> {
   }
   if (argv[0] === 'task') {
     runTaskPlanCommand(argv.slice(1));
+    return;
+  }
+  if (argv[0] === 'headless') {
+    process.exitCode = await runFuryHeadlessCli(argv.slice(1), {
+      stdin: process.stdin,
+      stdout: { write: (value) => process.stdout.write(value) },
+      stderr: { write: (value) => process.stderr.write(value) },
+    });
     return;
   }
   if (argv[0] === 'gateway') {

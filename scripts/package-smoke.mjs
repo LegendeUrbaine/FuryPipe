@@ -728,6 +728,12 @@ try {
     "const m = await import('furypipe/fury-workflow-sdk'); if (typeof m.compileFuryWorkflowAutomationPlan !== 'function' || m.FURY_WORKFLOW_AUTOMATION_PLAN_FORMAT !== 'furypipe-workflow-automation-plan/v1') process.exit(1);",
   ], installDir);
   assert(workflowSdkExport.stderr === '', `Workflow SDK package export wrote stderr: ${workflowSdkExport.stderr}`);
+  const headlessExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-headless'); if (typeof m.executeFuryHeadless !== 'function' || m.FURY_HEADLESS_REQUEST_FORMAT !== 'furypipe-headless-request/v1' || m.FURY_HEADLESS_RESPONSE_FORMAT !== 'furypipe-headless-response/v1') process.exit(1);",
+  ], installDir);
+  assert(headlessExport.stderr === '', `Headless package export wrote stderr: ${headlessExport.stderr}`);
   const controlRoomEvidenceExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

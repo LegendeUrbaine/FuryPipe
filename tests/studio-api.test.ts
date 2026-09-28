@@ -69,6 +69,7 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/setup/runtime/status')).toEqual({ route: 'runtime-setup-status', method: 'GET' });
     expect(studioApiRoute('/api/studio/autopilot/preview')).toEqual({ route: 'autopilot-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/eval')).toEqual({ route: 'eval', method: 'POST' });
+    expect(studioApiRoute('/api/studio/headless')).toEqual({ route: 'headless', method: 'POST' });
     expect(studioApiRoute('/api/studio/graph/lifecycle')).toEqual({ route: 'graph-lifecycle', method: 'POST' });
     expect(studioApiRoute('/api/studio/graph/refresh')).toEqual({ route: 'graph-refresh', method: 'POST' });
     expect(studioApiRoute('/api/studio/connections/login')).toEqual({ route: 'connection-login', method: 'POST' });
@@ -404,6 +405,24 @@ describe('Studio API', () => {
     expect(body.execution).toMatch(/DRY_RUN/u);
     const bad = await studio.handle('flow-preview', post({ flow: { ...STUDIO_EXAMPLE_FLOW, nodes: STUDIO_EXAMPLE_FLOW.nodes.map((n) => (n.id === 'classify' ? { ...n, critical: true } : n)) } }));
     expect(bad.status).toBe(422);
+  });
+
+  it('routes headless analysis through shared cores without execution authority', async () => {
+    const studio = api('http://127.0.0.1:1');
+    const response = await studio.handle('headless', post({
+      format: 'furypipe-headless-request/v1',
+      operation: 'workflow-automation-plan',
+      input: STUDIO_EXAMPLE_FLOW,
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      format: 'furypipe-headless-response/v1',
+      operation: 'workflow-automation-plan',
+      authority: 'shared-core-analysis-only',
+      executionAuthorized: false,
+      result: { format: 'furypipe-workflow-automation-plan/v1', registrationAuthorized: false, executionAuthorized: false },
+    });
+    expect((await studio.handle('headless', post({ format: 'furypipe-headless-request/v1', operation: 'unknown', input: {} }))).status).toBe(422);
   });
 
   it('previews a governed Gateway automation plan without registration or execution', async () => {

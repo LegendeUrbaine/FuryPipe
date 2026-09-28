@@ -71,13 +71,14 @@ import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } fr
 import { createFuryObservabilityNotConfiguredSnapshot, type FuryObservabilityRegistry } from '../fury-observability.js';
 import { createFuryMemoryTimeMachine, type FuryMemorySnapshot } from '../fury-memory-time-machine.js';
 import { createFuryMarketplaceCatalog, type FuryMarketplaceCatalog } from '../fury-marketplace.js';
+import { executeFuryHeadless, FuryHeadlessError } from '../fury-headless.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
 const CACHE_MS = 10_000;
 
 export type StudioRoute =
-  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
+  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'headless' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
   | 'runs' | 'run-start' | 'run-act' | 'skills' | 'skill-act' | 'skill-select' | 'skill-install' | 'skill-create' | 'skill-compare'
   | 'mcp' | 'mcp-add' | 'mcp-act' | 'mcp-probe' | 'mcp-decide'
   | 'knowledge' | 'knowledge-ingest' | 'knowledge-search'
@@ -109,6 +110,7 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/dispatch-preview': { route: 'dispatch-preview', method: 'POST' },
   '/api/studio/autopilot/preview': { route: 'autopilot-preview', method: 'POST' },
   '/api/studio/eval': { route: 'eval', method: 'POST' },
+  '/api/studio/headless': { route: 'headless', method: 'POST' },
   '/api/studio/extensions.json': { route: 'extensions', method: 'GET' },
   '/api/studio/support.json': { route: 'support', method: 'GET' },
   '/api/studio/media.json': { route: 'media', method: 'GET' },
@@ -679,6 +681,8 @@ export function createStudioApi(options: StudioApiOptions) {
               return problem(422, 'eval-rejected', (error as Error).message);
             }
           }
+          case 'headless':
+            return json(executeFuryHeadless(await readJson(request)));
           case 'extensions': {
             const params = new URL(request.url).searchParams;
             const rawKind = params.get('kind');
@@ -1278,6 +1282,7 @@ export function createStudioApi(options: StudioApiOptions) {
         if (error instanceof FurySkillHubError) return problem(/^unknown skill/u.test(error.message) ? 404 : 422, 'skill-rejected', error.message);
         if (route.startsWith('artifact')) return problem(/^unknown artifact/u.test((error as Error).message) ? 404 : 422, 'artifact-rejected', (error as Error).message.slice(0, 300));
         if ((error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR') return problem(404, 'not-found', 'path not found');
+        if (error instanceof FuryHeadlessError) return problem(422, 'headless-rejected', error.message);
         if (error instanceof FuryWorkflowAutomationError) return problem(422, 'invalid-workflow-automation', error.message);
         if (error instanceof FuryFlowError) return problem(422, 'invalid-flow', error.message);
         if ((error as Error).name === 'FuryLocalFabricError') return problem(403, 'endpoint-denied', (error as Error).message);

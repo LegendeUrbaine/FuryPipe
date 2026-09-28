@@ -461,6 +461,10 @@
       "types": "./dist/fury-workflow-sdk.d.ts",
       "import": "./dist/fury-workflow-sdk.js"
     },
+    "./fury-headless": {
+      "types": "./dist/fury-headless.d.ts",
+      "import": "./dist/fury-headless.js"
+    },
     "./benchmark-claim-gate": {
       "types": "./dist/benchmark-claim-gate.d.ts",
       "import": "./dist/benchmark-claim-gate.js"

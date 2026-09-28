@@ -1,7 +1,7 @@
 # FuryPipe Web — W5 to W8 engineering boundary
 
-**Date:** 2026-09-28  
-**Track:** `vnext-furypipe-web-foundation`  
+**Date:** 2026-09-28
+**Track:** `vnext-furypipe-web-foundation`
 **Status:** `ENGINEERING_FOUNDATIONS_RECONCILED` / `NO_DEPLOYMENT`
 
 This record closes only the engineering work that can be demonstrated from the

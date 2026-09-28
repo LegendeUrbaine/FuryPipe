@@ -561,6 +561,7 @@ describe('Node host serves FuryPipe Studio', () => {
     const csp = studio.headers.get('content-security-policy') ?? '';
     expect(csp).toMatch(/script-src 'nonce-[A-Za-z0-9+/=]+'/u);
     expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("worker-src 'self'");
     const html = await studio.text();
     expect(html).toContain('FuryPipe Studio');
     for (const view of ['chat', 'cowork', 'code', 'agents', 'automations']) expect(html).toContain(`data-view="${view}"`);
@@ -569,6 +570,20 @@ describe('Node host serves FuryPipe Studio', () => {
     expect(controlPlane.status).toBe(200);
     expect(await controlPlane.text()).not.toContain('FuryPipe Studio</title>');
     expect((await fetch(`${base}/`, { method: 'POST' })).status).toBe(405);
+  });
+
+  it('serves PWA support only on the loopback Studio host and keeps it static', async () => {
+    const { base } = await startNode();
+    const manifest = await fetch(`${base}/studio.webmanifest`);
+    expect(manifest.status).toBe(200);
+    expect(manifest.headers.get('cache-control')).toBe('no-store');
+    expect(await manifest.json()).toMatchObject({ start_url: '/', scope: '/', display: 'standalone' });
+
+    const worker = await fetch(`${base}/studio-service-worker.js`);
+    expect(worker.status).toBe(200);
+    expect(worker.headers.get('service-worker-allowed')).toBe('/');
+    expect(await worker.text()).toContain("url.pathname.startsWith('/api/')");
+    expect((await fetch(`${base}/studio.webmanifest`, { method: 'POST' })).status).toBe(405);
   });
 
   it('guards the Studio API: method, same-origin POST, JSON only and preview-only dispatch', async () => {

@@ -182,6 +182,26 @@ describe('FuryPipe shared Web API boundary', () => {
     expect(calls).toBe(1);
   });
 
+  it('forwards a bounded JSON payload through a Fetch-compatible body', async () => {
+    let forwardedBody: string | undefined;
+    const api = createFuryPipeWebApi({
+      async handle(_route, forwarded) {
+        forwardedBody = await forwarded.text();
+        return new Response('{}', { headers: { 'content-type': 'application/json' } });
+      },
+    });
+    const payload = JSON.stringify({ query: 'bounded web payload' });
+
+    const response = await api.handle(request('/api/web/v1/artifacts/search', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: payload,
+    }), { session: session() });
+
+    expect(response.status).toBe(200);
+    expect(forwardedBody).toBe(payload);
+  });
+
   it('rejects non-JSON POST requests before the Studio handler', async () => {
     let called = false;
     const api = createFuryPipeWebApi({

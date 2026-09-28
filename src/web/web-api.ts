@@ -224,7 +224,7 @@ function safeResponseHeaders(response: Response): Headers {
   return headers;
 }
 
-async function readBoundedBody(request: Request): Promise<Uint8Array | undefined> {
+async function readBoundedBody(request: Request): Promise<ArrayBuffer | undefined> {
   if (request.body === null) return undefined;
 
   const declared = request.headers.get('content-length');
@@ -254,10 +254,11 @@ async function readBoundedBody(request: Request): Promise<Uint8Array | undefined
     reader.releaseLock();
   }
 
-  const body = new Uint8Array(total);
+  const body = new ArrayBuffer(total);
+  const bytes = new Uint8Array(body);
   let offset = 0;
   for (const chunk of chunks) {
-    body.set(chunk, offset);
+    bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
   return body;
@@ -313,7 +314,7 @@ export function createFuryPipeWebApi(studio: FuryPipeWebStudioHandler) {
         return problem(403, 'operator-approval-required', 'this web action requires trusted server-side operator approval');
       }
 
-      let body: Uint8Array | undefined;
+      let body: ArrayBuffer | undefined;
       if (route.method === 'POST') {
         const mediaType = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
         if (mediaType !== 'application/json') {

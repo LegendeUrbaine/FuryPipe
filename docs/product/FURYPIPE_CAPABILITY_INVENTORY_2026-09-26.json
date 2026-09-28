@@ -595,7 +595,7 @@
     },
     {
       "name": "FuryEval expanded evaluation framework",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_EVAL_DOMAIN_HISTORY_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {

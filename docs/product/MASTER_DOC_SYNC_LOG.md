@@ -387,3 +387,25 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - Remaining: durable workflow definition/registration, scheduler persistence,
   execution/recovery, approval-bearing runtime integration and hosted/client/
   production proof.
+
+## 2026-09-28 — FuryPipe FuryEval domain and history contract
+
+- Expanded `furypipe/fury-eval` from four domains to the ten roadmap domains:
+  routing, skills, instructions, memory, agents, browser, providers, media,
+  cost and context.
+- Reports now emit deterministic dataset and result SHA-256 digests and an
+  explicit optional history projection for caller-supplied commit,
+  environment and timestamp metadata. Missing provenance remains null; no Git
+  state, wall clock or runtime outcome is fabricated.
+- Negative tests cover malformed history and domain coverage fixtures. The
+  evaluation and Studio API remain analysis-only with execution authority
+  false.
+- Remaining: curated versioned real-world domain datasets and durable
+  longitudinal history storage; this tranche does not claim provider/browser/
+  media production quality.
+- Local proof: focused FuryEval + Studio API `34/34`; full Vitest `343` files /
+  `3,583` passed / `6` skipped; source and hosted-MCP typechecks; inventory
+  JSON parse; build version smoke `0.16.0`; complete package smoke chain
+  including Gateway, MCP, Phase 6/7/8 ACP, benchmark-claim, provider-attempt
+  and governed-provider checks; current Gateway installed-package tarball
+  SHA-256 `af52bbd352bfbefa0396adf12fd3a322c0942c70c3ae700805ffa1517e070f7d`.

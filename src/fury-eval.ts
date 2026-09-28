@@ -4,7 +4,17 @@ export const FURY_EVAL_DATASET_FORMAT = 'furypipe-eval-dataset/v1' as const;
 export const FURY_EVAL_REPORT_FORMAT = 'furypipe-eval-report/v1' as const;
 export const FURY_EVAL_COMPARISON_FORMAT = 'furypipe-eval-comparison/v1' as const;
 
-export type FuryEvalDomain = 'routing' | 'skills' | 'memory' | 'agents';
+export type FuryEvalDomain = 'routing' | 'skills' | 'instructions' | 'memory' | 'agents' | 'browser' | 'providers' | 'media' | 'cost' | 'context';
+
+export const FURY_EVAL_DOMAINS: readonly FuryEvalDomain[] = Object.freeze([
+  'routing', 'skills', 'instructions', 'memory', 'agents', 'browser', 'providers', 'media', 'cost', 'context',
+]);
+
+export interface FuryEvalHistoryInput {
+  readonly commit?: string | null;
+  readonly environment?: string;
+  readonly timestamp?: string;
+}
 
 export interface FuryEvalCase {
   readonly id: string;
@@ -23,6 +33,7 @@ export interface FuryEvalDataset {
   readonly id: string;
   readonly version: string;
   readonly cases: readonly FuryEvalCase[];
+  readonly history?: FuryEvalHistoryInput;
 }
 
 export interface FuryEvalDomainMetrics {
@@ -34,6 +45,15 @@ export interface FuryEvalDomainMetrics {
   readonly f1: number;
   readonly meanLatencyMs: number | null;
   readonly meanCostUsd: number | null;
+}
+
+export interface FuryEvalHistoryEntry {
+  readonly commit: string | null;
+  readonly datasetDigestSha256: string;
+  readonly resultDigestSha256: string;
+  readonly metrics: FuryEvalDomainMetrics;
+  readonly environment: string | null;
+  readonly timestamp: string | null;
 }
 
 export interface FuryEvalCaseResult {
@@ -53,9 +73,11 @@ export interface FuryEvalReport {
   readonly datasetId: string;
   readonly datasetVersion: string;
   readonly datasetDigestSha256: string;
+  readonly resultDigestSha256: string;
   readonly cases: readonly FuryEvalCaseResult[];
   readonly overall: FuryEvalDomainMetrics;
   readonly byDomain: Readonly<Partial<Record<FuryEvalDomain, FuryEvalDomainMetrics>>>;
+  readonly history: FuryEvalHistoryEntry;
   readonly executionAuthorized: false;
 }
 
@@ -63,6 +85,8 @@ export interface FuryEvalComparison {
   readonly format: typeof FURY_EVAL_COMPARISON_FORMAT;
   readonly baselineDigestSha256: string;
   readonly candidateDigestSha256: string;
+  readonly baselineResultDigestSha256: string;
+  readonly candidateResultDigestSha256: string;
   readonly comparable: boolean;
   readonly deltas: {
     readonly successRate: number;
@@ -77,9 +101,10 @@ export interface FuryEvalComparison {
   readonly executionAuthorized: false;
 }
 
-const DOMAINS = new Set<FuryEvalDomain>(['routing','skills','memory','agents']);
+const DOMAINS = new Set<FuryEvalDomain>(FURY_EVAL_DOMAINS);
 const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:/@#-]{0,127}$/u;
 const VERSION_RE = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/u;
+const COMMIT_RE = /^[0-9a-f]{7,64}$/iu;
 const MAX_CASES = 10_000;
 const MAX_OBJECTIVE = 32_768;
 const MAX_LABELS = 256;
@@ -109,6 +134,33 @@ function normalizeLabels(value:unknown,label:string):readonly string[]{
     if(!seen.has(item)){seen.add(item);out.push(item);}
   }
   return Object.freeze(out.sort((a,b)=>a.localeCompare(b)));
+}
+
+function normalizeHistory(value:unknown):Readonly<FuryEvalHistoryInput>|undefined{
+  if(value===undefined) return undefined;
+  if(!value||typeof value!=='object'||Array.isArray(value)) throw new Error('eval history is invalid');
+  const record=value as Record<string,unknown>;
+  if(Object.keys(record).some((key)=>!['commit','environment','timestamp'].includes(key))) throw new Error('eval history contains an unknown key');
+  let commit:string|null|undefined;
+  if(record.commit!==undefined){
+    if(record.commit!==null&&(typeof record.commit!=='string'||!COMMIT_RE.test(record.commit))) throw new Error('eval history commit is invalid');
+    commit=record.commit===null?null:record.commit.toLowerCase();
+  }
+  let environment:string|undefined;
+  if(record.environment!==undefined){
+    if(typeof record.environment!=='string'||!record.environment.trim()||record.environment.length>128||/[\u0000-\u001f\u007f]/u.test(record.environment)) throw new Error('eval history environment is invalid');
+    environment=record.environment.trim();
+  }
+  let timestamp:string|undefined;
+  if(record.timestamp!==undefined){
+    if(typeof record.timestamp!=='string'||!record.timestamp.trim()||!Number.isFinite(Date.parse(record.timestamp))) throw new Error('eval history timestamp is invalid');
+    timestamp=new Date(record.timestamp).toISOString();
+  }
+  return Object.freeze({
+    ...(commit===undefined?{}:{commit}),
+    ...(environment===undefined?{}:{environment}),
+    ...(timestamp===undefined?{}:{timestamp}),
+  });
 }
 
 function validateCase(input:FuryEvalCase):FuryEvalCase{
@@ -172,6 +224,7 @@ export function evaluateFuryDataset(dataset:FuryEvalDataset):FuryEvalReport{
   const id=boundedId(dataset.id,'dataset id');
   if(typeof dataset.version!=='string'||!VERSION_RE.test(dataset.version)) throw new Error('dataset version is invalid');
   if(!Array.isArray(dataset.cases)||dataset.cases.length<1||dataset.cases.length>MAX_CASES) throw new Error('dataset cases must contain 1..10000 items');
+  const historyInput=normalizeHistory(dataset.history);
   const seen=new Set<string>();
   const normalized=dataset.cases.map((item)=>{
     const value=validateCase(item);
@@ -192,7 +245,8 @@ export function evaluateFuryDataset(dataset:FuryEvalDataset):FuryEvalReport{
       precision:round(precision),recall:round(recall),f1:round(f1),success:item.success,
     });
   });
-  const canonicalDataset=Object.freeze({format:FURY_EVAL_DATASET_FORMAT,id,version:dataset.version,cases:Object.freeze(normalized)});
+  const canonicalDataset=Object.freeze({format:FURY_EVAL_DATASET_FORMAT,id,version:dataset.version,cases:Object.freeze(normalized),history:historyInput??null});
+  const datasetDigestSha256=digest(canonicalDataset);
   const byDomain:Partial<Record<FuryEvalDomain,FuryEvalDomainMetrics>>={};
   for(const domain of DOMAINS){
     const indices=normalized.map((c,i)=>c.domain===domain?i:-1).filter(i=>i>=0);
@@ -200,14 +254,28 @@ export function evaluateFuryDataset(dataset:FuryEvalDataset):FuryEvalReport{
       byDomain[domain]=metrics(indices.map(i=>caseResults[i]!),indices.map(i=>normalized[i]!));
     }
   }
+  const frozenCases=Object.freeze(caseResults);
+  const overall=metrics(caseResults,normalized);
+  const frozenByDomain=Object.freeze(byDomain);
+  const resultDigestSha256=digest(Object.freeze({format:FURY_EVAL_REPORT_FORMAT,cases:frozenCases,overall,byDomain:frozenByDomain}));
+  const history=Object.freeze({
+    commit:historyInput?.commit??null,
+    datasetDigestSha256,
+    resultDigestSha256,
+    metrics:overall,
+    environment:historyInput?.environment??null,
+    timestamp:historyInput?.timestamp??null,
+  });
   return Object.freeze({
     format:FURY_EVAL_REPORT_FORMAT,
     datasetId:id,
     datasetVersion:dataset.version,
-    datasetDigestSha256:digest(canonicalDataset),
-    cases:Object.freeze(caseResults),
-    overall:metrics(caseResults,normalized),
-    byDomain:Object.freeze(byDomain),
+    datasetDigestSha256,
+    resultDigestSha256,
+    cases:frozenCases,
+    overall,
+    byDomain:frozenByDomain,
+    history,
     executionAuthorized:false,
   });
 }
@@ -250,6 +318,8 @@ export function compareFuryEvalReports(baseline:FuryEvalReport,candidate:FuryEva
     format:FURY_EVAL_COMPARISON_FORMAT,
     baselineDigestSha256:digest(baseline),
     candidateDigestSha256:digest(candidate),
+    baselineResultDigestSha256:baseline.resultDigestSha256,
+    candidateResultDigestSha256:candidate.resultDigestSha256,
     comparable,
     deltas,
     regressions:Object.freeze(regressions),

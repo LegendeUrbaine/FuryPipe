@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { FuryHarnessDiscovery } from '../src/fury-harness-hub.js';
 import { FURY_HARNESS_REGISTRY } from '../src/fury-harness-hub.js';
 import type { FuryLocalBackendStatus } from '../src/fury-local-fabric.js';
+import { createFuryObservabilityRegistry } from '../src/fury-observability.js';
 import { createStudioApi, studioApiRoute, studioBindings } from '../src/studio/studio-api.js';
 import { renderStudioHtml, STUDIO_EXAMPLE_FLOW, STUDIO_EXAMPLE_IR } from '../src/studio/studio-page.js';
 
@@ -68,10 +69,18 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/setup/runtime/status')).toEqual({ route: 'runtime-setup-status', method: 'GET' });
     expect(studioApiRoute('/api/studio/autopilot/preview')).toEqual({ route: 'autopilot-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/eval')).toEqual({ route: 'eval', method: 'POST' });
+    expect(studioApiRoute('/api/studio/headless')).toEqual({ route: 'headless', method: 'POST' });
+    expect(studioApiRoute('/api/studio/graph/lifecycle')).toEqual({ route: 'graph-lifecycle', method: 'POST' });
+    expect(studioApiRoute('/api/studio/graph/refresh')).toEqual({ route: 'graph-refresh', method: 'POST' });
     expect(studioApiRoute('/api/studio/connections/login')).toEqual({ route: 'connection-login', method: 'POST' });
     expect(studioApiRoute('/api/studio/media.json')).toEqual({ route: 'media', method: 'GET' });
     expect(studioApiRoute('/api/studio/media/preview')).toEqual({ route: 'media-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/media/jobs.json')).toEqual({ route: 'media-jobs', method: 'GET' });
+    expect(studioApiRoute('/api/studio/media/timeline/preview')).toEqual({ route: 'media-timeline-preview', method: 'POST' });
+    expect(studioApiRoute('/api/studio/observability.json')).toEqual({ route: 'observability', method: 'GET' });
+    expect(studioApiRoute('/api/studio/marketplace.json')).toEqual({ route: 'marketplace', method: 'GET' });
+    expect(studioApiRoute('/api/studio/memory/time-machine.json')).toEqual({ route: 'memory-time-machine', method: 'GET' });
+    expect(studioApiRoute('/api/studio/memory/time-machine/restore')).toEqual({ route: 'memory-time-machine-restore', method: 'POST' });
     expect(studioApiRoute('/api/studio/../control-room.json')).toBeNull();
   });
 
@@ -109,10 +118,33 @@ describe('Studio API', () => {
     expect(preview.controlsDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
     expect(preview).not.toHaveProperty('prompt');
 
+    const audioPreviewResponse = await studio.handle('media-preview', post({
+      surface: 'audio', operation: 'text-to-audio', prompt: 'A bounded audio prompt', outputMimeType: 'audio/wav',
+      options: { provider: 'AUTO', model: 'AUTO', voice: 'alloy', language: 'fr-FR', durationMs: 4_000 },
+    }));
+    expect(audioPreviewResponse.status).toBe(200);
+    const audioPreview = await audioPreviewResponse.json() as Record<string, unknown>;
+    expect(audioPreview).toMatchObject({ surface: 'audio', operation: 'text-to-audio', provider: 'AUTO', model: 'AUTO', executionAuthorized: false });
+    expect(audioPreview).not.toHaveProperty('voice');
+    expect(audioPreview).not.toHaveProperty('prompt');
+
     const galleryResponse = await studio.handle('media-jobs', new Request('http://127.0.0.1/api/studio/media/jobs.json'));
     expect(galleryResponse.status).toBe(200);
     expect(await galleryResponse.json()).toMatchObject({
       format: 'furypipe-media-studio-gallery/v1', authority: 'read-only-media-job-history', state: 'NOT_CONFIGURED', jobs: [],
+    });
+
+    const observabilityResponse = await studio.handle('observability', new Request('http://127.0.0.1/api/studio/observability.json'));
+    expect(observabilityResponse.status).toBe(200);
+    expect(await observabilityResponse.json()).toMatchObject({
+      format: 'furypipe-observability-snapshot/v1', state: 'NOT_CONFIGURED', authority: 'observed-evidence-only', executionAuthority: false,
+    });
+
+    const marketplaceResponse = await studio.handle('marketplace', new Request('http://127.0.0.1/api/studio/marketplace.json'));
+    expect(marketplaceResponse.status).toBe(200);
+    expect(await marketplaceResponse.json()).toMatchObject({
+      format: 'furypipe-marketplace-catalog/v1', state: 'EMPTY', count: 0,
+      authority: 'marketplace-metadata-only', networkAuthorized: false, filesystemAuthorized: false, executionAuthorized: false,
     });
 
     const rejectedResponse = await studio.handle('media-preview', post({
@@ -124,7 +156,54 @@ describe('Studio API', () => {
     expect(page).toContain('href="#/media"');
     expect(page).toContain('FuryImage Studio');
     expect(page).toContain('FuryVideo Studio');
+    expect(page).toContain('Observability / Cost');
+    expect(page).toContain('Marketplace');
+    expect(page).toContain('Memory Time Machine');
     expect(page).toContain('preview-only');
+  });
+
+  it('projects injected observability evidence without adding execution authority', async () => {
+    const now = Date.UTC(2026, 8, 27, 12, 0, 0);
+    const observability = createFuryObservabilityRegistry({ now: () => now, budgets: [{ scope: 'workspace', limitUsd: 1, costBasis: 'usd/request' }] });
+    observability.observe({
+      format: 'furypipe-observability/v1', eventId: 'studio-event', traceId: 'studio-trace', spanId: 'studio-span',
+      kind: 'provider', source: 'provider-transport', status: 'success', startedAt: now - 100, finishedAt: now,
+      cost: { status: 'known', totalUsd: 0.25, costBasis: 'usd/request', source: 'provider-usage', observedAt: now },
+    });
+    const studio = createStudioApi({ projectRoot: process.cwd(), now: () => now, observability, discoverHarnesses: async () => harnesses, discoverLocal: async () => ({ backends: [] }) });
+    const response = await studio.handle('observability', new Request('http://127.0.0.1/api/studio/observability.json'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      state: 'READY', counts: { events: 1, traces: 1 }, cost: { knownEventCount: 1 },
+      budgets: [{ status: 'WITHIN_KNOWN_COST', knownCostUsd: 0.25 }], executionAuthority: false,
+    });
+  });
+
+  it('builds a bounded FuryVideo storyboard/timeline preview without creating jobs or artifacts', async () => {
+    const studio = createStudioApi({ projectRoot: process.cwd(), discoverHarnesses: async () => harnesses, discoverLocal: async () => ({ backends: [] }) });
+    const response = await studio.handle('media-timeline-preview', post({
+      project: {
+        projectId: 'demo-project', title: 'Private project title', assets: [{ assetId: 'hero-image', kind: 'image', mimeType: 'image/png' }],
+        scenes: [{
+          sceneId: 'opening', title: 'Private scene title',
+          shots: [{ shotId: 'shot-one', prompt: 'Private shot prompt', durationMs: 2_000, assetIds: ['hero-image'] }],
+        }],
+      },
+    }));
+    expect(response.status).toBe(200);
+    const preview = await response.json() as Record<string, unknown>;
+    expect(preview).toMatchObject({
+      format: 'furypipe-furyvideo-timeline/v1', authority: 'studio-preview-only', executionAuthorized: false,
+      state: 'PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY', shotCount: 1,
+    });
+    expect(JSON.stringify(preview)).not.toContain('Private');
+
+    const rejected = await studio.handle('media-timeline-preview', post({
+      project: {
+        projectId: 'demo-project', title: 'Project', scenes: [{ sceneId: 'opening', title: 'Scene', shots: [{ shotId: 'shot-one', prompt: 'Prompt', durationMs: 1, assetIds: ['missing'] }] }],
+      },
+    }));
+    expect(rejected.status).toBe(422);
   });
 
   it('exposes a read-only model hub without treating configuration as execution authority', async () => {
@@ -325,6 +404,51 @@ describe('Studio API', () => {
     expect(body.run.status).toBe('waiting-approval');
     expect(body.execution).toMatch(/DRY_RUN/u);
     const bad = await studio.handle('flow-preview', post({ flow: { ...STUDIO_EXAMPLE_FLOW, nodes: STUDIO_EXAMPLE_FLOW.nodes.map((n) => (n.id === 'classify' ? { ...n, critical: true } : n)) } }));
+    expect(bad.status).toBe(422);
+  });
+
+  it('routes headless analysis through shared cores without execution authority', async () => {
+    const studio = api('http://127.0.0.1:1');
+    const response = await studio.handle('headless', post({
+      format: 'furypipe-headless-request/v1',
+      operation: 'workflow-automation-plan',
+      input: STUDIO_EXAMPLE_FLOW,
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      format: 'furypipe-headless-response/v1',
+      operation: 'workflow-automation-plan',
+      authority: 'shared-core-analysis-only',
+      executionAuthorized: false,
+      result: { format: 'furypipe-workflow-automation-plan/v1', registrationAuthorized: false, executionAuthorized: false },
+    });
+    expect((await studio.handle('headless', post({ format: 'furypipe-headless-request/v1', operation: 'unknown', input: {} }))).status).toBe(422);
+  });
+
+  it('previews a governed Gateway automation plan without registration or execution', async () => {
+    const studio = api('http://127.0.0.1:1');
+    const ok = await studio.handle('flow-automation-preview', post({ flow: STUDIO_EXAMPLE_FLOW }));
+    expect(ok.status).toBe(200);
+    const body = await ok.json() as {
+      format: string;
+      workflowId: string;
+      trigger: { kind: string; sourceId: string };
+      registrationAuthorized: boolean;
+      executionAuthorized: boolean;
+    };
+    expect(body).toMatchObject({
+      format: 'furypipe-workflow-automation-plan/v1',
+      workflowId: 'refund-triage',
+      trigger: { kind: 'webhook', sourceId: 'support' },
+      registrationAuthorized: false,
+      executionAuthorized: false,
+    });
+
+    const invalid = {
+      ...STUDIO_EXAMPLE_FLOW,
+      nodes: STUDIO_EXAMPLE_FLOW.nodes.map((node) => node.id === 'trigger' ? { ...node, config: { kind: 'webhook' } } : node),
+    };
+    const bad = await studio.handle('flow-automation-preview', post({ flow: invalid }));
     expect(bad.status).toBe(422);
   });
 
@@ -609,6 +733,15 @@ describe('Studio Memory', () => {
       expect(recall.hits[0]!.why).toMatch(/user-declared from user-message/u);
       const listed = await (await studio.handle('memory', new Request('http://127.0.0.1/'))).json() as { records: { memoryId: string; state: string }[] };
       expect(listed.records).toMatchObject([{ memoryId: saved.memoryId, state: 'active' }]);
+      const checkpointsResponse = await studio.handle('memory-time-machine', new Request('http://127.0.0.1/'));
+      expect(checkpointsResponse.status).toBe(200);
+      const checkpoints = await checkpointsResponse.json() as { snapshot: { timeline: { memoryId: string; version: number }[] } };
+      expect(checkpoints.snapshot.timeline.map((entry) => entry.version)).toEqual([1, 2]);
+      expect(JSON.stringify(checkpoints)).not.toContain('We deploy on Tuesdays only');
+      expect((await studio.handle('memory-time-machine-export', new Request('http://127.0.0.1/'))).status).toBe(200);
+      expect((await studio.handle('memory-time-machine-restore', post({ memoryId: saved.memoryId, scope: 'project', version: 1, confirm: false }))).status).toBe(400);
+      expect(await (await studio.handle('memory-time-machine-restore', post({ memoryId: saved.memoryId, scope: 'project', version: 1, confirm: true }))).json()).toMatchObject({ operation: 'restored', fromVersion: 1, version: 3, state: 'accepted' });
+      expect(await (await studio.handle('memory-time-machine-action', post({ action: 'pin', memoryId: saved.memoryId, scope: 'project' }))).json()).toMatchObject({ status: 'PLAN_ONLY' });
       await studio.handle('memory-act', post({ memoryId: saved.memoryId, scope: 'project', action: 'DISABLE' }));
       expect((await (await studio.handle('memory-search', post({ query: 'deploy' }))).json() as { hits: unknown[] }).hits).toEqual([]);
       expect((await studio.handle('memory-act', post({ memoryId: saved.memoryId, scope: 'project', action: 'FORGET' }))).status).toBe(200);

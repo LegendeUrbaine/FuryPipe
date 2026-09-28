@@ -11,7 +11,9 @@ import {
   createNativeGraphProvider,
   furyBlastRadius,
   furyScopeCoupling,
+  executeGraphifyRefresh,
   loadFuryGraph,
+  planGraphifyRefresh,
   planGraphifyLifecycle,
 } from '../src/fury-graph.js';
 import { compileFuryIr } from '../src/fury-ir.js';
@@ -99,6 +101,41 @@ describe('FuryGraph Graphify provider (real graphify 0.9.67 output)', () => {
       action: 'USE_NATIVE_FALLBACK',
       executionAuthorized: false,
     });
+  });
+
+  it('requires explicit confirmation and returns a bounded refresh receipt', async () => {
+    const root = freshProject();
+    writeFileSync(join(root, 'update'), 'process.exit(0);\n');
+    const plan = planGraphifyRefresh(root, { executable: process.execPath, timeoutMs: 5_000 });
+    expect(plan).toMatchObject({
+      format: 'furypipe-graph-refresh-plan/v1',
+      executable: process.execPath,
+      timeoutMs: 5_000,
+      command: [process.execPath, 'update', root],
+      requiresExplicitApproval: true,
+      executionAuthorized: false,
+    });
+    await expect(executeGraphifyRefresh(plan)).rejects.toThrow(/confirm: true/u);
+    const receipt = await executeGraphifyRefresh(plan, { confirm: true, now: () => 10_000 });
+    expect(receipt).toMatchObject({
+      format: 'furypipe-graph-refresh-receipt/v1',
+      outcome: 'SUCCEEDED',
+      operatorApproved: true,
+      executionAuthorized: true,
+      root,
+    });
+    expect(receipt.receiptId).toMatch(/^gfr-[0-9a-f]{48}$/u);
+
+    writeFileSync(join(root, 'update'), 'process.exit(7);\n');
+    const failed = await executeGraphifyRefresh(plan, { confirm: true, now: () => 20_000 });
+    expect(failed).toMatchObject({
+      format: 'furypipe-graph-refresh-receipt/v1',
+      outcome: 'FAILED',
+      operatorApproved: true,
+      executionAuthorized: true,
+      planDigestSha256: receipt.planDigestSha256,
+    });
+    expect(failed.error).toBeTruthy();
   });
 
   it('rejects malformed graph files', async () => {

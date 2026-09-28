@@ -17,8 +17,9 @@ import {
 } from '../fury-local-fabric.js';
 import { compileFuryIr, FuryIrError } from '../fury-ir.js';
 import { FuryDispatchError, FURY_DISPATCH_MODES, planFuryDispatch, type FuryDispatchMode, type FuryRuntimeBinding } from '../fury-dispatcher.js';
-import { furyBlastRadius, furyScopeCoupling, loadFuryGraph, type FuryGraph } from '../fury-graph.js';
+import { executeGraphifyRefresh, furyBlastRadius, furyScopeCoupling, loadFuryGraph, planGraphifyLifecycle, planGraphifyRefresh, type FuryGraph, type FuryGraphDetection } from '../fury-graph.js';
 import { compileFuryFlow, dryRunFuryFlow, FuryFlowError } from '../fury-flow.js';
+import { compileFuryWorkflowAutomationPlan, FuryWorkflowAutomationError } from '../fury-workflow-sdk.js';
 import { execFile } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import os from 'node:os';
@@ -66,20 +67,27 @@ import {
 import { createFuryMediaStudioGallery, createFuryMediaStudioPreview, createFuryMediaStudioSnapshot, type FuryMediaStudioPreviewOptions } from '../media-studio.js';
 import type { FuryMediaGenerationAdapter, FuryMediaGenerationMode } from '../media-generation-runtime.js';
 import type { FuryMediaGenerationJobEngine } from '../media-generation-job-engine.js';
+import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } from '../fury-video-timeline.js';
+import { createFuryObservabilityNotConfiguredSnapshot, type FuryObservabilityRegistry } from '../fury-observability.js';
+import { createFuryMemoryTimeMachine, type FuryMemorySnapshot } from '../fury-memory-time-machine.js';
+import { createFuryMarketplaceCatalog, type FuryMarketplaceCatalog } from '../fury-marketplace.js';
+import { executeFuryHeadless, FuryHeadlessError } from '../fury-headless.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
 const CACHE_MS = 10_000;
 
 export type StudioRoute =
-  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'extensions' | 'chat' | 'flow-preview'
+  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'headless' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
   | 'runs' | 'run-start' | 'run-act' | 'skills' | 'skill-act' | 'skill-select' | 'skill-install' | 'skill-create' | 'skill-compare'
   | 'mcp' | 'mcp-add' | 'mcp-act' | 'mcp-probe' | 'mcp-decide'
   | 'knowledge' | 'knowledge-ingest' | 'knowledge-search'
   | 'web' | 'visual-render'
   | 'memory' | 'memory-remember' | 'memory-search' | 'memory-act'
   | 'integrations' | 'connections' | 'connection-login' | 'support'
-  | 'media' | 'media-preview' | 'media-jobs'
+  | 'media' | 'media-preview' | 'media-jobs' | 'media-timeline-preview' | 'observability'
+  | 'marketplace'
+  | 'memory-time-machine' | 'memory-time-machine-diff' | 'memory-time-machine-restore' | 'memory-time-machine-action' | 'memory-time-machine-export'
   | 'artifacts' | 'artifact-get' | 'artifact-create' | 'artifact-version' | 'artifact-search' | 'artifact-restore-plan' | 'artifact-restore' | 'artifact-export'
   | 'chats' | 'chat-get' | 'chat-save' | 'chat-branch' | 'chat-delete'
   | 'code-tree' | 'code-file' | 'code-worktrees' | 'code-diff'
@@ -96,15 +104,26 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/setup/runtime/status': { route: 'runtime-setup-status', method: 'GET' },
   '/api/studio/bindings.json': { route: 'bindings', method: 'GET' },
   '/api/studio/graph.json': { route: 'graph', method: 'GET' },
+  '/api/studio/graph/lifecycle': { route: 'graph-lifecycle', method: 'POST' },
+  '/api/studio/graph/refresh': { route: 'graph-refresh', method: 'POST' },
   '/api/studio/blast-radius': { route: 'blast-radius', method: 'POST' },
   '/api/studio/dispatch-preview': { route: 'dispatch-preview', method: 'POST' },
   '/api/studio/autopilot/preview': { route: 'autopilot-preview', method: 'POST' },
   '/api/studio/eval': { route: 'eval', method: 'POST' },
+  '/api/studio/headless': { route: 'headless', method: 'POST' },
   '/api/studio/extensions.json': { route: 'extensions', method: 'GET' },
   '/api/studio/support.json': { route: 'support', method: 'GET' },
   '/api/studio/media.json': { route: 'media', method: 'GET' },
   '/api/studio/media/preview': { route: 'media-preview', method: 'POST' },
   '/api/studio/media/jobs.json': { route: 'media-jobs', method: 'GET' },
+  '/api/studio/media/timeline/preview': { route: 'media-timeline-preview', method: 'POST' },
+  '/api/studio/observability.json': { route: 'observability', method: 'GET' },
+  '/api/studio/marketplace.json': { route: 'marketplace', method: 'GET' },
+  '/api/studio/memory/time-machine.json': { route: 'memory-time-machine', method: 'GET' },
+  '/api/studio/memory/time-machine/diff': { route: 'memory-time-machine-diff', method: 'POST' },
+  '/api/studio/memory/time-machine/restore': { route: 'memory-time-machine-restore', method: 'POST' },
+  '/api/studio/memory/time-machine/action': { route: 'memory-time-machine-action', method: 'POST' },
+  '/api/studio/memory/time-machine/export.json': { route: 'memory-time-machine-export', method: 'GET' },
   '/api/studio/artifacts.json': { route: 'artifacts', method: 'GET' },
   '/api/studio/artifacts/get': { route: 'artifact-get', method: 'POST' },
   '/api/studio/artifacts/create': { route: 'artifact-create', method: 'POST' },
@@ -115,6 +134,7 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/artifacts/export': { route: 'artifact-export', method: 'GET' },
   '/api/studio/chat': { route: 'chat', method: 'POST' },
   '/api/studio/flow-preview': { route: 'flow-preview', method: 'POST' },
+  '/api/studio/flow-automation-preview': { route: 'flow-automation-preview', method: 'POST' },
   '/api/studio/runs.json': { route: 'runs', method: 'GET' },
   '/api/studio/runs': { route: 'run-start', method: 'POST' },
   '/api/studio/runs/act': { route: 'run-act', method: 'POST' },
@@ -179,7 +199,7 @@ export interface StudioApiOptions {
   /** Test hook for official CLI auth-status probes. */
   readonly accountStatusRunner?: FuryAccountStatusRunner;
   readonly accountStatusPlatform?: NodeJS.Platform;
-  readonly loadGraph?: (root: string) => Promise<{ readonly graph: FuryGraph }>;
+  readonly loadGraph?: (root: string) => Promise<{ readonly graph: FuryGraph; readonly detections?: readonly FuryGraphDetection[] }>;
   readonly now?: () => number;
   /** Task executor for real runs; defaults to the structured-CLI harness runner. */
   readonly executor?: FuryTaskExecutor;
@@ -207,6 +227,10 @@ export interface StudioApiOptions {
   readonly mediaAdapters?: readonly FuryMediaGenerationAdapter[];
   /** Optional durable media job projection; Studio only reads jobs and never submits from this route. */
   readonly mediaJobEngine?: Pick<FuryMediaGenerationJobEngine, 'list'>;
+  /** Optional evidence registry; Studio only reads its immutable snapshot. */
+  readonly observability?: Pick<FuryObservabilityRegistry, 'snapshot'>;
+  /** Optional signed marketplace metadata catalog; Studio only reads its immutable snapshot. */
+  readonly marketplace?: Pick<FuryMarketplaceCatalog, 'snapshot'>;
 }
 
 interface StudioRun {
@@ -313,7 +337,8 @@ export function createStudioApi(options: StudioApiOptions) {
     });
     return discoverFuryAiConnections(discovered, process.env, verification);
   }));
-  const graph = () => cached('graph', async () => (await (options.loadGraph ?? loadFuryGraph)(options.projectRoot)).graph);
+  const graphInspection = () => cached('graph-inspection', async () => (await (options.loadGraph ?? loadFuryGraph)(options.projectRoot)));
+  const graph = () => cached('graph', async () => (await graphInspection()).graph);
 
   const projectKey = createHash('sha256').update(path.resolve(options.projectRoot)).digest('hex').slice(0, 16);
   const skills = options.skillHub ?? createFurySkillHub({ projectRoot: options.projectRoot, stateDir: path.join(os.homedir(), '.furypipe', 'studio', 'skill-hub', projectKey) });
@@ -393,6 +418,12 @@ export function createStudioApi(options: StudioApiOptions) {
     const m = memory();
     if (!m.enabled || !m.store) throw Object.assign(new Error(m.reason ?? 'memory is off'), { status: 409 });
     return m.store;
+  };
+  const memoryTimeMachine = () => createFuryMemoryTimeMachine({ memory: memoryStore(), now });
+  const marketplaceCatalog = () => options.marketplace ?? createFuryMarketplaceCatalog({ entries: [], trustedKeys: [] });
+  const studioMemoryScope = (value: unknown): 'project' | 'user' => {
+    if (value !== 'project' && value !== 'user') throw Object.assign(new Error('scope must be project or user'), { status: 400 });
+    return value;
   };
 
   const runs = new Map<string, StudioRun>();
@@ -516,6 +547,24 @@ export function createStudioApi(options: StudioApiOptions) {
             const files = g.nodes.filter((n) => n.kind === 'file').length;
             return json({ provider: g.provider, stale: g.stale, staleFiles: g.staleFiles.slice(0, 50), outputs: g.outputs, nodes: g.nodes.length, files, edges: g.edges.length });
           }
+          case 'graph-lifecycle': {
+            const body = await readJson(request) as { changedFiles?: unknown };
+            if (body?.changedFiles !== undefined && (!Array.isArray(body.changedFiles) || body.changedFiles.length > 200 || !body.changedFiles.every((file) => typeof file === 'string'))) {
+              return problem(400, 'invalid-input', 'changedFiles must contain at most 200 text paths');
+            }
+            const loaded = await graphInspection();
+            const detections = loaded.detections ?? [{ provider: loaded.graph.provider, available: true, detail: 'custom graph loader' } satisfies FuryGraphDetection];
+            return json(planGraphifyLifecycle({ graph: loaded.graph, detections, changedFiles: body?.changedFiles as string[] | undefined }));
+          }
+          case 'graph-refresh': {
+            const body = await readJson(request) as { confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'Graphify refresh requires confirm: true');
+            const plan = planGraphifyRefresh(options.projectRoot);
+            const receipt = await executeGraphifyRefresh(plan, { confirm: true, now });
+            return receipt.outcome === 'SUCCEEDED'
+              ? json({ plan, receipt })
+              : json({ error: { code: 'graph-refresh-failed', message: receipt.error ?? 'Graphify refresh failed' }, plan, receipt }, 502);
+          }
           case 'blast-radius': {
             const body = await readJson(request) as { files?: unknown; depth?: unknown };
             if (!Array.isArray(body?.files) || body.files.length === 0 || body.files.length > 200 || !body.files.every((f) => typeof f === 'string')) {
@@ -632,6 +681,8 @@ export function createStudioApi(options: StudioApiOptions) {
               return problem(422, 'eval-rejected', (error as Error).message);
             }
           }
+          case 'headless':
+            return json(executeFuryHeadless(await readJson(request)));
           case 'extensions': {
             const params = new URL(request.url).searchParams;
             const rawKind = params.get('kind');
@@ -676,6 +727,59 @@ export function createStudioApi(options: StudioApiOptions) {
             } catch (error) {
               return problem(422, 'media-preview-rejected', (error as Error).message.slice(0, 300));
             }
+          }
+          case 'media-timeline-preview': {
+            const body = await readJson(request) as { project?: unknown };
+            try {
+              return json(createFuryVideoTimelinePreview(body.project as FuryVideoTimelineProjectInput));
+            } catch (error) {
+              return problem(422, 'media-timeline-preview-rejected', (error as Error).message.slice(0, 300));
+            }
+          }
+          case 'observability':
+            return json(options.observability?.snapshot() ?? createFuryObservabilityNotConfiguredSnapshot(now));
+          case 'marketplace':
+            return json(marketplaceCatalog().snapshot());
+          case 'memory-time-machine': {
+            const scopes = studioMemoryScopes(options.projectRoot);
+            const snapshot = await memoryTimeMachine().snapshot({ scopes: [scopes.project, scopes.user], now: now() });
+            return json({ enabled: true, snapshot, authority: 'memory-vnext-read-only', executionAuthority: false });
+          }
+          case 'memory-time-machine-export': {
+            const scopes = studioMemoryScopes(options.projectRoot);
+            const snapshot = await memoryTimeMachine().snapshot({ scopes: [scopes.project, scopes.user], now: now() });
+            return json(memoryTimeMachine().exportSnapshot({ snapshot, now: now() }));
+          }
+          case 'memory-time-machine-diff': {
+            const body = await readJson(request) as { from?: unknown; to?: unknown };
+            if (!body?.from || !body?.to) return problem(400, 'invalid-input', 'from and to snapshots are required');
+            try {
+              return json(memoryTimeMachine().diff({ from: body.from as FuryMemorySnapshot, to: body.to as FuryMemorySnapshot }));
+            } catch (error) {
+              return problem(422, 'memory-time-machine-diff-rejected', (error as Error).message.slice(0, 300));
+            }
+          }
+          case 'memory-time-machine-restore': {
+            const body = await readJson(request) as { memoryId?: unknown; scope?: unknown; version?: unknown; confirm?: unknown };
+            if (typeof body?.memoryId !== 'string' || !body.memoryId.trim() || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) {
+              return problem(400, 'invalid-input', 'memoryId and positive version are required');
+            }
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'restoring memory requires confirm: true');
+            const scope = studioMemoryScope(body.scope);
+            return json(await memoryTimeMachine().executeAction({
+              action: 'restore', memoryId: body.memoryId, scope: studioMemoryScopes(options.projectRoot)[scope], version: body.version, confirm: true, now: now(),
+            }), 201);
+          }
+          case 'memory-time-machine-action': {
+            const body = await readJson(request) as { action?: unknown; memoryId?: unknown; scope?: unknown; version?: unknown; confirm?: unknown; execute?: unknown };
+            if (body.action !== 'archive' && body.action !== 'pin' && body.action !== 'delete') return problem(400, 'invalid-input', 'action must be archive, pin or delete');
+            if (typeof body.memoryId !== 'string' || !body.memoryId.trim()) return problem(400, 'invalid-input', 'memoryId is required');
+            if (body.version !== undefined && (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1)) return problem(400, 'invalid-input', 'version must be a positive integer');
+            if (body.confirm !== undefined && typeof body.confirm !== 'boolean') return problem(400, 'invalid-input', 'confirm must be boolean');
+            const scope = studioMemoryScope(body.scope);
+            const action = { action: body.action, memoryId: body.memoryId, scope: studioMemoryScopes(options.projectRoot)[scope], ...(body.version === undefined ? {} : { version: body.version as number }), ...(body.confirm === undefined ? {} : { confirm: body.confirm as boolean }), now: now() } as const;
+            if (body.execute === true) return json(await memoryTimeMachine().executeAction(action), 201);
+            return json(memoryTimeMachine().planAction(action));
           }
           case 'artifacts':
             return json({ artifacts: (await artifacts.list()).map(artifactSummary), authority: 'persistent-artifact-store' });
@@ -776,6 +880,10 @@ export function createStudioApi(options: StudioApiOptions) {
               run = dryRunFuryFlow(flow, { fixtures: body.fixtures as Record<string, unknown>, approvals });
             }
             return json({ flow, ...(run ? { run } : {}), execution: 'DRY_RUN: deterministic handlers are pass-through, agentic nodes use fixtures; no side effect' });
+          }
+          case 'flow-automation-preview': {
+            const body = await readJson(request) as { flow?: unknown };
+            return json(compileFuryWorkflowAutomationPlan(body?.flow));
           }
           case 'runs':
             return json({ runs: [...runs.values()].map(runSnapshot).reverse() });
@@ -1174,6 +1282,8 @@ export function createStudioApi(options: StudioApiOptions) {
         if (error instanceof FurySkillHubError) return problem(/^unknown skill/u.test(error.message) ? 404 : 422, 'skill-rejected', error.message);
         if (route.startsWith('artifact')) return problem(/^unknown artifact/u.test((error as Error).message) ? 404 : 422, 'artifact-rejected', (error as Error).message.slice(0, 300));
         if ((error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR') return problem(404, 'not-found', 'path not found');
+        if (error instanceof FuryHeadlessError) return problem(422, 'headless-rejected', error.message);
+        if (error instanceof FuryWorkflowAutomationError) return problem(422, 'invalid-workflow-automation', error.message);
         if (error instanceof FuryFlowError) return problem(422, 'invalid-flow', error.message);
         if ((error as Error).name === 'FuryLocalFabricError') return problem(403, 'endpoint-denied', (error as Error).message);
         if ((error as Error).name === 'FuryGraphError') return problem(404, 'graph-unavailable', (error as Error).message);

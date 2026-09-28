@@ -4,6 +4,7 @@ import {
   compareFuryEvalReports,
   evaluateFuryDataset,
   FURY_EVAL_DATASET_FORMAT,
+  FURY_EVAL_DOMAINS,
   type FuryEvalDataset,
 } from '../src/fury-eval.js';
 
@@ -44,6 +45,8 @@ describe('FuryEval', () => {
     expect(report.byDomain.routing?.f1).toBe(0.5);
     expect(report.executionAuthorized).toBe(false);
     expect(report.datasetDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
+    expect(report.resultDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
+    expect(report.history).toMatchObject({ commit: null, environment: null, timestamp: null });
   });
 
   it('treats empty expected/observed selections as exact for selection metrics', () => {
@@ -83,6 +86,8 @@ describe('FuryEval', () => {
     expect(comparison.comparable).toBe(false);
     expect(comparison.regressions).toEqual([]);
     expect(comparison.improvements).toEqual([]);
+    expect(comparison.baselineResultDigestSha256).toBe(baseline.resultDigestSha256);
+    expect(comparison.candidateResultDigestSha256).toBe(other.resultDigestSha256);
   });
 
   it('fails closed on duplicate ids and invalid numeric evidence', () => {
@@ -95,5 +100,44 @@ describe('FuryEval', () => {
     expect(() => evaluateFuryDataset(dataset(['security-skill'], {
       latencyMs: Number.NaN,
     }))).toThrow(/latencyMs/u);
+  });
+
+  it('covers every roadmap evaluation domain and records explicit history without execution', () => {
+    const report = evaluateFuryDataset({
+      format: FURY_EVAL_DATASET_FORMAT,
+      id: 'roadmap-domain-coverage',
+      version: '1.0.0',
+      history: {
+        commit: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+        environment: 'vitest-node26-win32',
+        timestamp: '2026-09-28T12:00:00+02:00',
+      },
+      cases: FURY_EVAL_DOMAINS.map((domain) => ({
+        id: `domain-${domain}`,
+        domain,
+        objective: `Observe ${domain} contract`,
+        expected: [`${domain}-contract`],
+        observed: [`${domain}-contract`],
+        success: true,
+      })),
+    });
+
+    expect(Object.keys(report.byDomain).sort()).toEqual([...FURY_EVAL_DOMAINS].sort());
+    expect(report.history).toMatchObject({
+      commit: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      environment: 'vitest-node26-win32',
+      timestamp: '2026-09-28T10:00:00.000Z',
+    });
+    expect(report.history.datasetDigestSha256).toBe(report.datasetDigestSha256);
+    expect(report.history.resultDigestSha256).toBe(report.resultDigestSha256);
+    expect(report.history.metrics).toEqual(report.overall);
+    expect(report.executionAuthorized).toBe(false);
+  });
+
+  it('rejects malformed evaluation history instead of inventing provenance', () => {
+    const base = dataset(['security-skill']);
+    expect(() => evaluateFuryDataset({ ...base, history: { commit: 'not-a-sha' } })).toThrow(/history commit/u);
+    expect(() => evaluateFuryDataset({ ...base, history: { timestamp: 'not-a-date' } })).toThrow(/history timestamp/u);
+    expect(() => evaluateFuryDataset({ ...base, history: { unexpected: true } as never })).toThrow(/unknown key/u);
   });
 });

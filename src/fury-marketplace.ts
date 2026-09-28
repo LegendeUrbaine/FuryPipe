@@ -5,9 +5,13 @@ import { CAPABILITY_TYPES, type CapabilityPermissions, type CapabilityType } fro
 export const FURY_MARKETPLACE_MANIFEST_FORMAT = 'furypipe-marketplace-manifest/v1' as const;
 export const FURY_MARKETPLACE_SIGNATURE_FORMAT = 'furypipe-marketplace-signature/v1' as const;
 export const FURY_MARKETPLACE_PLAN_FORMAT = 'furypipe-marketplace-transition-plan/v1' as const;
+export const FURY_MARKETPLACE_CATALOG_FORMAT = 'furypipe-marketplace-catalog/v1' as const;
+export const FURY_MARKETPLACE_SOURCE_VERIFICATION_FORMAT = 'furypipe-marketplace-source-verification/v1' as const;
+export const FURY_MARKETPLACE_OPERATION_PLAN_FORMAT = 'furypipe-marketplace-operation-plan/v1' as const;
 
 export type FuryMarketplaceTrustLevel = 'OFFICIAL' | 'VERIFIED' | 'COMMUNITY' | 'RESTRICTED';
 export type FuryMarketplaceTransition = 'INSTALL' | 'UPDATE' | 'ROLLBACK';
+export type FuryMarketplaceOperation = 'DOWNLOAD' | 'VERIFY' | 'INSTALL' | 'UPDATE' | 'ROLLBACK' | 'UNINSTALL';
 export type FuryMarketplacePlanState = 'READY_FOR_APPROVAL' | 'REJECTED';
 
 export interface FuryMarketplaceManifestInput {
@@ -22,6 +26,7 @@ export interface FuryMarketplaceManifestInput {
   readonly permissions: CapabilityPermissions;
   readonly dependencies?: readonly string[];
   readonly documentation?: readonly string[];
+  readonly compatibility?: readonly string[];
   readonly trust: FuryMarketplaceTrustLevel;
 }
 
@@ -29,6 +34,7 @@ export interface FuryMarketplaceManifest extends FuryMarketplaceManifestInput {
   readonly format: typeof FURY_MARKETPLACE_MANIFEST_FORMAT;
   readonly dependencies: readonly string[];
   readonly documentation: readonly string[];
+  readonly compatibility: readonly string[];
   readonly manifestDigestSha256: string;
   readonly executionAuthorized: false;
 }
@@ -46,6 +52,79 @@ export interface FuryMarketplaceTrustedKey {
   readonly keyId: string;
   readonly publicKeyPem: string | Buffer;
   readonly trust: Exclude<FuryMarketplaceTrustLevel, 'COMMUNITY' | 'RESTRICTED'>;
+}
+
+export interface FuryMarketplaceVerification {
+  readonly verified: boolean;
+  readonly trust: FuryMarketplaceTrustLevel;
+  readonly reason: string;
+}
+
+export interface FuryMarketplaceCatalogEntry {
+  readonly format: 'furypipe-marketplace-catalog-entry/v1';
+  readonly manifest: FuryMarketplaceManifest;
+  readonly signature: FuryMarketplaceSignature;
+  readonly verification: FuryMarketplaceVerification;
+}
+
+export interface FuryMarketplaceCatalogSnapshot {
+  readonly format: typeof FURY_MARKETPLACE_CATALOG_FORMAT;
+  readonly state: 'EMPTY' | 'READY';
+  readonly entries: readonly FuryMarketplaceCatalogEntry[];
+  readonly count: number;
+  readonly authority: 'marketplace-metadata-only';
+  readonly networkAuthorized: false;
+  readonly filesystemAuthorized: false;
+  readonly executionAuthorized: false;
+}
+
+export interface FuryMarketplaceCatalog {
+  snapshot(): FuryMarketplaceCatalogSnapshot;
+  find(id: string, version?: string): FuryMarketplaceCatalogEntry | undefined;
+}
+
+export interface FuryMarketplaceSourceVerification {
+  readonly format: typeof FURY_MARKETPLACE_SOURCE_VERIFICATION_FORMAT;
+  readonly manifestId: string;
+  readonly version: string;
+  readonly expectedSha256: string;
+  readonly actualSha256: string;
+  readonly hashMatches: boolean;
+  readonly signatureVerified: boolean;
+  readonly verified: boolean;
+  readonly license: string;
+  readonly trust: FuryMarketplaceTrustLevel;
+  readonly compatibility: readonly string[];
+  readonly permissions: CapabilityPermissions;
+  readonly reasons: readonly string[];
+  readonly networkAuthorized: false;
+  readonly filesystemAuthorized: false;
+  readonly executionAuthorized: false;
+}
+
+export interface FuryMarketplaceOperationPlan {
+  readonly format: typeof FURY_MARKETPLACE_OPERATION_PLAN_FORMAT;
+  readonly action: FuryMarketplaceOperation;
+  readonly state: FuryMarketplacePlanState;
+  readonly manifestId: string;
+  readonly fromVersion: string | null;
+  readonly toVersion: string;
+  readonly sourceUrl: string;
+  readonly expectedSourceSha256: string;
+  readonly observedSourceSha256?: string;
+  readonly sourceHashVerified: boolean;
+  readonly signatureVerified: boolean;
+  readonly license: string;
+  readonly trust: FuryMarketplaceTrustLevel;
+  readonly compatibility: readonly string[];
+  readonly permissions: CapabilityPermissions;
+  readonly dependencies: readonly string[];
+  readonly isolation: 'staged-verification-required';
+  readonly reasons: readonly string[];
+  readonly requiresOperatorApproval: true;
+  readonly networkAuthorized: false;
+  readonly filesystemAuthorized: false;
+  readonly executionAuthorized: false;
 }
 
 export interface FuryMarketplaceTransitionPlan {
@@ -122,6 +201,28 @@ function canonicalPayload(input:Omit<FuryMarketplaceManifest,'format'|'manifestD
   return JSON.stringify(input);
 }
 
+function manifestPayload(manifest:FuryMarketplaceManifest):Omit<FuryMarketplaceManifest,'format'|'manifestDigestSha256'|'executionAuthorized'>{
+  return {
+    id:manifest.id,
+    name:manifest.name,
+    version:manifest.version,
+    capabilityType:manifest.capabilityType,
+    sourceUrl:manifest.sourceUrl,
+    sourceSha256:manifest.sourceSha256,
+    license:manifest.license,
+    author:manifest.author,
+    permissions:manifest.permissions,
+    dependencies:manifest.dependencies,
+    documentation:manifest.documentation,
+    compatibility:manifest.compatibility,
+    trust:manifest.trust,
+  };
+}
+
+function manifestDigest(manifest:FuryMarketplaceManifest):string{
+  return sha256(canonicalPayload(manifestPayload(manifest)));
+}
+
 export function createFuryMarketplaceManifest(input:FuryMarketplaceManifestInput):FuryMarketplaceManifest{
   const id=bounded(input.id,'id',128).toLowerCase();
   if(!ID_RE.test(id)) throw new Error('id is invalid');
@@ -137,12 +238,13 @@ export function createFuryMarketplaceManifest(input:FuryMarketplaceManifestInput
   if(!['OFFICIAL','VERIFIED','COMMUNITY','RESTRICTED'].includes(input.trust)) throw new Error('trust is invalid');
   const dependencies=list(input.dependencies,'dependencies',64,160);
   const documentation=list(input.documentation,'documentation',32,2048);
+  const compatibility=list(input.compatibility,'compatibility',32,256);
   for(const url of documentation){
     if(!HTTPS_RE.test(url)) throw new Error('documentation URLs must use HTTPS');
   }
   const unsigned=Object.freeze({
     id,name,version,capabilityType:input.capabilityType,sourceUrl,sourceSha256:input.sourceSha256,
-    license,author,permissions:validatePermissions(input.permissions),dependencies,documentation,trust:input.trust,
+    license,author,permissions:validatePermissions(input.permissions),dependencies,documentation,compatibility,trust:input.trust,
   });
   return Object.freeze({
     format:FURY_MARKETPLACE_MANIFEST_FORMAT,
@@ -162,6 +264,9 @@ export function signFuryMarketplaceManifest(
   privateKeyPem:string|Buffer,
   keyId:string,
 ):FuryMarketplaceSignature{
+  if(manifest.format!==FURY_MARKETPLACE_MANIFEST_FORMAT||manifest.executionAuthorized!==false || manifestDigest(manifest)!==manifest.manifestDigestSha256) {
+    throw new Error('manifest digest does not match its metadata');
+  }
   const validKeyId=bounded(keyId,'keyId',128);
   if(!KEY_ID_RE.test(validKeyId)) throw new Error('keyId is invalid');
   const key=createPrivateKey(privateKeyPem);
@@ -181,14 +286,31 @@ export function verifyFuryMarketplaceSignature(
   signature:FuryMarketplaceSignature,
   trustedKeys:readonly FuryMarketplaceTrustedKey[],
 ):{readonly verified:boolean;readonly trust:FuryMarketplaceTrustLevel;readonly reason:string}{
+  let expectedDigest:string;
+  try {
+    if(manifest.format!==FURY_MARKETPLACE_MANIFEST_FORMAT || manifest.executionAuthorized!==false) {
+      return Object.freeze({verified:false,trust:'RESTRICTED',reason:'manifest metadata format is invalid'});
+    }
+    expectedDigest=manifestDigest(manifest);
+  } catch {
+    return Object.freeze({verified:false,trust:'RESTRICTED',reason:'manifest metadata is invalid'});
+  }
+  if(expectedDigest!==manifest.manifestDigestSha256) {
+    return Object.freeze({verified:false,trust:'RESTRICTED',reason:'manifest digest does not match its metadata'});
+  }
   if(signature.format!==FURY_MARKETPLACE_SIGNATURE_FORMAT||signature.algorithm!=='Ed25519'||signature.executionAuthorized!==false
     ||signature.manifestDigestSha256!==manifest.manifestDigestSha256) {
     return Object.freeze({verified:false,trust:'RESTRICTED',reason:'signature metadata does not match the manifest'});
   }
   const trusted=trustedKeys.find((key)=>key.keyId===signature.keyId);
   if(!trusted) return Object.freeze({verified:false,trust:'RESTRICTED',reason:'signing key is not trusted'});
-  const key=createPublicKey(trusted.publicKeyPem);
-  if(key.asymmetricKeyType!=='ed25519') throw new Error('trusted marketplace keys must be Ed25519');
+  let key:ReturnType<typeof createPublicKey>;
+  try {
+    key=createPublicKey(trusted.publicKeyPem);
+  } catch {
+    return Object.freeze({verified:false,trust:'RESTRICTED',reason:'trusted signing key is invalid'});
+  }
+  if(key.asymmetricKeyType!=='ed25519') return Object.freeze({verified:false,trust:'RESTRICTED',reason:'trusted signing key must be Ed25519'});
   const bytes=Buffer.from(signature.signatureBase64,'base64');
   if(bytes.length!==64||!verify(null,signaturePayload(manifest.manifestDigestSha256),key,bytes)) {
     return Object.freeze({verified:false,trust:'RESTRICTED',reason:'signature verification failed'});
@@ -199,6 +321,115 @@ export function verifyFuryMarketplaceSignature(
       ? 'RESTRICTED'
       : trusted.trust;
   return Object.freeze({verified:true,trust:effectiveTrust,reason:'detached Ed25519 signature verified'});
+}
+
+export function verifyFuryMarketplaceSource(input:{
+  readonly manifest:FuryMarketplaceManifest;
+  readonly signature:FuryMarketplaceSignature;
+  readonly trustedKeys:readonly FuryMarketplaceTrustedKey[];
+  readonly source:string|Uint8Array;
+}):FuryMarketplaceSourceVerification{
+  const signatureResult=verifyFuryMarketplaceSignature(input.manifest,input.signature,input.trustedKeys);
+  const actualSha256=createHash('sha256').update(typeof input.source==='string'?input.source:Buffer.from(input.source)).digest('hex');
+  const hashMatches=actualSha256===input.manifest.sourceSha256;
+  const reasons:string[]=[];
+  if(!signatureResult.verified) reasons.push(signatureResult.reason);
+  if(!hashMatches) reasons.push('source hash does not match the signed manifest');
+  return Object.freeze({
+    format:FURY_MARKETPLACE_SOURCE_VERIFICATION_FORMAT,
+    manifestId:input.manifest.id,
+    version:input.manifest.version,
+    expectedSha256:input.manifest.sourceSha256,
+    actualSha256,
+    hashMatches,
+    signatureVerified:signatureResult.verified,
+    verified:signatureResult.verified&&hashMatches,
+    license:input.manifest.license,
+    trust:signatureResult.trust,
+    compatibility:input.manifest.compatibility,
+    permissions:input.manifest.permissions,
+    reasons:Object.freeze(reasons.length?reasons:['source hash and detached signature verified']),
+    networkAuthorized:false,
+    filesystemAuthorized:false,
+    executionAuthorized:false,
+  });
+}
+
+export function createFuryMarketplaceCatalog(input:{
+  readonly entries:readonly {readonly manifest:FuryMarketplaceManifest;readonly signature:FuryMarketplaceSignature}[];
+  readonly trustedKeys:readonly FuryMarketplaceTrustedKey[];
+}):FuryMarketplaceCatalog{
+  if(!input||typeof input!=='object'||!Array.isArray(input.entries)||input.entries.length>256) throw new Error('marketplace catalog entries are invalid');
+  const seen=new Set<string>();
+  const entries=input.entries.map((item)=>{
+    const key=`${item.manifest.id}\0${item.manifest.version}`;
+    if(seen.has(key)) throw new Error('marketplace catalog contains a duplicate manifest');
+    seen.add(key);
+    const verification=verifyFuryMarketplaceSignature(item.manifest,item.signature,input.trustedKeys);
+    return Object.freeze({format:'furypipe-marketplace-catalog-entry/v1' as const,manifest:item.manifest,signature:item.signature,verification});
+  }).sort((a,b)=>`${a.manifest.id}\0${a.manifest.version}`.localeCompare(`${b.manifest.id}\0${b.manifest.version}`));
+  const frozenEntries=Object.freeze(entries);
+  const snapshot=():FuryMarketplaceCatalogSnapshot=>Object.freeze({
+    format:FURY_MARKETPLACE_CATALOG_FORMAT,
+    state:frozenEntries.length?'READY':'EMPTY',
+    entries:frozenEntries,
+    count:frozenEntries.length,
+    authority:'marketplace-metadata-only',
+    networkAuthorized:false,
+    filesystemAuthorized:false,
+    executionAuthorized:false,
+  });
+  const find=(id:string,version?:string):FuryMarketplaceCatalogEntry|undefined=>frozenEntries.find((entry)=>entry.manifest.id===id&&(version===undefined||entry.manifest.version===version));
+  return Object.freeze({snapshot,find});
+}
+
+export function planFuryMarketplaceOperation(input:{
+  readonly action:FuryMarketplaceOperation;
+  readonly entry:FuryMarketplaceCatalogEntry;
+  readonly currentVersion?:string|null;
+  readonly sourceVerification?:FuryMarketplaceSourceVerification;
+}):FuryMarketplaceOperationPlan{
+  if(!['DOWNLOAD','VERIFY','INSTALL','UPDATE','ROLLBACK','UNINSTALL'].includes(input.action)) throw new Error('marketplace operation is invalid');
+  const currentVersion=input.currentVersion==null?null:bounded(input.currentVersion,'currentVersion',128);
+  const verification=input.entry.verification;
+  const reasons:string[]=[verification.reason];
+  let state:FuryMarketplacePlanState=verification.verified?'READY_FOR_APPROVAL':'REJECTED';
+  const requiresCurrent=input.action==='UPDATE'||input.action==='ROLLBACK'||input.action==='UNINSTALL';
+  if((input.action==='DOWNLOAD'||input.action==='VERIFY'||input.action==='INSTALL')&&currentVersion!==null){ state='REJECTED'; reasons.push(`${input.action} requires no current version`); }
+  if(requiresCurrent&&currentVersion===null){ state='REJECTED'; reasons.push(`${input.action} requires a current version`); }
+  if(input.action==='VERIFY'&&!input.sourceVerification){ state='REJECTED'; reasons.push('source bytes must be verified before approval'); }
+  if((input.action==='INSTALL'||input.action==='UPDATE'||input.action==='ROLLBACK')&&(!input.sourceVerification||!input.sourceVerification.verified)){
+    state='REJECTED'; reasons.push('isolated install requires a successful source verification receipt');
+  }
+  if(input.sourceVerification && (input.sourceVerification.manifestId!==input.entry.manifest.id || input.sourceVerification.version!==input.entry.manifest.version || !input.sourceVerification.verified)){
+    state='REJECTED'; reasons.push('source verification receipt does not match the catalog entry');
+  }
+  if(input.action==='DOWNLOAD') reasons.push('download is an external, operator-controlled step; no network fetch is performed');
+  if(input.action==='UNINSTALL') reasons.push('uninstall remains an approval plan; no filesystem mutation is performed');
+  return Object.freeze({
+    format:FURY_MARKETPLACE_OPERATION_PLAN_FORMAT,
+    action:input.action,
+    state,
+    manifestId:input.entry.manifest.id,
+    fromVersion:currentVersion,
+    toVersion:input.entry.manifest.version,
+    sourceUrl:input.entry.manifest.sourceUrl,
+    expectedSourceSha256:input.entry.manifest.sourceSha256,
+    ...(input.sourceVerification?{observedSourceSha256:input.sourceVerification.actualSha256}:{}),
+    sourceHashVerified:input.sourceVerification?.hashMatches===true,
+    signatureVerified:verification.verified,
+    license:input.entry.manifest.license,
+    trust:verification.trust,
+    compatibility:input.entry.manifest.compatibility,
+    permissions:input.entry.manifest.permissions,
+    dependencies:input.entry.manifest.dependencies,
+    isolation:'staged-verification-required',
+    reasons:Object.freeze(reasons),
+    requiresOperatorApproval:true,
+    networkAuthorized:false,
+    filesystemAuthorized:false,
+    executionAuthorized:false,
+  });
 }
 
 export function planFuryMarketplaceTransition(input:{

@@ -153,3 +153,296 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
 - Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
 - No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
   ready-state change performed.
+
+## 2026-09-27 — FuryVideo Studio controls
+
+- Added a capability-driven FuryVideo form with `Provider / AUTO`, model,
+  reference, duration, FPS, aspect ratio and resolution controls.
+- Video controls use the existing governed media preview boundary and the same
+  async job engine contract; no second queue or provider execution path was
+  introduced. Preview output remains digest-only and does not expose the raw
+  prompt or reference.
+- Local proof: focused API/Media Studio tests `30` passed, full suite `337`
+  files / `3,554` tests passed with `6` skipped, source and hosted-MCP
+  typechecks, build, package smoke and Chromium/Firefox/WebKit Browser QA
+  passed.
+- Remaining: live video provider SDK/credentials, billable generation,
+  storyboard/timeline, Helios integration, queue recovery, human
+  visual/screen-reader review and hosted exact-head validation for this
+  follow-up.
+- Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.
+
+## 2026-09-27 — FuryVideo storyboard/timeline foundation
+
+- Added a bounded Project → Scene → Shot → Asset contract with prompt/title
+  digests, duration, transitions and audio asset references.
+- Added explicit `REFERENCE_ONLY` generation-job and output-artifact links;
+  `POST /api/studio/media/timeline/preview` validates and returns a digest-only
+  plan without creating jobs, artifacts, provider calls or execution authority.
+- Local proof: focused storyboard/API tests `27` passed, full suite `338`
+  files / `3,557` tests passed with `6` skipped, source and hosted-MCP
+  typechecks, build, package smoke and Chromium/Firefox/WebKit Browser QA
+  passed.
+- Remaining: dedicated timeline editor/rendering/playback, live provider
+  execution, queue recovery, artifact mutation/download authority, human
+  visual/screen-reader review and hosted exact-head validation for this
+  follow-up.
+- Status: `PARTIAL_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.
+
+## 2026-09-27 — FuryAudio / Voice Studio preview controls
+
+- Added capability-driven FuryAudio controls for `Provider / AUTO`, model,
+  voice, language and bounded duration on the existing Media Studio preview
+  route.
+- Preview explicitly does not call a provider, capture a microphone or
+  authorize speaker playback. Existing STT/TTS, realtime voice and device
+  capture contracts remain separate permission/permit boundaries.
+- Local proof: focused Media Studio/API tests `32` passed, full suite `338`
+  files / `3,558` tests passed with `6` skipped, source and hosted-MCP
+  typechecks, build, package smoke and Chromium/Firefox/WebKit Browser QA
+  passed.
+- Remaining: live provider execution, client microphone/device permission UX,
+  real streaming/VAD/interruption validation, recovery, human
+  visual/screen-reader review and hosted exact-head validation for this
+  follow-up.
+- Status: `PARTIAL_AUDIO_PREVIEW_ONLY_LOCAL_VERIFIED_PROVIDER_OPTIONAL`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.
+
+## 2026-09-27 — FuryObservability / Cost evidence contract
+
+- Added `src/fury-observability.ts` as one bounded, evidence-only registry for
+  request/provider/tool/MCP/media-job events. It links trace parents without
+  retaining prompts, responses, credentials or provider payloads.
+- Latency is derived only from observed start/finish timestamps. Cost states
+  remain explicit as `KNOWN`, `ESTIMATED`, `UNKNOWN` and `NOT_APPLICABLE`; only
+  `KNOWN` values aggregate inside the same explicit `costBasis`. Missing,
+  estimated, unknown and incomparable evidence remain visible and are never
+  coerced to zero.
+- Request, daily, monthly and workspace budget views are fail-closed:
+  `EXCEEDED_KNOWN_COST` is reported when known evidence exceeds the limit;
+  otherwise incomplete evidence yields `UNKNOWN_INCOMPLETE_EVIDENCE`.
+- Added the read-only `GET /api/studio/observability.json` projection and a
+  Studio Observability / Cost view. With no injected registry it reports
+  `NOT_CONFIGURED`, not fabricated empty telemetry. The route does not execute
+  providers, mutate jobs or authorize actions.
+- Local proof: focused observability/API tests `32/32` passed; source
+  typecheck and `git diff --check` passed. Full suite: `339` files,
+  `3,565` passed, `6` skipped. Source and hosted-MCP typechecks, build,
+  installed package smoke and Chromium/Firefox/WebKit Browser QA passed on
+  this exact local candidate.
+- Remaining: live provider/tool/MCP telemetry adapters, provider billing
+  reconciliation, self-healing diagnostics, human visual/screen-reader review,
+  hosted exact-head validation and production/client gates.
+- Status: `PARTIAL_OBSERVABILITY_COST_LOCAL_CONTRACT_VERIFIED`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.
+
+## 2026-09-27 — FuryMemory Time Machine
+
+- Reused the existing encrypted `RecoveryStore` through Memory VNext; no
+  second memory store or browser-only persistence was introduced.
+- Added bounded Memory VNext `history()` and explicit `restore()` operations.
+  Restore reads an existing immutable checkpoint and appends a new governed
+  version. Forgotten records, current checkpoints, revoked sources and
+  expired TTL checkpoints are rejected.
+- Added digest-only timeline/checkpoints, tamper-checked deterministic
+  snapshot diff, metadata-only export and scope → memory → source
+  cross-project graph projection in `src/fury-memory-time-machine.ts`.
+- Studio adds read-only Time Machine, metadata export, diff route, explicit
+  restore confirmation and governed archive/delete action plans. `pin` is
+  visibly `PLAN_ONLY` because no canonical persisted pin authority exists.
+- Local proof: focused Memory VNext / Time Machine / Studio API contracts
+  `35/35`; full Vitest `340` files / `3,568` passed / `6` skipped; source and
+  hosted-MCP typechecks; build; installed package smoke; Chromium/Firefox/
+  WebKit Browser QA.
+- Remaining: persistent pin schema, cross-process/hosted authorization,
+  recall/false-memory evaluation, migration coverage, human client review,
+  hosted exact-head validation and production/client gates.
+- Status: `PARTIAL_MEMORY_TIME_MACHINE_LOCAL_CONTRACT_VERIFIED`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.
+
+## 2026-09-27 — FuryMarketplace control plane
+
+- Reconciled Marketplace against the continuation roadmap: catalog, source
+  hash, detached signature, license, trust, compatibility, permissions,
+  approval and lifecycle plan contracts are now represented in the existing
+  `src/fury-marketplace.ts` authority.
+- Manifest signing and verification recompute the metadata digest. Forged
+  capability or permission metadata with a stale declared digest is rejected.
+- Added bounded metadata-only catalog and supplied-byte source verification.
+  DOWNLOAD / VERIFY / INSTALL / UPDATE / ROLLBACK / UNINSTALL remain plans;
+  no network fetch, filesystem mutation or package execution is introduced.
+- Studio adds a read-only Marketplace route/view. Empty catalog is explicit
+  when no signed catalog is injected; no availability is fabricated.
+- Local proof: Marketplace/Studio focused `31/31`; full Vitest `340` files /
+  `3,569` passed / `6` skipped; source and hosted-MCP typechecks, build,
+  installed package smoke and Chromium/Firefox/WebKit Browser QA passed.
+- Status: `PARTIAL_MARKETPLACE_CONTROL_PLANE_LOCAL_CONTRACT_VERIFIED`.
+- Remaining: persistent catalog, real downloader, isolated installer,
+  compatibility host matrix, rollback executor, human review and hosted
+  exact-head evidence.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.
+
+## 2026-09-28 — FuryGraph explicit refresh receipt
+
+- Extended the existing Graphify lifecycle planner with a deterministic,
+  metadata-only refresh plan and success/failure receipt. The plan requires
+  `confirm: true`; the execution boundary revalidates the absolute root and
+  command, uses `shell: false`, and enforces a timeout of at most one hour.
+- Added Studio `POST /api/studio/graph/lifecycle` and
+  `POST /api/studio/graph/refresh` routes. The refresh route rejects absent
+  approval and preserves a bounded failure receipt in its 502 response; no
+  route performs automatic post-merge, post-checkout or background refresh.
+- Hardened the lifecycle route against `null` JSON bodies and kept native
+  fallback explicit when Graphify is unavailable.
+- Focused local proof: Graphify/Studio API `38/38`; full Vitest `340` files /
+  `3,570` passed / `6` skipped; source and hosted-MCP typechecks; build
+  version smoke `0.16.0`; installed package smoke including Gateway, MCP,
+  Phase 6/7/8, benchmark-claim, provider-attempt and governed-provider
+  checks; Gateway smoke tarball SHA-256
+  `6fed695656ebbc31ea5503da9c2fc536dc2608d2d986684495b353167a4738fa`;
+  Chromium/Firefox/WebKit Browser QA.
+- Status: `PARTIAL_GRAPHIFY_LIFECYCLE_LOCAL_CONTRACT_VERIFIED`.
+- Remaining: automatic approval-bearing integration hook, host-specific
+  Graphify installation/runtime proof, hosted exact-head validation, and
+  human/client/production gates.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.
+
+## 2026-09-28 — FuryPipe Provider SDK authoring foundation
+
+- Added public `furypipe/fury-provider-sdk` metadata-only authoring contracts
+  for providers and models. The contract requires explicit `yes` / `no` /
+  `unknown` modality and capability values and carries only power controls the
+  provider declares.
+- `compileFuryProviderSdkManifest()` produces a deterministic SHA-256 digest;
+  registration, network, filesystem and execution authority remain false.
+  Existing Provider Fabric, Transport, Health and Retry/Fallback modules remain
+  the only runtime authorities; no provider call or credential read was added.
+- Remaining: host-approved runtime adapter registration/isolation, Studio
+  power-control UX backed by real evidence, and live provider/resilience proof.
+- Local proof: focused Provider SDK `2/2`; full Vitest `341` files / `3,572`
+  passed / `6` skipped; source and hosted-MCP typechecks; build version smoke
+  `0.16.0`; installed package smoke including the new public export, Gateway,
+  MCP, Phase 6/7/8, benchmark-claim, provider-attempt and governed-provider
+  checks; Gateway smoke tarball SHA-256
+  `807b6d74f750fb9c33be057bcfc33212ff838a44831a78d931b770ccf9a64916`;
+  Chromium/Firefox/WebKit Browser QA.
+- Status: `PARTIAL_PROVIDER_SDK_FOUNDATION_LOCAL_CONTRACT_VERIFIED`.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.
+
+## 2026-09-28 — FuryPipe Agent SDK contract foundation
+
+- Added public `furypipe/fury-agent-sdk` metadata-only contracts for the
+  master agent contract fields: role, goal, inputs, context, skills, tools,
+  permissions, budget and output schema.
+- Added deterministic dependency-DAG compilation, lexical topological order,
+  parallel groups and explicit message channels. A channel without a matching
+  declared dependency is rejected, preventing implicit scheduling edges.
+- The SDK has no callback registration, module loading, credential access,
+  network/filesystem operation or execution authority. Existing Agent Runtime,
+  FuryIR and Mission Control remain authoritative.
+- Machine inventory and gap analysis now record the locally verified Agent
+  contract state; Model Hub stale reconciliation is also recorded.
+- Local proof: focused Agent SDK `3/3`; full Vitest `342` files / `3,575`
+  passed / `6` skipped; source and hosted-MCP typechecks; inventory JSON parse;
+  build version smoke `0.16.0`; packed export smoke; Gateway installed-package
+  smoke with tarball SHA-256
+  `c8a24d707a21166172753e5419c04109d0c0dd4d492b802556741e0f8e6deb2a`;
+  Phase 6/7/8 ACP, benchmark-claim, provider-attempt and governed-provider
+  package smokes; Chromium/Firefox/WebKit Studio Browser QA.
+- Hosted exact-head evidence, distributed worker behavior, live provider/MCP
+  execution and human/client/production gates remain unproven.
+- No merge, release, tag, npm publish, deploy, auto-merge, force-push or PR
+  ready-state change performed.
+
+## 2026-09-28 — FuryPipe workflow automation plan foundation
+
+- Added public `furypipe/fury-workflow-sdk` metadata-only planning for a
+  `FuryFlow` trigger bound to the existing Gateway automation trigger
+  authority. Interval, cron and webhook metadata are normalized by the
+  Gateway contract; malformed or unschedulable trigger metadata fails closed.
+- Added `POST /api/studio/flow-automation-preview` and a Studio API contract
+  test. The route returns a deterministic plan digest and explicit
+  `registrationAuthorized:false` / `executionAuthorized:false` flags; it does
+  not persist definitions, register schedules, dispatch runs or invoke flow
+  nodes.
+- Machine inventory, gap analysis and Studio architecture now record the
+  partial local workflow contract state.
+- Local proof: focused workflow SDK `5/5`; Studio API `27/27`; full Vitest
+  `343` files / `3,581` passed / `6` skipped; source and hosted-MCP
+  typechecks; inventory JSON parse; build version smoke `0.16.0`; packed
+  workflow export smoke; complete package smoke chain including Gateway,
+  MCP, Phase 6/7/8 ACP, benchmark-claim, provider-attempt and governed-
+  provider checks; current Gateway installed-package tarball SHA-256
+  `e9ee1fc15a87b510cedfaef30d175ad2db8ba0b1c9868227978c802ae105fe52`.
+- Remaining: durable workflow definition/registration, scheduler persistence,
+  execution/recovery, approval-bearing runtime integration and hosted/client/
+  production proof.
+
+## 2026-09-28 — FuryPipe FuryEval domain and history contract
+
+- Expanded `furypipe/fury-eval` from four domains to the ten roadmap domains:
+  routing, skills, instructions, memory, agents, browser, providers, media,
+  cost and context.
+- Reports now emit deterministic dataset and result SHA-256 digests and an
+  explicit optional history projection for caller-supplied commit,
+  environment and timestamp metadata. Missing provenance remains null; no Git
+  state, wall clock or runtime outcome is fabricated.
+- Negative tests cover malformed history and domain coverage fixtures. The
+  evaluation and Studio API remain analysis-only with execution authority
+  false.
+- Remaining: curated versioned real-world domain datasets and durable
+  longitudinal history storage; this tranche does not claim provider/browser/
+  media production quality.
+- Local proof: focused FuryEval + Studio API `34/34`; full Vitest `343` files /
+  `3,583` passed / `6` skipped; source and hosted-MCP typechecks; inventory
+  JSON parse; build version smoke `0.16.0`; complete package smoke chain
+  including Gateway, MCP, Phase 6/7/8 ACP, benchmark-claim, provider-attempt
+  and governed-provider checks; current Gateway installed-package tarball
+  SHA-256 `af52bbd352bfbefa0396adf12fd3a322c0942c70c3ae700805ffa1517e070f7d`.
+
+## 2026-09-28 — FuryPipe CLI/API/headless shared-core boundary
+
+- Added `furypipe-headless-request/v1` / `furypipe-headless-response/v1` and
+  bounded operations for FuryEval and workflow automation planning.
+- Studio `POST /api/studio/headless`, `furypipe headless [--json]` stdin and
+  the public `furypipe/fury-headless` export all delegate to those existing
+  cores. No parallel evaluator, scheduler or executor was introduced.
+- Unknown request keys/operations and oversized stdin fail closed; every
+  response retains `executionAuthorized:false`.
+- Remaining: complete parity for every Studio surface, desktop integration,
+  durable headless service lifecycle and hosted/client/production proof.
+- Local proof: focused headless + Studio API `31/31`; full Vitest `344` files /
+  `3,587` passed / `6` skipped; source and hosted-MCP typechecks; build version
+  smoke `0.16.0`; compiled stdin CLI smoke; complete package smoke chain and
+  Gateway installed-package smoke PASS; current tarball SHA-256
+  `dd79e127cd39e1634041fa916cf7f6903914bae02184b6c4e96e1291c5870b84`.
+
+## 2026-09-28 — FuryPipe final security audit
+
+- Audited the roadmap security surfaces at source head
+  `770f354731b264771e27bd71df08500c642c38f4`: authority bypass and duplicate
+  authority paths, SSRF/DNS rebinding, traversal/symlink escape, command and
+  plugin escalation, MCP/prompt poisoning, secret exfiltration, media abuse,
+  permit replay, stale state, unknown provider outcomes and unbounded loops or
+  storage.
+- Added the explicit trust-model row for the bounded shared headless boundary.
+- Local decision: `LOCAL_SECURITY_AUDIT = PASS_WITH_LIMITS`; no new runtime
+  patch was required. Real providers, third-party MCP/OAuth, production
+  topology and human approval remain separate gates.
+- Local proof: full Vitest `344` files / `3587` passed / `6` skipped; targeted
+  security `127/127`; local contracts `186/186`; direct pnpm production audit
+  reported no known vulnerabilities; action pinning `93` references across
+  `22` workflows; typechecks, build, packed package and installed Gateway/MCP
+  smoke all passed. Hosted exact-head CI/security/browser/recovery/clean-room/
+  benchmark checks for the audited head also reported `PASS`.
+- Evidence: `docs/evidence/FURYPIPE_SECURITY_AUDIT_2026-09-28.md`.

@@ -500,6 +500,13 @@ function trigger(value: unknown): FuryGatewayAutomationTrigger {
   throw new FuryGatewayAutomationDefinitionError('invalid-input');
 }
 
+/** Normalize a trigger for other metadata-only planners without creating a definition. */
+export function normalizeFuryGatewayAutomationTrigger(
+  value: unknown,
+): FuryGatewayAutomationTrigger {
+  return trigger(value);
+}
+
 function budgets(value: unknown): FuryGatewayAutomationBudgets {
   const record = exactDataRecord(
     value,

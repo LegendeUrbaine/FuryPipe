@@ -45,7 +45,7 @@ export const STUDIO_EXAMPLE_IR = Object.freeze({
 export const STUDIO_EXAMPLE_FLOW = Object.freeze({
   format: 'furypipe-flow/v1', id: 'refund-triage', version: 1, name: 'Refund triage',
   nodes: [
-    { id: 'trigger', type: 'TRIGGER', label: 'Support webhook', config: { kind: 'webhook' } },
+    { id: 'trigger', type: 'TRIGGER', label: 'Support webhook', config: { kind: 'webhook', sourceId: 'support' } },
     { id: 'classify', type: 'LLM', label: 'Classify request' },
     { id: 'route', type: 'CONDITION', label: 'Refund?' },
     { id: 'approve', type: 'HUMAN_APPROVAL', label: 'Approve refund' },
@@ -80,6 +80,7 @@ const ICONS: Readonly<Record<string, string>> = Object.freeze({
   memory: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
   models: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
   media: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="10" r="1.5"/><path d="m5 17 4-4 3 3 2-2 5 3"/>',
+  observability: '<path d="M4 19V5M4 19h16"/><path d="m7 15 3-4 3 2 5-7"/>',
   runtimes: '<path d="m4 17 6-5-6-5"/><path d="M12 19h8"/>',
   skills: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>',
   autopilot: '<path d="M12 2l2.1 6.1L20 10l-5.9 1.9L12 18l-2.1-6.1L4 10l5.9-1.9z"/><path d="M5 18l.8 2.2L8 21l-2.2.8L5 24l-.8-2.2L2 21l2.2-.8z"/>',
@@ -553,11 +554,11 @@ const SCRIPT = String.raw`
   const tpl = document.createElement('template');
   function ic(name, cls) { tpl.innerHTML = '<svg class="' + (cls || 'i') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || '') + '</svg>'; return tpl.content.firstChild; }
   const store = { get(k, d) { try { const v = localStorage.getItem('furypipe.studio.' + k); return v === null ? d : v; } catch { return d; } }, set(k, v) { try { localStorage.setItem('furypipe.studio.' + k, v); } catch {} } };
-  const views = ['chat','media','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
-  const VIEW_TITLES = { chat: 'Chat', media: 'Media Studio', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
+  const views = ['chat','media','observability','marketplace','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
+  const VIEW_TITLES = { chat: 'Chat', media: 'Media Studio', observability: 'Observability / Cost', marketplace: 'Marketplace', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
   const PROVIDER = { ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp', vllm: 'vLLM', sglang: 'SGLang', localai: 'LocalAI', jan: 'Jan', 'openai-compatible': 'OpenAI-compatible', 'anthropic-compatible': 'Anthropic-compatible' };
   const SETUP = { ollama: 'https://ollama.com/download', lmstudio: 'https://lmstudio.ai', llamacpp: 'https://github.com/ggml-org/llama.cpp', vllm: 'https://docs.vllm.ai', sglang: 'https://docs.sglang.ai', localai: 'https://localai.io', jan: 'https://jan.ai' };
-  const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, media: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
+  const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, media: null, observability: null, marketplace: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
   /* ---------- Locale / i18n ---------- */
   const SUPPORTED_LANGUAGES = Object.freeze(['en', 'fr']);
   const FR = Object.freeze({
@@ -1055,6 +1056,8 @@ const SCRIPT = String.raw`
     firstRoute = false;
     if (name === 'chat' || name === 'models') loadLocal();
     if (name === 'media') loadMedia();
+    if (name === 'observability') loadObservability();
+    if (name === 'marketplace') loadMarketplace();
     if (name === 'autopilot') $('#autopilot-effort').value = $('#effort-select').value;
     if (name === 'chat') autosize();
     if (name === 'connections') loadConnections();
@@ -1478,6 +1481,8 @@ const SCRIPT = String.raw`
     const providerSelect = $('#media-provider');
     const modelSelect = $('#media-model');
     const imageControls = $('#media-image-controls');
+    const videoControls = $('#media-video-controls');
+    const audioControls = $('#media-audio-controls');
     const submitButton = $('#media-submit');
     if (!surfaceSelect || !operationSelect || !mimeSelect || !snapshot || !Array.isArray(snapshot.surfaces)) return;
     const surface = snapshot.surfaces.find((item) => item.id === surfaceSelect.value) || snapshot.surfaces[0];
@@ -1490,27 +1495,31 @@ const SCRIPT = String.raw`
     mimeSelect.replaceChildren(...(Array.isArray(surface.outputMimeTypes) ? surface.outputMimeTypes : []).map((mime) => el('option', { value: mime, text: mime })));
     if (surface.outputMimeTypes.includes(currentMime)) mimeSelect.value = currentMime;
     const image = surface.id === 'image';
+    const video = surface.id === 'video';
+    const audio = surface.id === 'audio';
     if (imageControls) imageControls.hidden = !image;
-    if (submitButton) submitButton.textContent = image ? 'Generate image (preview-only)' : 'Preview governed request';
-    const imageAdapters = Array.isArray(snapshot.adapters) ? snapshot.adapters.filter((adapter) => adapter.family === 'image-generation') : [];
+    if (videoControls) videoControls.hidden = !video;
+    if (audioControls) audioControls.hidden = !audio;
+    if (submitButton) submitButton.textContent = image ? 'Generate image (preview-only)' : video ? 'Generate video (preview-only)' : audio ? 'Generate audio (preview-only)' : 'Preview governed request';
+    const activeAdapters = Array.isArray(snapshot.adapters) ? snapshot.adapters.filter((adapter) => adapter.family === surface.family) : [];
     if (providerSelect && modelSelect) {
       const previousProvider = providerSelect.value || 'AUTO';
-      const providerValues = ['AUTO', ...imageAdapters.map((adapter) => adapter.selectorId)];
+      const providerValues = ['AUTO', ...activeAdapters.map((adapter) => adapter.selectorId)];
       providerSelect.replaceChildren(...providerValues.map((value) => {
-        const adapter = imageAdapters.find((candidate) => candidate.selectorId === value);
+        const adapter = activeAdapters.find((candidate) => candidate.selectorId === value);
         return el('option', { value, text: adapter ? adapter.bundleId + ' · ' + adapter.profileId : 'AUTO' });
       }));
       providerSelect.value = providerValues.includes(previousProvider) ? previousProvider : 'AUTO';
-      const selectedAdapter = imageAdapters.find((adapter) => adapter.selectorId === providerSelect.value);
-      const modelValues = ['AUTO', ...imageAdapters.filter((adapter) => !selectedAdapter || adapter.selectorId === selectedAdapter.selectorId).map((adapter) => adapter.profileId).filter((value, index, values) => values.indexOf(value) === index)];
+      const selectedAdapter = activeAdapters.find((adapter) => adapter.selectorId === providerSelect.value);
+      const modelValues = ['AUTO', ...activeAdapters.filter((adapter) => !selectedAdapter || adapter.selectorId === selectedAdapter.selectorId).map((adapter) => adapter.profileId).filter((value, index, values) => values.indexOf(value) === index)];
       const previousModel = modelSelect.value || 'AUTO';
       modelSelect.replaceChildren(...modelValues.map((value) => el('option', { value, text: value })));
       modelSelect.value = modelValues.includes(previousModel) ? previousModel : 'AUTO';
     }
     const providerStatus = $('#media-provider-status');
-    if (providerStatus) providerStatus.textContent = image
-      ? (imageAdapters.length === 0 ? 'No image provider configured. Studio remains preview-only.' : 'Image adapter capability observed. Live provider execution is not validated here.')
-      : (snapshot.providerExecution === 'NOT_CONFIGURED' ? 'No provider adapter registered. Studio remains preview-only.' : 'Adapter capability observed. Live provider execution is not validated here.');
+    if (providerStatus) providerStatus.textContent = activeAdapters.length === 0
+      ? (image ? 'No image provider configured. Studio remains preview-only.' : video ? 'No video provider configured. Studio remains preview-only.' : 'No audio provider configured. Studio remains preview-only.')
+      : (image ? 'Image adapter capability observed. Live provider execution is not validated here.' : video ? 'Video adapter capability observed. Live provider execution is not validated here.' : 'Audio adapter capability observed. Live provider execution is not validated here. Microphone capture still requires explicit consent.');
   }
   function renderMediaSnapshot(snapshot) {
     const surfaces = $('#media-surfaces');
@@ -1561,6 +1570,108 @@ const SCRIPT = String.raw`
       return card;
     }));
   }
+  function renderObservability(snapshot) {
+    const status = $('#observability-status');
+    const summary = $('#observability-summary');
+    const traces = $('#observability-traces');
+    const budgets = $('#observability-budgets');
+    if (!snapshot) return;
+    const counts = snapshot.counts || {};
+    const latency = snapshot.latency || {};
+    const cost = snapshot.cost || {};
+    if (status) status.textContent = snapshot.state === 'NOT_CONFIGURED'
+      ? 'Observability registry not configured. No telemetry or cost is inferred.'
+      : 'Observed evidence only. This view does not execute providers or alter budgets.';
+    const numberText = (value, suffix = '') => typeof value === 'number' && Number.isFinite(value) ? String(value) + suffix : 'UNKNOWN';
+    const costText = (value) => typeof value === 'number' && Number.isFinite(value) ? '$' + value.toFixed(6) : 'UNKNOWN';
+    if (summary) {
+      const basis = Array.isArray(cost.knownTotalUsdByBasis) && cost.knownTotalUsdByBasis.length
+        ? cost.knownTotalUsdByBasis.map((item) => String(item.costBasis) + ': ' + costText(item.totalUsd)).join(' · ')
+        : 'No known cost recorded';
+      const estimatedBasis = Array.isArray(cost.estimatedTotalUsdByBasis) && cost.estimatedTotalUsdByBasis.length
+        ? cost.estimatedTotalUsdByBasis.map((item) => String(item.costBasis) + ': ' + costText(item.totalUsd)).join(' · ')
+        : 'No estimated cost recorded';
+      summary.replaceChildren(
+        el('div', { class: 'autopilot-summary' },
+          el('div', { class: 'autopilot-stat' }, el('b', { text: numberText(counts.events) }), el('span', { text: 'events' })),
+          el('div', { class: 'autopilot-stat' }, el('b', { text: numberText(counts.traces) }), el('span', { text: 'traces' })),
+          el('div', { class: 'autopilot-stat' }, el('b', { text: latency.sampleCount ? numberText(latency.p50Ms, ' ms') : 'UNKNOWN' }), el('span', { text: 'observed p50 latency' })),
+          el('div', { class: 'autopilot-stat' }, el('b', { text: basis }), el('span', { text: 'known cost by basis' })),
+          el('div', { class: 'autopilot-stat' }, el('b', { text: estimatedBasis }), el('span', { text: 'estimated cost by basis' })),
+          el('div', { class: 'autopilot-stat' }, el('b', { text: numberText(cost.unknownEventCount) }), el('span', { text: 'unknown cost events' })),
+        ),
+      );
+    }
+    if (traces) {
+      const rows = Array.isArray(snapshot.traces) ? snapshot.traces : [];
+      traces.replaceChildren(...(rows.length ? rows.map((trace) => el('article', { class: 'card extension-card' },
+        el('h3', { text: String(trace.traceId) }),
+        el('p', { class: 'muted', text: String(trace.eventCount) + ' event(s) · depth ' + String(trace.maxDepth) + ' · roots ' + String(trace.rootSpanCount) }),
+        el('p', { class: 'muted', text: 'Orphan parents: ' + String(trace.orphanParentCount) + ' · Digest: sha256:' + String(trace.traceDigestSha256).slice(0, 16) + '…' }),
+      )) : [el('p', { class: 'muted', text: 'No trace evidence recorded.' })]));
+    }
+    if (budgets) {
+      const rows = Array.isArray(snapshot.budgets) ? snapshot.budgets : [];
+      budgets.replaceChildren(...(rows.length ? rows.map((budget) => el('article', { class: 'card extension-card' },
+        el('h3', { text: String(budget.scope) + (budget.traceId ? ' · ' + String(budget.traceId) : '') }),
+        el('p', { class: 'muted', text: 'Status: ' + String(budget.status) + ' · Basis: ' + String(budget.costBasis) }),
+        el('p', { class: 'muted', text: 'Known: ' + costText(budget.knownCostUsd) + ' / limit ' + costText(budget.limitUsd) + ' · Estimated: ' + String(budget.estimatedCostEventCount) + ' · Unknown: ' + String(budget.unknownCostEventCount) + ' · N/A: ' + String(budget.notApplicableCostEventCount) + ' · Not recorded: ' + String(budget.notRecordedCostEventCount) }),
+      )) : [el('p', { class: 'muted', text: 'No budget policy configured.' })]));
+    }
+  }
+  async function loadObservability() {
+    try {
+      const snapshot = await getJson('/api/studio/observability.json');
+      state.observability = snapshot;
+      renderObservability(snapshot);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = $('#observability-status');
+      if (status) status.textContent = 'Observability load failed: ' + message;
+    }
+  }
+  function renderMarketplace(snapshot) {
+    const status = $('#marketplace-status');
+    const summary = $('#marketplace-summary');
+    const list = $('#marketplace-list');
+    if (!snapshot) return;
+    const entries = Array.isArray(snapshot.entries) ? snapshot.entries : [];
+    const verified = entries.filter((entry) => entry.verification && entry.verification.verified).length;
+    if (status) status.textContent = snapshot.state === 'EMPTY'
+      ? 'No signed catalog configured. Network download and installation stay disabled.'
+      : 'Signed metadata only. Review approval and isolated verification are required before any install path.';
+    if (summary) summary.replaceChildren(
+      el('div', { class: 'autopilot-summary' },
+        el('div', { class: 'autopilot-stat' }, el('b', { text: String(entries.length) }), el('span', { text: 'catalog entries' })),
+        el('div', { class: 'autopilot-stat' }, el('b', { text: String(verified) }), el('span', { text: 'verified signatures' })),
+        el('div', { class: 'autopilot-stat' }, el('b', { text: 'PLAN ONLY' }), el('span', { text: 'download / install authority' })),
+      ),
+    );
+    if (list) list.replaceChildren(...(entries.length ? entries.map((entry) => {
+      const manifest = entry.manifest || {};
+      const verification = entry.verification || {};
+      const card = el('article', { class: 'card extension-card' });
+      card.append(
+        el('h3', { text: String(manifest.name || manifest.id || 'Unnamed capability') + ' · ' + String(manifest.version || 'unknown') }),
+        el('p', { class: 'muted' }, badge(String(manifest.capabilityType || 'unknown'), 'muted'), ' ', badge(String(verification.trust || manifest.trust || 'RESTRICTED'), verification.verified ? 'good' : 'muted'), ' ', badge(verification.verified ? 'signature verified' : 'untrusted metadata', verification.verified ? 'good' : 'muted')),
+        el('p', { class: 'muted', text: 'License: ' + String(manifest.license || 'UNKNOWN') + ' · Compatibility: ' + (Array.isArray(manifest.compatibility) && manifest.compatibility.length ? manifest.compatibility.join(', ') : 'not declared') }),
+        el('p', { class: 'muted', text: 'Permissions: ' + Object.entries(manifest.permissions || {}).filter(([key]) => key !== 'externalWrites').map(([key, value]) => key + '=' + String(value)).join(' · ') }),
+        el('p', { class: 'muted', text: 'Source SHA-256: ' + String(manifest.sourceSha256 || 'UNKNOWN') + ' · Plan: approval + staged verification only' }),
+      );
+      return card;
+    }) : [el('p', { class: 'muted', text: 'Catalog empty. Add signed metadata through the governed host; this view never fetches or installs packages.' })]));
+  }
+  async function loadMarketplace() {
+    try {
+      const snapshot = await getJson('/api/studio/marketplace.json');
+      state.marketplace = snapshot;
+      renderMarketplace(snapshot);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const status = $('#marketplace-status');
+      if (status) status.textContent = 'Marketplace load failed: ' + message;
+    }
+  }
   async function loadMedia() {
     try {
       const snapshot = await getJson('/api/studio/media.json');
@@ -1606,6 +1717,22 @@ const SCRIPT = String.raw`
       style: $('#media-style').value,
       inputStrength: numberOrUndefined('#media-input-strength'),
     } : undefined;
+    const videoOptions = surface === 'video' ? {
+      provider: $('#media-provider').value,
+      model: $('#media-model').value,
+      reference: valueOrUndefined('#media-reference'),
+      durationMs: numberOrUndefined('#media-duration'),
+      fps: numberOrUndefined('#media-fps'),
+      aspectRatio: $('#media-video-aspect-ratio').value,
+      resolution: $('#media-video-resolution').value,
+    } : undefined;
+    const audioOptions = surface === 'audio' ? {
+      provider: $('#media-provider').value,
+      model: $('#media-model').value,
+      voice: valueOrUndefined('#media-voice'),
+      language: valueOrUndefined('#media-language'),
+      durationMs: numberOrUndefined('#media-audio-duration'),
+    } : undefined;
     if (status) status.textContent = 'Building preview…';
     if (output) output.hidden = true;
     try {
@@ -1614,12 +1741,16 @@ const SCRIPT = String.raw`
         operation: $('#media-operation').value,
         outputMimeType: $('#media-mime').value,
         prompt: $('#media-prompt').value,
-        ...(imageOptions ? { options: imageOptions } : {}),
+        ...(imageOptions ? { options: imageOptions } : videoOptions ? { options: videoOptions } : audioOptions ? { options: audioOptions } : {}),
       });
       if (output) { output.textContent = JSON.stringify(preview, null, 2); output.hidden = false; }
       if (status) status.textContent = surface === 'image'
         ? 'Image preview built. No provider call or billable generation executed.'
-        : 'Preview built. No provider call or billable generation executed.';
+        : surface === 'video'
+          ? 'Video preview built. No provider call or billable generation executed.'
+          : surface === 'audio'
+            ? 'Audio preview built. No provider call, microphone capture or billable generation executed.'
+            : 'Preview built. No provider call or billable generation executed.';
     } catch (error) {
       if (status) status.textContent = 'Preview rejected: ' + (error instanceof Error ? error.message : String(error));
     }
@@ -2517,8 +2648,72 @@ const SCRIPT = String.raw`
         body.append(el('tr', {}, el('td', { class: 'code', text: m.memoryId.slice(0, 8) }), el('td', { text: m.state }), el('td', { text: m.memoryClass }), el('td', { text: m.scope }), el('td', { text: m.source + ' · ' + m.evidence }), el('td', { text: String(m.confidence) }), el('td', { text: age(m.ageMs) }), el('td', {}, toggle, forget)));
       }
       status.textContent = r.records.length + ' memory item(s). Recalled memory is data for the model, never instructions.';
+      loadMemoryTimeMachine();
     } catch (e) { status.textContent = 'Memory unavailable: ' + e.message; }
   }
+  function renderMemoryTimeMachine(snapshot) {
+    const status = $('#mem-tm-status'); const summary = $('#mem-tm-summary'); const timeline = $('#mem-tm-timeline');
+    if (!status || !summary || !timeline || !snapshot) return;
+    const entries = Array.isArray(snapshot.timeline) ? snapshot.timeline : [];
+    const latest = new Map(); for (const entry of entries) { const prior = latest.get(entry.memoryId); if (!prior || entry.version > prior.version) latest.set(entry.memoryId, entry); }
+    summary.replaceChildren(el('div', { class: 'autopilot-summary' },
+      el('div', { class: 'autopilot-stat' }, el('b', { text: String(entries.length) }), el('span', { text: 'checkpoints' })),
+      el('div', { class: 'autopilot-stat' }, el('b', { text: String(latest.size) }), el('span', { text: 'memories' })),
+      el('div', { class: 'autopilot-stat' }, el('b', { text: String(snapshot.graph && snapshot.graph.nodes ? snapshot.graph.nodes.length : 0) }), el('span', { text: 'graph nodes' })),
+      el('div', { class: 'autopilot-stat' }, el('b', { text: snapshot.graph && snapshot.graph.crossProject ? 'yes' : 'current scope' }), el('span', { text: 'cross-project graph' })),
+    ));
+    if (!entries.length) { timeline.replaceChildren(el('p', { class: 'muted', text: 'No memory checkpoint recorded.' })); status.textContent = 'Memory Time Machine ready; no checkpoint yet.'; return; }
+    const table = el('table');
+    table.append(el('thead', {}, el('tr', {}, el('th', { scope: 'col', text: 'Checkpoint' }), el('th', { scope: 'col', text: 'State' }), el('th', { scope: 'col', text: 'Scope' }), el('th', { scope: 'col', text: 'Updated' }), el('th', { scope: 'col', text: 'Provenance' }), el('th', { scope: 'col', text: 'Action' }))));
+    const body = el('tbody');
+    for (const entry of entries.slice().reverse()) {
+      const current = latest.get(entry.memoryId);
+      const actions = el('td');
+      if (entry.restorable && current && entry.version < current.version) {
+        const restore = el('button', { type: 'button', class: 'secondary', text: 'Restore' });
+        restore.setAttribute('aria-label', 'Restore memory checkpoint ' + entry.checkpointId);
+        restore.addEventListener('click', () => restoreMemoryCheckpoint(entry));
+        actions.append(restore);
+      } else {
+        actions.append(el('span', { class: 'muted', text: entry.restorable ? 'Current' : 'Not restorable' }));
+      }
+      body.append(el('tr', {},
+        el('td', { class: 'code', text: entry.checkpointId }),
+        el('td', { text: entry.state }),
+        el('td', { text: entry.scope.kind }),
+        el('td', { text: new Date(entry.updatedAt).toISOString() }),
+        el('td', { text: entry.source.kind + ' · ' + entry.source.evidenceClass + (entry.source.revoked ? ' · revoked' : '') }),
+        actions,
+      ));
+    }
+    table.append(body); timeline.replaceChildren(table);
+    status.textContent = entries.length + ' metadata checkpoint(s). Raw memory content stays outside this view.';
+  }
+  async function loadMemoryTimeMachine() {
+    const status = $('#mem-tm-status');
+    if (!status) return;
+    try {
+      const result = await getJson('/api/studio/memory/time-machine.json');
+      renderMemoryTimeMachine(result.snapshot);
+    } catch (error) {
+      status.textContent = 'Memory Time Machine unavailable: ' + (error instanceof Error ? error.message : String(error));
+    }
+  }
+  async function restoreMemoryCheckpoint(entry) {
+    if (!confirm('Restore this memory checkpoint as a new governed revision?')) return;
+    try {
+      await mcpPost('/api/studio/memory/time-machine/restore', { memoryId: entry.memoryId, scope: entry.scope.kind, version: entry.version, confirm: true });
+      $('#mem-tm-status').textContent = 'Checkpoint restored as a new governed revision.';
+      loadMemory();
+    } catch (error) {
+      $('#mem-tm-status').textContent = 'Restore refused: ' + (error instanceof Error ? error.message : String(error));
+    }
+  }
+  $('#mem-tm-export').addEventListener('click', async () => {
+    const output = $('#mem-tm-export-out'); const status = $('#mem-tm-status');
+    try { const result = await getJson('/api/studio/memory/time-machine/export.json'); output.textContent = JSON.stringify(result, null, 2); output.hidden = false; status.textContent = 'Metadata-only export prepared. Memory text is excluded.'; }
+    catch (error) { status.textContent = 'Export refused: ' + (error instanceof Error ? error.message : String(error)); }
+  });
   async function memAct(m, action) { try { await mcpPost('/api/studio/memory/act', { memoryId: m.memoryId, scope: m.scope === 'project' ? 'project' : 'user', action }); loadMemory(); } catch (e) { $('#mem-status').textContent = e.message; } }
   $('#mem-add-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -2700,7 +2895,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
     <li class="nav-more-row"><details class="nav-more" id="nav-more"><summary>${icon('more')}<span class="label">More</span>${icon('chevron','i more-chevron')}</summary><ul>
       ${nav('knowledge', 'power', 'Knowledge')}${nav('web', 'power', 'Web')}${nav('memory', 'power', 'Memory')}
       ${nav('models', 'simple', 'Models')}${nav('connections', 'simple', 'Connections')}${nav('mission', 'expert', 'Mission Control')}
-      ${nav('runtimes', 'engineer', 'Runtimes')}${nav('skills', 'power', 'Skills')}${nav('mcp', 'power', 'MCP')}${nav('extensions', 'power', 'Extensions')}${nav('artifacts', 'power', 'Artifacts')}${nav('integrations', 'engineer', 'Integrations')}${nav('support', 'simple', 'Support')}
+      ${nav('runtimes', 'engineer', 'Runtimes')}${nav('observability', 'engineer', 'Observability')}${nav('marketplace', 'power', 'Marketplace')}${nav('skills', 'power', 'Skills')}${nav('mcp', 'power', 'MCP')}${nav('extensions', 'power', 'Extensions')}${nav('artifacts', 'power', 'Artifacts')}${nav('integrations', 'engineer', 'Integrations')}${nav('support', 'simple', 'Support')}
     </ul></details></li>
   </ul></nav>
   <div class="recent" aria-labelledby="recent-h"><h2 id="recent-h">Recent</h2><ul id="chat-list" aria-labelledby="recent-h"></ul></div>
@@ -2783,9 +2978,19 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
 <section data-view="media" class="media-workspace" aria-labelledby="h-media" hidden><h1 id="h-media">Media Studio</h1><p class="lead">FuryImage, FuryVideo and FuryAudio share the governed media runtime. This surface builds bounded previews only; no provider call, credential use or billable generation starts here.</p>
   <div class="cap-rail" aria-label="Media Studio guarantees"><span>${icon('shield')}Preview authority only</span><span>${icon('check')}Bounded prompt + MIME</span><span>${icon('artifacts')}Artifact references after runtime proof</span></div>
   <div class="grid" id="media-surfaces"></div>
-  <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-provider">Provider / AUTO</label><select id="media-provider"><option value="AUTO">AUTO</option></select></div><div><label for="media-model">Model</label><select id="media-model"><option value="AUTO">AUTO</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><fieldset id="media-image-controls"><legend>FuryImage controls</legend><div class="row"><div><label for="media-aspect-ratio">Aspect ratio</label><select id="media-aspect-ratio"><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-resolution">Resolution</label><select id="media-resolution"><option value="1024x1024">1024×1024</option><option value="1536x1024">1536×1024</option><option value="1024x1536">1024×1536</option></select></div><div><label for="media-quality">Quality</label><select id="media-quality"><option value="standard">Standard</option><option value="high">High</option></select></div></div><details><summary>Advanced image controls</summary><div class="row"><div><label for="media-negative-prompt">Negative prompt</label><input id="media-negative-prompt" maxlength="100000" placeholder="Optional exclusions"></div><div><label for="media-seed">Seed</label><input id="media-seed" type="number" min="0" max="2147483647" step="1"></div><div><label for="media-guidance">Guidance</label><input id="media-guidance" type="number" min="0" max="30" step="0.1"></div><div><label for="media-steps">Steps</label><input id="media-steps" type="number" min="1" max="150" step="1"></div><div><label for="media-style">Style</label><select id="media-style"><option value="auto">Auto</option><option value="photorealistic">Photorealistic</option><option value="illustration">Illustration</option><option value="cinematic">Cinematic</option><option value="3d">3D</option></select></div><div><label for="media-input-strength">Input strength</label><input id="media-input-strength" type="number" min="0" max="1" step="0.01"></div></div></details></fieldset><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><div class="row"><button id="media-submit" type="submit">Generate image (preview-only)</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
+  <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-provider">Provider / AUTO</label><select id="media-provider"><option value="AUTO">AUTO</option></select></div><div><label for="media-model">Model</label><select id="media-model"><option value="AUTO">AUTO</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><fieldset id="media-image-controls"><legend>FuryImage controls</legend><div class="row"><div><label for="media-aspect-ratio">Aspect ratio</label><select id="media-aspect-ratio"><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-resolution">Resolution</label><select id="media-resolution"><option value="1024x1024">1024×1024</option><option value="1536x1024">1536×1024</option><option value="1024x1536">1024×1536</option></select></div><div><label for="media-quality">Quality</label><select id="media-quality"><option value="standard">Standard</option><option value="high">High</option></select></div></div><details><summary>Advanced image controls</summary><div class="row"><div><label for="media-negative-prompt">Negative prompt</label><input id="media-negative-prompt" maxlength="100000" placeholder="Optional exclusions"></div><div><label for="media-seed">Seed</label><input id="media-seed" type="number" min="0" max="2147483647" step="1"></div><div><label for="media-guidance">Guidance</label><input id="media-guidance" type="number" min="0" max="30" step="0.1"></div><div><label for="media-steps">Steps</label><input id="media-steps" type="number" min="1" max="150" step="1"></div><div><label for="media-style">Style</label><select id="media-style"><option value="auto">Auto</option><option value="photorealistic">Photorealistic</option><option value="illustration">Illustration</option><option value="cinematic">Cinematic</option><option value="3d">3D</option></select></div><div><label for="media-input-strength">Input strength</label><input id="media-input-strength" type="number" min="0" max="1" step="0.01"></div></div></details></fieldset><fieldset id="media-video-controls" hidden><legend>FuryVideo controls</legend><div class="row"><div><label for="media-reference">Reference</label><input id="media-reference" maxlength="512" placeholder="Optional artifact/reference ID"></div><div><label for="media-duration">Duration (ms)</label><input id="media-duration" type="number" min="500" max="600000" step="1"></div><div><label for="media-fps">FPS</label><input id="media-fps" type="number" min="1" max="120" step="1"></div><div><label for="media-video-aspect-ratio">Aspect ratio</label><select id="media-video-aspect-ratio"><option value="16:9">16:9</option><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-video-resolution">Resolution</label><select id="media-video-resolution"><option value="1080p">1080p</option><option value="720p">720p</option><option value="2160p">2160p</option></select></div></div></fieldset><fieldset id="media-audio-controls" hidden><legend>FuryAudio / Voice controls</legend><div class="row"><div><label for="media-voice">Voice</label><input id="media-voice" maxlength="128" placeholder="Optional voice ID"></div><div><label for="media-language">Language</label><input id="media-language" maxlength="32" placeholder="Optional language, e.g. fr-FR"></div><div><label for="media-audio-duration">Duration (ms)</label><input id="media-audio-duration" type="number" min="500" max="600000" step="1"></div></div><p class="muted">Microphone capture requires explicit consent and is not started by this preview.</p></fieldset><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><div class="row"><button id="media-submit" type="submit">Generate image (preview-only)</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
   <div class="card"><h2>Provider boundary</h2><p id="media-provider-status" class="muted">Loading registered capability observations…</p><div id="media-adapters"></div></div>
   <div class="card"><h2>Media job history / gallery</h2><div id="media-gallery"><p class="muted">Loading media job history…</p></div></div>
+</section>
+<section data-view="observability" aria-labelledby="h-observability" hidden><h1 id="h-observability">Observability / Cost</h1><p class="lead">Measured request, provider, tool, MCP and media-job evidence. Unknown cost stays unknown; this panel never invents prices or executes work.</p>
+  <div class="cap-rail" aria-label="Observability guarantees"><span>${icon('shield')}Observed evidence only</span><span>${icon('check')}No raw prompt or response</span><span>${icon('settings')}No execution authority</span></div>
+  <div class="card"><h2>Current evidence</h2><p id="observability-status" class="status muted" role="status">Loading observability…</p><div id="observability-summary"></div></div>
+  <div class="grid"><div class="card"><h2>Trace tree summaries</h2><div id="observability-traces"><p class="muted">Loading trace evidence…</p></div></div><div class="card"><h2>Budget guards</h2><div id="observability-budgets"><p class="muted">Loading budget evidence…</p></div></div></div>
+</section>
+<section data-view="marketplace" aria-labelledby="h-marketplace" hidden><h1 id="h-marketplace">Marketplace</h1><p class="lead">Signed capability metadata, license, compatibility and permissions. Download, verification and install paths remain explicit plans; this Studio surface never fetches, mutates files or executes packages.</p>
+  <div class="cap-rail" aria-label="Marketplace guarantees"><span>${icon('shield')}Ed25519 metadata trust</span><span>${icon('check')}Hash before staged install</span><span>${icon('settings')}Approval-only authority</span></div>
+  <div class="card"><h2>Catalog</h2><p id="marketplace-status" class="status muted" role="status">Loading signed catalog…</p><div id="marketplace-summary"></div></div>
+  <div class="card"><h2>Available capabilities</h2><div id="marketplace-list"><p class="muted">Loading marketplace metadata…</p></div></div>
 </section>
 <section data-view="cowork" class="work-view" aria-labelledby="h-cowork" hidden><h1 id="h-cowork">Work</h1><p class="lead">Give FuryPipe a goal. It can plan first, or run with the exact permissions you allow.</p>
   <div class="card work-brief"><label for="cowork-intent">What should FuryPipe do?</label><textarea id="cowork-intent" placeholder="e.g. Review the project, fix the issue and verify the result"></textarea>
@@ -2906,7 +3111,8 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div id="mem-forms" hidden><div class="card"><h2>Persistent memory graph</h2><p class="muted">A local visual map of active/inactive memory records grouped by scope. The graph is derived from memory metadata; recalled text remains governed as data, never instructions.</p><div class="memory-graph-wrap"><svg id="memory-graph" viewBox="0 0 760 360" role="img" aria-label="Persistent memory graph"></svg></div><p id="memory-graph-status" class="status muted"></p></div><div class="card"><form id="mem-add-form"><label for="mem-text">Remember</label><textarea id="mem-text" required placeholder="e.g. We deploy on Tuesdays only"></textarea>
   <div class="row"><div><label for="mem-scope">For</label><select id="mem-scope"><option value="project">This project</option><option value="user">Me, everywhere</option></select></div><button type="submit">Save</button></div></form></div>
   <div class="card"><form id="mem-search-form"><label for="mem-query">Recall</label><input id="mem-query" required autocomplete="off"><div class="row"><button type="submit">Recall</button></div></form><div id="mem-results" aria-live="polite"></div></div>
-  <div class="card"><table><thead><tr><th scope="col">ID</th><th scope="col">State</th><th scope="col">Kind</th><th scope="col">Scope</th><th scope="col">Source</th><th scope="col">Confidence</th><th scope="col">Age</th><th scope="col">Actions</th></tr></thead><tbody id="mem-body"></tbody></table></div></div></section>
+  <div class="card"><table><thead><tr><th scope="col">ID</th><th scope="col">State</th><th scope="col">Kind</th><th scope="col">Scope</th><th scope="col">Source</th><th scope="col">Confidence</th><th scope="col">Age</th><th scope="col">Actions</th></tr></thead><tbody id="mem-body"></tbody></table></div>
+  <div class="card"><h2>Memory Time Machine</h2><p class="muted">History and checkpoints come from the existing encrypted Memory VNext store. Snapshots, diff and export contain metadata and digests only; restore appends a new governed revision after explicit confirmation.</p><p id="mem-tm-status" class="status muted" role="status">Loading memory checkpoints…</p><div id="mem-tm-summary"></div><div class="row"><button id="mem-tm-export" type="button" class="secondary">Export metadata snapshot</button></div><pre id="mem-tm-export-out" class="code-view" hidden tabindex="0" aria-label="Memory Time Machine metadata export"></pre><div id="mem-tm-timeline" aria-live="polite"></div></div></div></section>
 <section data-view="artifacts" aria-labelledby="h-artifacts" hidden><h1 id="h-artifacts">Artifacts</h1><p class="lead">Versioned project outputs with immutable history, SHA-256 evidence and approval-only restore.</p>
   <div class="grid">
     <div class="card"><h2>Create artifact</h2><form id="artifact-create-form">

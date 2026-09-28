@@ -449,6 +449,22 @@
       "types": "./dist/fury-plugin-sdk.d.ts",
       "import": "./dist/fury-plugin-sdk.js"
     },
+    "./fury-provider-sdk": {
+      "types": "./dist/fury-provider-sdk.d.ts",
+      "import": "./dist/fury-provider-sdk.js"
+    },
+    "./fury-agent-sdk": {
+      "types": "./dist/fury-agent-sdk.d.ts",
+      "import": "./dist/fury-agent-sdk.js"
+    },
+    "./fury-workflow-sdk": {
+      "types": "./dist/fury-workflow-sdk.d.ts",
+      "import": "./dist/fury-workflow-sdk.js"
+    },
+    "./fury-headless": {
+      "types": "./dist/fury-headless.d.ts",
+      "import": "./dist/fury-headless.js"
+    },
     "./benchmark-claim-gate": {
       "types": "./dist/benchmark-claim-gate.d.ts",
       "import": "./dist/benchmark-claim-gate.js"
@@ -577,6 +593,10 @@
       "types": "./dist/memory-vnext.d.ts",
       "import": "./dist/memory-vnext.js"
     },
+    "./fury-memory-time-machine": {
+      "types": "./dist/fury-memory-time-machine.d.ts",
+      "import": "./dist/fury-memory-time-machine.js"
+    },
     "./acp-v1-server-node": {
       "types": "./dist/acp-v1-server-node.d.ts",
       "import": "./dist/acp-v1-server-node.js"
@@ -636,6 +656,14 @@
     "./media-studio": {
       "types": "./dist/media-studio.d.ts",
       "import": "./dist/media-studio.js"
+    },
+    "./fury-video-timeline": {
+      "types": "./dist/fury-video-timeline.d.ts",
+      "import": "./dist/fury-video-timeline.js"
+    },
+    "./fury-observability": {
+      "types": "./dist/fury-observability.d.ts",
+      "import": "./dist/fury-observability.js"
     },
     "./fury-plugin-runtime": {
       "types": "./dist/fury-plugin-runtime.d.ts",

@@ -46,6 +46,11 @@ export interface FuryMediaStudioAdapterObservation {
 export interface FuryMediaStudioPreviewOptions {
   readonly provider?: string;
   readonly model?: string;
+  readonly reference?: string;
+  readonly durationMs?: number;
+  readonly fps?: number;
+  readonly voice?: string;
+  readonly language?: string;
   readonly aspectRatio?: string;
   readonly resolution?: string;
   readonly quality?: string;
@@ -119,8 +124,10 @@ const SELECTOR_ID = /^adapter_[0-9a-f]{32}$/u;
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const ASPECT_RATIOS = new Set(['1:1', '16:9', '9:16', '4:3', '3:4']);
 const RESOLUTIONS = new Set(['1024x1024', '1536x1024', '1024x1536']);
+const VIDEO_RESOLUTIONS = new Set(['720p', '1080p', '2160p']);
 const QUALITIES = new Set(['standard', 'high']);
 const STYLES = new Set(['auto', 'photorealistic', 'illustration', 'cinematic', '3d']);
+const LANGUAGE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/u;
 const SURFACES: Readonly<Record<FuryMediaStudioSurfaceId, FuryMediaStudioSurface>> = Object.freeze({
   image: Object.freeze({
     id: 'image', title: 'FuryImage Studio', family: 'image-generation',
@@ -147,10 +154,14 @@ const SURFACES: Readonly<Record<FuryMediaStudioSurfaceId, FuryMediaStudioSurface
     operations: Object.freeze(['text-to-video', 'image-to-video', 'video-to-video', 'continue-video', 'lip-sync'] as FuryMediaGenerationMode[]),
     outputMimeTypes: Object.freeze(['video/mp4', 'video/webm']),
     controls: Object.freeze([
+      Object.freeze({ id: 'provider', label: 'Provider / AUTO', type: 'select', required: true, bounded: true as const }),
+      Object.freeze({ id: 'model', label: 'Model', type: 'select', required: true, bounded: true as const }),
       Object.freeze({ id: 'prompt', label: 'Prompt', type: 'text', required: true, bounded: true as const }),
+      Object.freeze({ id: 'reference', label: 'Reference', type: 'text', required: false, bounded: true as const }),
       Object.freeze({ id: 'durationMs', label: 'Duration', type: 'number', required: false, bounded: true as const }),
       Object.freeze({ id: 'fps', label: 'FPS', type: 'number', required: false, bounded: true as const }),
       Object.freeze({ id: 'aspectRatio', label: 'Aspect ratio', type: 'select', required: false, bounded: true as const }),
+      Object.freeze({ id: 'resolution', label: 'Resolution', type: 'select', required: true, bounded: true as const }),
     ]),
     state: 'CORE_AVAILABLE_PROVIDER_OPTIONAL', executionAuthorized: false,
   }),
@@ -159,9 +170,12 @@ const SURFACES: Readonly<Record<FuryMediaStudioSurfaceId, FuryMediaStudioSurface
     operations: Object.freeze(['text-to-audio', 'audio-to-audio', 'voice-generation', 'sound-effect'] as FuryMediaGenerationMode[]),
     outputMimeTypes: Object.freeze(['audio/wav', 'audio/mpeg']),
     controls: Object.freeze([
+      Object.freeze({ id: 'provider', label: 'Provider / AUTO', type: 'select', required: true, bounded: true as const }),
+      Object.freeze({ id: 'model', label: 'Model', type: 'select', required: true, bounded: true as const }),
       Object.freeze({ id: 'prompt', label: 'Prompt', type: 'text', required: true, bounded: true as const }),
       Object.freeze({ id: 'durationMs', label: 'Duration', type: 'number', required: false, bounded: true as const }),
-      Object.freeze({ id: 'voice', label: 'Voice', type: 'select', required: false, bounded: true as const }),
+      Object.freeze({ id: 'voice', label: 'Voice', type: 'text', required: false, bounded: true as const }),
+      Object.freeze({ id: 'language', label: 'Language', type: 'text', required: false, bounded: true as const }),
     ]),
     state: 'CORE_AVAILABLE_PROVIDER_OPTIONAL', executionAuthorized: false,
   }),
@@ -207,6 +221,21 @@ function boundedNumber(value: unknown, label: string, min: number, max: number, 
   return value;
 }
 
+function normalizeProviderModel(
+  input: FuryMediaStudioPreviewOptions,
+  adapters: readonly FuryMediaGenerationAdapter[],
+  family: 'image-generation' | 'video-generation' | 'audio-generation',
+): { readonly provider: string; readonly model: string } {
+  const provider = input.provider ?? 'AUTO';
+  if (typeof provider !== 'string' || (provider !== 'AUTO' && !SELECTOR_ID.test(provider))) throw new TypeError('media studio provider selection is invalid');
+  const matchingAdapter = provider === 'AUTO' ? undefined : adapters.find((adapter) => selectorId(adapter) === provider && adapter.family === family);
+  if (provider !== 'AUTO' && !matchingAdapter) throw new TypeError('media studio provider is not registered');
+  const model = input.model ?? 'AUTO';
+  if (typeof model !== 'string' || (model !== 'AUTO' && !MODEL_ID.test(model))) throw new TypeError('media studio model selection is invalid');
+  if (matchingAdapter && model !== 'AUTO' && model !== matchingAdapter.profileId) throw new TypeError('media studio model is not supported by the selected provider');
+  return { provider, model };
+}
+
 function normalizeImageOptions(
   input: FuryMediaStudioPreviewOptions | undefined,
   adapters: readonly FuryMediaGenerationAdapter[],
@@ -215,13 +244,7 @@ function normalizeImageOptions(
   const options = input ?? {};
   const allowedKeys = new Set(['provider', 'model', 'aspectRatio', 'resolution', 'quality', 'negativePrompt', 'seed', 'guidance', 'steps', 'style', 'inputStrength']);
   if (Object.keys(options).some((key) => !allowedKeys.has(key))) throw new TypeError('media studio image controls contain an unsupported field');
-  const provider = options.provider ?? 'AUTO';
-  if (typeof provider !== 'string' || (provider !== 'AUTO' && !SELECTOR_ID.test(provider))) throw new TypeError('media studio provider selection is invalid');
-  const matchingAdapter = provider === 'AUTO' ? undefined : adapters.find((adapter) => selectorId(adapter) === provider && adapter.family === 'image-generation');
-  if (provider !== 'AUTO' && !matchingAdapter) throw new TypeError('media studio provider is not registered');
-  const model = options.model ?? 'AUTO';
-  if (typeof model !== 'string' || (model !== 'AUTO' && !MODEL_ID.test(model))) throw new TypeError('media studio model selection is invalid');
-  if (matchingAdapter && model !== 'AUTO' && model !== matchingAdapter.profileId) throw new TypeError('media studio model is not supported by the selected provider');
+  const { provider, model } = normalizeProviderModel(options, adapters, 'image-generation');
   const controls: Record<string, string | number> = {
     aspectRatio: boundedOption(options.aspectRatio, '1:1', ASPECT_RATIOS, 'aspect ratio'),
     resolution: boundedOption(options.resolution, '1024x1024', RESOLUTIONS, 'resolution'),
@@ -239,6 +262,56 @@ function normalizeImageOptions(
   if (style !== undefined) controls.style = style;
   const inputStrength = boundedNumber(options.inputStrength, 'input strength', 0, 1);
   if (inputStrength !== undefined) controls.inputStrength = inputStrength;
+  return Object.freeze({ provider, model, controls: Object.freeze(controls) });
+}
+
+function normalizeVideoOptions(
+  input: FuryMediaStudioPreviewOptions | undefined,
+  adapters: readonly FuryMediaGenerationAdapter[],
+): { readonly provider: string; readonly model: string; readonly controls: Readonly<Record<string, string | number>> } {
+  if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) throw new TypeError('media studio video controls are invalid');
+  const options = input ?? {};
+  const allowedKeys = new Set(['provider', 'model', 'reference', 'durationMs', 'fps', 'aspectRatio', 'resolution']);
+  if (Object.keys(options).some((key) => !allowedKeys.has(key))) throw new TypeError('media studio video controls contain an unsupported field');
+  const { provider, model } = normalizeProviderModel(options, adapters, 'video-generation');
+  const controls: Record<string, string | number> = {
+    aspectRatio: boundedOption(options.aspectRatio, '16:9', ASPECT_RATIOS, 'aspect ratio'),
+    resolution: boundedOption(options.resolution, '1080p', VIDEO_RESOLUTIONS, 'video resolution'),
+  };
+  const reference = boundedControlText(options.reference, 'video reference');
+  if (reference !== undefined) {
+    if (reference.length < 1 || reference.length > 512) throw new TypeError('media studio video reference is invalid');
+    controls.reference = reference;
+  }
+  const durationMs = boundedNumber(options.durationMs, 'video duration', 500, 600_000, true);
+  if (durationMs !== undefined) controls.durationMs = durationMs;
+  const fps = boundedNumber(options.fps, 'video FPS', 1, 120, true);
+  if (fps !== undefined) controls.fps = fps;
+  return Object.freeze({ provider, model, controls: Object.freeze(controls) });
+}
+
+function normalizeAudioOptions(
+  input: FuryMediaStudioPreviewOptions | undefined,
+  adapters: readonly FuryMediaGenerationAdapter[],
+): { readonly provider: string; readonly model: string; readonly controls: Readonly<Record<string, string | number>> } {
+  if (input !== undefined && (typeof input !== 'object' || input === null || Array.isArray(input))) throw new TypeError('media studio audio controls are invalid');
+  const options = input ?? {};
+  const allowedKeys = new Set(['provider', 'model', 'voice', 'language', 'durationMs']);
+  if (Object.keys(options).some((key) => !allowedKeys.has(key))) throw new TypeError('media studio audio controls contain an unsupported field');
+  const { provider, model } = normalizeProviderModel(options, adapters, 'audio-generation');
+  const controls: Record<string, string | number> = {};
+  const voice = boundedControlText(options.voice, 'audio voice');
+  if (voice !== undefined) {
+    if (!MODEL_ID.test(voice)) throw new TypeError('media studio audio voice is invalid');
+    controls.voice = voice;
+  }
+  const language = boundedControlText(options.language, 'audio language');
+  if (language !== undefined) {
+    if (!LANGUAGE.test(language)) throw new TypeError('media studio audio language is invalid');
+    controls.language = language;
+  }
+  const durationMs = boundedNumber(options.durationMs, 'audio duration', 500, 600_000, true);
+  if (durationMs !== undefined) controls.durationMs = durationMs;
   return Object.freeze({ provider, model, controls: Object.freeze(controls) });
 }
 
@@ -286,18 +359,21 @@ export function createFuryMediaStudioPreview(input: {
   if (typeof input.outputMimeType !== 'string' || !MIME.test(input.outputMimeType) || !surface.outputMimeTypes.includes(input.outputMimeType)) throw new TypeError('media studio output MIME is invalid for the selected surface');
   const adapters = input.adapters ?? [];
   if (!Array.isArray(adapters) || adapters.length > 128) throw new TypeError('media studio adapter selection is invalid');
-  const imageOptions = input.surface === 'image' ? normalizeImageOptions(input.options, adapters) : { provider: 'AUTO', model: 'AUTO', controls: Object.freeze({}) };
-  if (input.surface !== 'image' && input.options !== undefined && Object.keys(input.options).length > 0) throw new TypeError('media studio controls are only supported for the image surface');
+  const surfaceOptions = input.surface === 'image'
+    ? normalizeImageOptions(input.options, adapters)
+    : input.surface === 'video'
+      ? normalizeVideoOptions(input.options, adapters)
+      : normalizeAudioOptions(input.options, adapters);
   const promptDigestSha256 = digest(input.prompt);
-  const controlsDigestSha256 = digest(JSON.stringify(imageOptions.controls));
-  const idempotencySeedDigestSha256 = digest(JSON.stringify({ surface: input.surface, operation: input.operation, promptDigestSha256, outputMimeType: input.outputMimeType, provider: imageOptions.provider, model: imageOptions.model, controlsDigestSha256 }));
+  const controlsDigestSha256 = digest(JSON.stringify(surfaceOptions.controls));
+  const idempotencySeedDigestSha256 = digest(JSON.stringify({ surface: input.surface, operation: input.operation, promptDigestSha256, outputMimeType: input.outputMimeType, provider: surfaceOptions.provider, model: surfaceOptions.model, controlsDigestSha256 }));
   return Object.freeze({
     format: FURY_MEDIA_STUDIO_PREVIEW_FORMAT,
     surface: input.surface,
     operation: input.operation,
     outputMimeType: input.outputMimeType,
-    provider: imageOptions.provider,
-    model: imageOptions.model,
+    provider: surfaceOptions.provider,
+    model: surfaceOptions.model,
     promptDigestSha256,
     promptBytes: new TextEncoder().encode(input.prompt).byteLength,
     controlsDigestSha256,

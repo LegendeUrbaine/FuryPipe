@@ -276,11 +276,63 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
     assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: media preview did not remain preview-only`);
     assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded browser preview'), `${name}: media preview leaked the raw prompt`);
+    await page.locator('#media-surface').selectOption('video');
+    await page.locator('#media-provider-status').filter({ hasText: 'No video provider configured' }).waitFor();
+    await page.locator('#media-video-controls').waitFor({ state: 'visible' });
+    await page.locator('#media-reference').fill('artifact_reference');
+    await page.locator('#media-duration').fill('4000');
+    await page.locator('#media-fps').fill('24');
+    await page.locator('#media-video-aspect-ratio').selectOption('16:9');
+    await page.locator('#media-video-resolution').selectOption('1080p');
+    await page.locator('#media-operation option[value="text-to-video"]').waitFor({ state: 'attached' });
+    await page.locator('#media-operation').selectOption('text-to-video');
+    await page.locator('#media-prompt').fill('A bounded video preview');
+    await page.locator('#media-preview-form button[type=submit]').click();
+    await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
+    assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: video preview did not remain preview-only`);
+    assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded video preview'), `${name}: video preview leaked the raw prompt`);
+    await page.locator('#media-surface').selectOption('audio');
+    await page.locator('#media-provider-status').filter({ hasText: 'No audio provider configured' }).waitFor();
+    await page.locator('#media-audio-controls').waitFor({ state: 'visible' });
+    await page.locator('#media-voice').fill('alloy');
+    await page.locator('#media-language').fill('fr-FR');
+    await page.locator('#media-audio-duration').fill('4000');
+    await page.locator('#media-operation option[value="text-to-audio"]').waitFor({ state: 'attached' });
+    await page.locator('#media-operation').selectOption('text-to-audio');
+    await page.locator('#media-prompt').fill('A bounded audio preview');
+    await page.locator('#media-preview-form button[type=submit]').click();
+    await page.locator('#media-status').filter({ hasText: 'No provider call' }).waitFor();
+    assert((await page.locator('#media-preview-out').textContent())?.includes('PREVIEW_ONLY_REQUIRES_RUNTIME_AUTHORITY'), `${name}: audio preview did not remain preview-only`);
+    assert(!(await page.locator('#media-preview-out').textContent())?.includes('A bounded audio preview'), `${name}: audio preview leaked the raw prompt`);
+    const timelinePreview = await page.evaluate(async () => {
+      const response = await fetch('/api/studio/media/timeline/preview', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          project: {
+            projectId: 'qa-project', title: 'QA project', assets: [{ assetId: 'hero-image', kind: 'image', mimeType: 'image/png' }],
+            scenes: [{ sceneId: 'opening', title: 'QA scene', shots: [{ shotId: 'shot-one', prompt: 'Private QA timeline prompt', durationMs: 2_000, assetIds: ['hero-image'] }] }],
+          },
+        }),
+      });
+      return { status: response.status, body: await response.text() };
+    });
+    assert(timelinePreview.status === 200, `${name}: timeline preview status ${timelinePreview.status}`);
+    assert(timelinePreview.body.includes('furypipe-furyvideo-timeline/v1'), `${name}: timeline preview format missing`);
+    assert(!timelinePreview.body.includes('Private QA timeline prompt'), `${name}: timeline preview leaked the raw prompt`);
     const rejectedMedia = await page.evaluate(async () => {
       const response = await fetch('/api/studio/media/preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ surface: 'video', operation: 'text-to-image', prompt: 'invalid', outputMimeType: 'image/png' }) });
       return response.status;
     });
     assert(rejectedMedia === 422, `${name}: invalid media preview status ${rejectedMedia}`);
+    await page.goto(`${origins.normal}/#/observability`);
+    await page.locator('#h-observability').waitFor({ state: 'visible' });
+    await page.locator('#observability-status').filter({ hasText: 'not configured' }).waitFor();
+    assert((await page.locator('#observability-summary').textContent())?.includes('0'), `${name}: empty observability summary missing`);
+    await page.goto(`${origins.normal}/#/marketplace`);
+    await page.locator('#h-marketplace').waitFor({ state: 'visible' });
+    await page.locator('#marketplace-status').filter({ hasText: 'No signed catalog configured' }).waitFor();
+    assert((await page.locator('#marketplace-summary').textContent())?.includes('PLAN ONLY'), `${name}: marketplace authority summary missing`);
+    assert(!(await page.locator('#marketplace-list').textContent())?.includes('downloaded'), `${name}: marketplace presented an execution claim`);
     await page.goto(`${origins.normal}/#/runtimes`);
     await page.locator('#runtimes-body tr').filter({ hasText: 'Claude Code' }).filter({ hasText: '2.1.282' }).waitFor();
     await page.goto(`${origins.normal}/#/skills`);
@@ -334,6 +386,11 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#mem-query').fill(`when does QA ${name} deploy`);
     await page.locator('#mem-search-form button').click();
     await page.locator('#mem-results li').filter({ hasText: `QA ${name} deploys on Tuesdays only` }).filter({ hasText: 'why:' }).waitFor();
+    await page.locator('#mem-tm-timeline tbody tr').first().waitFor();
+    assert((await page.locator('#mem-tm-status').textContent())?.includes('metadata checkpoint'), `${name}: Memory Time Machine checkpoint missing`);
+    await page.locator('#mem-tm-export').click();
+    await page.locator('#mem-tm-export-out').waitFor({ state: 'visible' });
+    assert(!(await page.locator('#mem-tm-export-out').textContent())?.includes(`QA ${name} deploys on Tuesdays only`), `${name}: Memory Time Machine export leaked memory text`);
     await page.goto(`${origins.empty}/#/memory`);
     await page.waitForFunction(() => /Memory is off/u.test(document.querySelector('#mem-status')?.textContent ?? ''));
     assert(await page.locator('#mem-forms').isHidden(), `${name}: memory forms visible while off`);
@@ -363,6 +420,13 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#int-body tr').filter({ hasText: 'qa-status-api' }).filter({ hasText: 'READ_ONLY' }).waitFor();
     await page.goto(`${origins.normal}/#/code`);
     await page.waitForFunction(() => document.querySelector('#graph-provider')?.textContent === 'graphify');
+    const graphLifecycle = await page.evaluate(async () => {
+      const response = await fetch('/api/studio/graph/lifecycle', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ changedFiles: ['src/auth/login.ts', 'README.md'] }) });
+      return { status: response.status, body: await response.json() as { format?: string; action?: string; executionAuthorized?: boolean } };
+    });
+    assert(graphLifecycle.status === 200 && graphLifecycle.body.format === 'furypipe-graph-lifecycle/v1' && graphLifecycle.body.action === 'RECOMMEND_REFRESH' && graphLifecycle.body.executionAuthorized === false, `${name}: Graphify lifecycle recommendation boundary invalid`);
+    const graphRefreshWithoutApproval = (await context.request.post(`${origins.normal}/api/studio/graph/refresh`, { headers: { 'content-type': 'application/json' }, data: {} })).status();
+    assert(graphRefreshWithoutApproval === 400, `${name}: Graphify refresh bypassed confirmation with status ${graphRefreshWithoutApproval}`);
     await page.locator('#blast-files').fill('src/auth/session.ts');
     await page.locator('#blast-form button').click();
     await page.locator('#blast-out li').filter({ hasText: 'tests/login.test.ts' }).waitFor();
@@ -414,7 +478,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await setMode(page, 'expert');
     for (const width of [1280, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 844 });
-      for (const view of ['chat', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
+      for (const view of ['chat', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'observability', 'marketplace', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
         await page.goto(`${origins.normal}/#/${view}`);
         await page.locator(`section[data-view="${view}"] h1`).waitFor();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

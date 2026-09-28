@@ -206,7 +206,7 @@
       "dependsOn": "CORE-10",
       "acceptance": "Explicit, shell-free, bounded",
       "testStrategy": "unit",
-      "status": "PARTIAL — refreshGraphify (explicit, shell-free, bounded) exists in src/fury-graph.ts; it is not triggered automatically after merge/checkout and not exposed in Studio"
+      "status": "PARTIAL — planGraphifyLifecycle preserves stale detection and native fallback; planGraphifyRefresh/executeGraphifyRefresh add confirm:true, shell-free bounded refresh receipts, with Studio lifecycle/refresh routes. No automatic post-merge/checkout trigger."
     },
     {
       "id": "UX-07",
@@ -242,7 +242,7 @@
       "dependsOn": "–",
       "acceptance": "Existing Memory VNext reused",
       "testStrategy": "unit",
-      "status": "DONE — Studio Memory over Memory VNext (src/studio/studio-memory.ts): scope, source, age, confidence, why recalled; encrypted config required, off otherwise"
+      "status": "DONE core / PARTIAL Time Machine — Studio Memory over Memory VNext (src/studio/studio-memory.ts): scope, source, age, confidence, why recalled; Memory VNext history/restore and digest-only Time Machine projection added; encrypted config required, off otherwise"
     },
     {
       "id": "PLAT-04",
@@ -323,7 +323,7 @@
       "dependsOn": "PLAT-01,02",
       "acceptance": "Unsigned component shown as untrusted",
       "testStrategy": "unit",
-      "status": "NOT_STARTED"
+      "status": "PARTIAL FOUNDATION — signed deterministic manifest, compatibility/license/permission metadata, digest-recomputed Ed25519 verification, metadata-only catalog, source hash verification and approval-only DOWNLOAD/VERIFY/INSTALL/UPDATE/ROLLBACK/UNINSTALL plans; no downloader, filesystem installer or execution authority"
     },
     {
       "id": "SHOULD-03",
@@ -428,6 +428,11 @@
         "src/studio/studio-page.ts",
         "tests/studio-api.test.ts",
         "scripts/studio-browser-qa.ts",
+        "src/fury-video-timeline.ts",
+        "tests/fury-video-timeline.test.ts",
+        "src/fury-observability.ts",
+        "tests/fury-observability.test.ts",
+        "scripts/package-smoke.mjs",
         "src/core/recovery-store.ts",
         "src/media-plugin-contracts.ts",
         "src/media-ingestion.ts",
@@ -435,7 +440,16 @@
         "docs/evidence/FURYPIPE_MEDIA_GENERATION_RUNTIME_2026-09-27.md",
         "docs/evidence/FURYPIPE_MEDIA_ASYNC_JOB_ENGINE_2026-09-27.md"
       ],
-      "note": "Common image/audio/video runtime plus bounded async submit/poll/cancel/reconcile job engine, deterministic idempotency, RecoveryStore restart proof and safe output references. FuryImage/FuryVideo/FuryAudio expose bounded preview-only Studio surfaces and API routes; browser QA passed locally on Chromium, Firefox and WebKit. No concrete provider, provider credentials, live generation, hosted exact-head or production claim."
+      "note": "Common image/audio/video runtime plus bounded async submit/poll/cancel/reconcile job engine, deterministic idempotency, RecoveryStore restart proof and safe output references. FuryImage/FuryVideo/FuryAudio expose bounded preview-only Studio surfaces and API routes; FuryVideo also exposes a digest-only storyboard/timeline foundation with reference-only job/artifact links, while FuryAudio exposes capability-driven voice controls without capture authority. FuryObservability adds evidence-only trace/latency/health/cost aggregation and fail-closed budget views without provider execution authority. Browser QA passed locally on Chromium, Firefox and WebKit. No concrete provider, provider credentials, live generation, hosted exact-head or production claim."
+    },
+    {
+      "id": "P2-MEM-01",
+      "requirement": "FuryMemory graph management/time machine",
+      "class": "P2",
+      "dependsOn": "PLAT-03",
+      "acceptance": "Existing Memory VNext remains authoritative; bounded history, digest-only snapshots/diff/export, cross-project metadata graph and explicit restore governance",
+      "testStrategy": "unit + API + browser",
+      "status": "PARTIAL_LOCAL_CONTRACT_VERIFIED — src/fury-memory-time-machine.ts and Memory VNext history/restore; archive maps to governed disable, delete maps to governed forget, pin remains PLAN_ONLY because no canonical persisted pin authority exists"
     }
   ],
   "targetFamilies": [
@@ -476,17 +490,17 @@
     },
     {
       "name": "FuryMemory graph management/time machine",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_TIME_MACHINE_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {
       "name": "Model Hub cloud+local unified adapters",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_MODEL_HUB_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {
       "name": "Provider SDK and resilience UX",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_SDK_FOUNDATION_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {
@@ -531,12 +545,12 @@
     },
     {
       "name": "Agent graph/message bus/task DAG",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_AGENT_CONTRACT_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {
       "name": "Workflow/automation expansion",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_WORKFLOW_AUTOMATION_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {
@@ -581,12 +595,12 @@
     },
     {
       "name": "FuryEval expanded evaluation framework",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_EVAL_DOMAIN_HISTORY_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {
       "name": "Desktop/headless/API interoperability",
-      "state": "REQUIRES_GAP_RECONCILIATION",
+      "state": "PARTIAL_HEADLESS_SHARED_CORE_LOCAL_VERIFIED",
       "source": "FURYPIPE_ULTIMATE_MASTER_CONTINUATION_PROMPT_2026-09-26.md"
     },
     {

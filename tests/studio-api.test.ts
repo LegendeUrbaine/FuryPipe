@@ -8,7 +8,13 @@ import { FURY_HARNESS_REGISTRY } from '../src/fury-harness-hub.js';
 import type { FuryLocalBackendStatus } from '../src/fury-local-fabric.js';
 import { createFuryObservabilityRegistry } from '../src/fury-observability.js';
 import { createStudioApi, studioApiRoute, studioBindings } from '../src/studio/studio-api.js';
-import { renderStudioHtml, STUDIO_EXAMPLE_FLOW, STUDIO_EXAMPLE_IR } from '../src/studio/studio-page.js';
+import { renderStudioHtml, studioHtmlResponse, STUDIO_EXAMPLE_FLOW, STUDIO_EXAMPLE_IR } from '../src/studio/studio-page.js';
+import {
+  STUDIO_PWA_MANIFEST_PATH,
+  STUDIO_PWA_OFFLINE_PATH,
+  STUDIO_PWA_SERVICE_WORKER_PATH,
+  studioPwaResponse,
+} from '../src/studio/studio-pwa.js';
 
 const servers: Server[] = [];
 afterEach(async () => {
@@ -468,10 +474,32 @@ describe('Studio page', () => {
     expect(a.html).not.toMatch(/style="/u);
     expect(a.html).toContain('<a class="skip" href="#main" tabindex="0">');
     expect(a.html).toContain('&quot;format&quot;: &quot;furypipe-ir/v1&quot;');
+    expect(a.html).toContain('rel="manifest" href="/studio.webmanifest"');
+    expect(a.html).toContain("navigator.serviceWorker.register('/studio-service-worker.js'");
+    expect(studioHtmlResponse().headers.get('content-security-policy')).toContain("manifest-src 'self'");
+    expect(studioHtmlResponse().headers.get('content-security-policy')).toContain("worker-src 'self'");
     const fr = renderStudioHtml({ locale: 'fr' });
     expect(fr.html).toContain('<html lang="fr"');
     expect(fr.html).toContain('const SERVER_LANGUAGE = "fr";');
     expect(fr.html).not.toContain('__SERVER_LANGUAGE__');
+  });
+
+  it('provides an offline-only PWA shell without caching Studio data or API responses', async () => {
+    const manifest = studioPwaResponse(STUDIO_PWA_MANIFEST_PATH);
+    expect(manifest?.status).toBe(200);
+    expect(manifest?.headers.get('content-type')).toContain('application/manifest+json');
+    expect(await manifest?.json()).toMatchObject({ start_url: '/', scope: '/', display: 'standalone' });
+
+    const worker = studioPwaResponse(STUDIO_PWA_SERVICE_WORKER_PATH);
+    expect(worker?.headers.get('service-worker-allowed')).toBe('/');
+    const source = await worker?.text();
+    expect(source).toContain("request.mode!=='navigate'");
+    expect(source).toContain("url.pathname.startsWith('/api/')");
+    expect(source).toContain(STUDIO_PWA_OFFLINE_PATH);
+
+    const offline = studioPwaResponse(STUDIO_PWA_OFFLINE_PATH);
+    expect(offline?.headers.get('cache-control')).toBe('no-store');
+    expect(await offline?.text()).toContain('No chat, session, artifact, memory, or API response is cached');
   });
 });
 

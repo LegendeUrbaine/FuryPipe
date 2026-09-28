@@ -22,6 +22,7 @@ import { createMemoryVNextStore } from '../src/memory-vnext.js';
 import { createFurySkillHub } from '../src/fury-skill-hub.js';
 import { createStudioApi, studioApiRoute } from '../src/studio/studio-api.js';
 import { studioHtmlResponse } from '../src/studio/studio-page.js';
+import { studioPwaResponse } from '../src/studio/studio-pwa.js';
 
 const HOST = '127.0.0.1';
 const OUT = path.resolve(process.env.FURYPIPE_VALIDATION_OUTPUT_DIR?.trim() || 'artifacts/studio-browser-qa');
@@ -116,6 +117,8 @@ async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: strin
       const url = new URL(req.url ?? '/', origin);
       if (url.pathname === '/') return toNode(studioHtmlResponse(), res);
       if (url.pathname === '/control-plane') return toNode(new Response('<!doctype html><title>Control Plane</title><h1>Control Plane</h1>', { headers: { 'content-type': 'text/html' } }), res);
+      const pwa = studioPwaResponse(url.pathname);
+      if (pwa && (req.method === 'GET' || req.method === 'HEAD')) return toNode(pwa, res);
       const match = studioApiRoute(url.pathname);
       if (match && req.method === match.method) return toNode(await api.handle(match.route, toWeb(req, origin)), res);
       res.writeHead(404).end();

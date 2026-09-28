@@ -688,6 +688,10 @@
     "./browser-playwright-host-node": {
       "types": "./dist/browser-playwright-host-node.d.ts",
       "import": "./dist/browser-playwright-host-node.js"
+    },
+    "./web-api": {
+      "types": "./dist/web/web-api.d.ts",
+      "import": "./dist/web/web-api.js"
     }
   },
   "files": [

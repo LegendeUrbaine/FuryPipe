@@ -547,6 +547,11 @@ const SCRIPT = String.raw`
 (() => {
   const ICONS = __ICONS__;
   const SERVER_LANGUAGE = __SERVER_LANGUAGE__;
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      void navigator.serviceWorker.register('/studio-service-worker.js', { scope: '/' }).catch(() => undefined);
+    }, { once: true });
+  }
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const el = (tag, props = {}, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(props)) { if (k === 'text') n.textContent = v; else if (k === 'class') n.className = v; else n.setAttribute(k, v); } for (const k of kids) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
@@ -2879,8 +2884,8 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   const modeItem = (mode: string, name: string, desc: string) => `<button type="button" class="opt" role="menuitemradio" aria-checked="false" data-mode="${mode}"><span class="t"><span class="n">${name}</span><span class="d">${desc}</span></span>${icon('check', 'i ck')}</button>`;
   const faviconHref = `data:image/svg+xml,${encodeURIComponent(FURYPIPE_FAVICON_SVG)}`;
   const html = `<!doctype html>
-<html lang="${initialLocale}" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark light"><meta name="theme-color" content="#050506"><meta name="application-name" content="FuryPipe Studio"><link rel="icon" type="image/svg+xml" href="${faviconHref}">
+<html lang="${initialLocale}" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark light"><meta name="theme-color" content="#050506"><meta name="application-name" content="FuryPipe Studio"><meta name="mobile-web-app-capable" content="yes"><link rel="manifest" href="/studio.webmanifest"><link rel="icon" type="image/svg+xml" href="${faviconHref}">
 <title>Chat · FuryPipe Studio</title><style nonce="${nonce}">${CSS}</style></head>
 <body data-mode="simple" data-view="chat"><a class="skip" href="#main" tabindex="0">Skip to content</a>
 <div class="app" id="app" data-collapsed="false" data-drawer="closed">
@@ -3181,7 +3186,7 @@ export function studioHtmlResponse(options: StudioHtmlOptions = {}): Response {
       'x-content-type-options': 'nosniff',
       'referrer-policy': 'no-referrer',
       'x-frame-options': 'DENY',
-      'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
+      'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'; connect-src 'self'; img-src 'self' data:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`,
     },
   });
 }

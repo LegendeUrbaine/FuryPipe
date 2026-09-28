@@ -67,6 +67,7 @@ import type { FuryPipeVisualPolicy } from './core/applicability.js';
 import { discoverAgentSkillsNode } from './agent-skills-node.js';
 import { createStudioApi, studioApiRoute } from './studio/studio-api.js';
 import { studioHtmlResponse } from './studio/studio-page.js';
+import { studioPwaResponse } from './studio/studio-pwa.js';
 import { parseAcceptLanguage, resolveSupportedLocale } from './i18n/runtime.js';
 import { selectAgentSkillsForTask } from './agent-skill-selector.js';
 import { activateSelectedAgentSkillsNode } from './agent-skill-activation-node.js';
@@ -2027,8 +2028,9 @@ async function main(): Promise<void> {
         // /api/studio/. Same loopback-only and same-origin guards as the
         // dashboard, which now lives at /control-plane.
         const studioApiMatch = studioApiRoute(url.pathname);
+        const studioPwa = studioPwaResponse(url.pathname);
         const isStudioPage = url.pathname === '/' || url.pathname === '/studio' || url.pathname === '/studio/';
-        if (isStudioPage || studioApiMatch) {
+        if (isStudioPage || studioPwa || studioApiMatch) {
           if (!isLoopbackAddress(req.socket.remoteAddress) || !isLoopbackHostname(url.hostname)) {
             await writeWebResponse(new Response('studio is loopback-only', { status: 403 }), res);
             return;
@@ -2043,6 +2045,12 @@ async function main(): Promise<void> {
                   ) as 'en' | 'fr',
                 })
               : new Response('method not allowed', { status: 405, headers: { allow: 'GET' } }), res);
+            return;
+          }
+          if (studioPwa) {
+            await writeWebResponse(req.method === 'GET' || req.method === 'HEAD'
+              ? studioPwa
+              : new Response('method not allowed', { status: 405, headers: { allow: 'GET, HEAD' } }), res);
             return;
           }
           if (req.method !== studioApiMatch!.method) {

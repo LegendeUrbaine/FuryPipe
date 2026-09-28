@@ -17,6 +17,11 @@ import {
   renderFuryPipeMonogramSvg,
   renderFuryPipeWordmarkHtml,
 } from './studio-brand.js';
+import {
+  STUDIO_NAVIGATION_SECTIONS,
+  STUDIO_PRIMARY_NAVIGATION,
+  type StudioNavigationItem,
+} from './studio-navigation.js';
 
 export const STUDIO_EXAMPLE_IR = Object.freeze({
   format: 'furypipe-ir/v1',
@@ -541,6 +546,30 @@ details.adv>div{padding:0 18px 16px}
 @media (max-width:860px){.effort-select{max-width:104px}.extension-grid{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
 html[data-motion="reduced"] *,html[data-motion="reduced"] *::before,html[data-motion="reduced"] *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+
+/* ---------- Local 2026 shell ---------- */
+.side{background:linear-gradient(180deg,#0d0d10 0%,#08080a 58%,#060608 100%);box-shadow:20px 0 80px -64px rgba(255,90,0,.38)}
+.side-top{padding:18px 14px 10px 18px}
+.workspace-badge{position:relative;z-index:1;display:flex;align-items:center;gap:9px;margin:2px 14px 12px;padding:9px 10px;border:1px solid rgba(255,255,255,.075);border-radius:12px;background:linear-gradient(135deg,rgba(255,106,26,.075),rgba(255,255,255,.018));color:var(--ink-2)}
+.workspace-badge b{display:block;color:var(--ink);font:650 12px/1.2 var(--font);letter-spacing:.01em}.workspace-badge small{display:block;margin-top:3px;color:var(--muted);font:500 10.5px/1.2 var(--mono)}
+.workspace-pulse{width:8px;height:8px;flex:none;border-radius:50%;background:var(--o-hot);box-shadow:0 0 0 4px rgba(255,106,26,.10),0 0 13px rgba(255,106,26,.62)}
+.side-nav{flex:none;min-height:0;max-height:48vh;overflow:auto;padding:2px 10px 10px;scrollbar-gutter:stable}
+.nav-section{margin:12px 0 0}.nav-section:first-child{margin-top:3px}.nav-section-title{margin:0 10px 6px;padding:0;color:var(--faint);font:700 9px/1 var(--font);letter-spacing:.14em;text-transform:uppercase;user-select:none}
+.nav-section>ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}.nav-section .nav-item{height:36px;padding:0 10px;font-size:13.5px}.nav-section .nav-item .i{width:17px;height:17px;color:var(--muted)}.nav-section .nav-item[aria-current="page"] .i{color:var(--o-hot)}
+.nav-more{margin:8px 0 0;border-top:1px solid var(--line);padding-top:8px}.nav-more>summary{height:36px;padding:0 10px;font-size:13.5px}.nav-more-body{padding:0 0 2px}.nav-more-body .nav-section{margin-top:12px}.nav-more-body .nav-section:first-child{margin-top:8px}
+.nav-more[hidden]{display:none}.nav-section[hidden]{display:none!important}
+.app[data-collapsed="true"] .workspace-badge{justify-content:center;margin:2px 12px 10px;padding:10px 0}.app[data-collapsed="true"] .workspace-badge .label{display:none}.app[data-collapsed="true"] .workspace-pulse{width:9px;height:9px}
+.app[data-collapsed="true"] .nav-section-title{display:none}.app[data-collapsed="true"] .nav-section{margin-top:4px}.app[data-collapsed="true"] .nav-more{margin-left:0;margin-right:0}.app[data-collapsed="true"] .nav-more>summary{justify-content:center;padding:0}.app[data-collapsed="true"] .nav-more .label,.app[data-collapsed="true"] .nav-more .more-chevron{display:none}
+.top{height:64px;padding:0 24px;background:rgba(8,8,10,.82);border-bottom-color:rgba(255,255,255,.085);backdrop-filter:blur(20px) saturate(1.2)}
+.top-context{display:flex;align-items:center;gap:11px;min-width:0}.top-kicker{color:var(--o-hot);font:750 9px/1 var(--mono);letter-spacing:.16em;white-space:nowrap}.top-title{color:var(--ink);font-weight:650}.top-title:empty{display:none}.top-surface{color:var(--muted);font:500 10px/1 var(--mono);letter-spacing:.08em;white-space:nowrap}.top-title:not(:empty)::before{content:"/";color:var(--faint);margin-right:11px;font-weight:400}
+main>section{max-width:1180px;padding:22px 42px 64px}main>section>h1{font-size:31px}.main-col::before{background:linear-gradient(120deg,rgba(255,255,255,.018),transparent 38%),radial-gradient(760px 420px at 74% 12%,rgba(255,106,26,.04),transparent 72%)}
+main>section.chat{max-width:none;padding:0}.chat-scroll{padding-left:34px;padding-right:34px}.log,.dock-inner{max-width:960px}.dock{padding-left:34px;padding-right:34px}
+.hero{max-width:760px;margin-bottom:26px}.hero-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;color:var(--o-hot);font:750 10px/1 var(--mono);letter-spacing:.16em}.signal-dot{width:7px;height:7px;border-radius:50%;background:var(--o-hot);box-shadow:0 0 12px rgba(255,106,26,.8)}.hero h2{font-size:clamp(34px,3.8vw,48px)}.hero p{max-width:62ch;margin-left:auto;margin-right:auto;color:var(--ink-2)}
+.hero-trust{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin-top:18px}.hero-trust span{display:inline-flex;align-items:center;gap:6px;height:27px;padding:0 9px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.018);color:var(--muted);font:550 11px/1 var(--font)}.hero-trust .i{width:13px;height:13px;color:var(--o-hot)}
+.composer{background:linear-gradient(180deg,rgba(27,27,33,.98),rgba(14,14,18,.99));border-color:rgba(255,255,255,.13);box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 26px 80px -30px rgba(0,0,0,.96),0 0 0 1px rgba(255,106,26,.025)}.composer textarea{padding-top:20px}.dock-foot{padding-left:4px;padding-right:4px}.suggest{max-width:720px}
+@media (max-width:1100px){main>section{padding-left:28px;padding-right:28px}.top{padding-left:20px;padding-right:20px}}
+@media (max-width:860px){.side-nav{max-height:none;overflow:auto}.top{height:58px;padding:0 14px}.top-surface{display:none}.top-kicker{font-size:8px}.chat-scroll{padding-left:16px;padding-right:16px}.dock{padding-left:16px;padding-right:16px}.hero h2{font-size:clamp(30px,8vw,40px)}}
+@media (max-width:520px){.workspace-badge{margin-left:12px;margin-right:12px}.hero-kicker{margin-bottom:14px}.hero-trust{gap:5px}.hero-trust span{font-size:10px;padding:0 8px}.hero-trust span:nth-child(3){display:none}.composer-bar{flex-direction:column;align-items:stretch;gap:7px}.composer-bar .left{flex:none;width:100%;flex-wrap:nowrap;justify-content:flex-start}.composer-bar .right{width:100%;justify-content:flex-end}.effort-select{flex:1;min-width:0;max-width:none}.model-btn{max-width:none;flex:0 1 auto}.top-context{gap:8px}}
 `;
 
 const SCRIPT = String.raw`
@@ -563,8 +592,12 @@ const SCRIPT = String.raw`
   const SUPPORTED_LANGUAGES = Object.freeze(['en', 'fr']);
   const FR = Object.freeze({
     'Workspace': 'ESPACE DE TRAVAIL',
-    'Context': 'CONTEXTE',
+    'Explore workspace': 'Explorer l’espace de travail',
+    'Explore': 'EXPLORER',
+    'Operate': 'PILOTER',
+    'Connect': 'CONNECTER',
     'System': 'SYSTÈME',
+    'Context': 'CONTEXTE',
     'New chat': 'Nouvelle discussion',
     'Search': 'Rechercher',
     'Chat': 'Discussion',
@@ -573,6 +606,11 @@ const SCRIPT = String.raw`
     'Agents': 'Agents',
     'Mission Control': 'Centre de contrôle',
     'Automations': 'Automatisations',
+    'Autopilot': 'Autopilot',
+    'Media': 'Média',
+    'Observability': 'Observabilité',
+    'Marketplace': 'Marketplace',
+    'Support': 'Support',
     'Knowledge': 'Connaissances',
     'Web': 'Web',
     'Memory': 'Mémoire',
@@ -587,6 +625,11 @@ const SCRIPT = String.raw`
     'Your conversations appear here.': 'Vos conversations apparaîtront ici.',
     'How can FuryPipe help?': 'Comment FuryPipe peut-il vous aider ?',
     'One workspace for every model, agent and tool, starting with the AI on this machine.': 'Un seul espace pour tous vos modèles, agents et outils, en commençant par l’IA de cette machine.',
+    'Ask, build and inspect in one local workspace for models, agents and tools.': 'Demandez, construisez et inspectez dans un seul espace local pour vos modèles, agents et outils.',
+    'LOCAL-FIRST WORKSPACE': 'ESPACE LOCAL PRIORITAIRE',
+    'Private by default': 'Privé par défaut',
+    'Explicit routing': 'Routage explicite',
+    'Visible control': 'Contrôle visible',
     'Run AI privately on this PC': 'Exécuter une IA en privé sur ce PC',
     'No local model is running yet. Start one and FuryPipe finds it automatically, or use your cloud providers in the Gateway WebChat.': 'Aucun modèle local n’est lancé. Démarrez-en un et FuryPipe le détectera automatiquement, ou utilisez vos fournisseurs cloud via le Gateway WebChat.',
     'Set up Ollama': 'Configurer Ollama',
@@ -615,6 +658,10 @@ const SCRIPT = String.raw`
     'Open sidebar': 'Ouvrir la barre latérale',
     'FuryPipe home': 'Accueil FuryPipe',
     'Search and commands (Ctrl K)': 'Recherche et commandes (Ctrl K)',
+    'Local workspace': 'Espace de travail local',
+    'Loopback · governed': 'Loopback · gouverné',
+    'FURYPIPE LOCAL': 'FURYPIPE LOCAL',
+    'GOVERNED WORKSPACE': 'ESPACE GOUVERNÉ',
     'Private · on this PC': 'Privé · sur ce PC',
     'This conversation runs on your computer. Nothing is sent to a cloud provider.': 'Cette conversation s’exécute sur votre ordinateur. Rien n’est envoyé à un fournisseur cloud.',
     'Models': 'Modèles',
@@ -1000,6 +1047,12 @@ const SCRIPT = String.raw`
     document.body.dataset.mode = mode;
     const max = LEVELS.indexOf(mode);
     for (const li of $$('.side-nav li[data-level]')) li.hidden = LEVELS.indexOf(li.dataset.level) > max;
+    for (const section of $$('.nav-section[data-nav-section]')) {
+      section.hidden = ![...section.querySelectorAll('li[data-level]')].some((li) => !li.hidden);
+    }
+    const navMore = $('#nav-more');
+    if (navMore) navMore.hidden = ![...navMore.querySelectorAll('.nav-section[data-nav-section]')].some((section) => !section.hidden);
+    if (navMore && mode !== 'simple') navMore.open = true;
     $('#mode-label').textContent = MODE_TEXT[mode];
     for (const b of $$('#mode-menu [role=menuitemradio]')) b.setAttribute('aria-checked', String(b.dataset.mode === mode));
     for (const r of $$('input[name="pref-mode"]')) r.checked = r.value === mode;
@@ -2874,7 +2927,8 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   const initialLocale = options.locale === 'fr' ? 'fr' : 'en';
   const scriptFinal = SCRIPT_WITH_ICONS.replace('__SERVER_LANGUAGE__', JSON.stringify(initialLocale));
   const perm = (cap: string, def: string) => `<div><label for="perm-${cap}">${cap.replace('_', ' ')}</label><select id="perm-${cap}">${['ALLOW', 'ASK', 'DENY'].map((d) => `<option${d === def ? ' selected' : ''}>${d}</option>`).join('')}</select></div>`;
-  const nav = (view: string, level: string, label: string) => `<li data-level="${level}"><a class="nav-item" href="#/${view}" data-view="${view}" title="${label}">${icon(view)}<span class="label">${label}</span></a></li>`;
+  const nav = ({ view, level, label }: StudioNavigationItem) => `<li data-level="${level}"><a class="nav-item" href="#/${view}" data-view="${view}" title="${label}">${icon(view)}<span class="label">${label}</span></a></li>`;
+  const navSection = (label: string, items: readonly StudioNavigationItem[]) => `<section class="nav-section" data-nav-section="${label.toLowerCase()}"><h2 class="nav-section-title label">${label}</h2><ul>${items.map(nav).join('')}</ul></section>`;
   const seg = (name: string, options: readonly (readonly [string, string])[]) => `<div class="seg" role="radiogroup" aria-label="${name}">${options.map(([v, t]) => `<label><input type="radio" name="pref-${name}" value="${v}"><span>${t}</span></label>`).join('')}</div>`;
   const modeItem = (mode: string, name: string, desc: string) => `<button type="button" class="opt" role="menuitemradio" aria-checked="false" data-mode="${mode}"><span class="t"><span class="n">${name}</span><span class="d">${desc}</span></span>${icon('check', 'i ck')}</button>`;
   const faviconHref = `data:image/svg+xml,${encodeURIComponent(FURYPIPE_FAVICON_SVG)}`;
@@ -2887,17 +2941,13 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
 <aside class="side" id="side" aria-label="FuryPipe">
   <div class="side-top"><a class="brand" data-brand="furypipe" href="#/chat" aria-label="FuryPipe home">${MARK}${WORDMARK}</a>
     <button type="button" id="side-collapse" class="icon-btn desktop-only" aria-label="Collapse sidebar" aria-expanded="true">${icon('panel')}</button></div>
+  <div class="workspace-badge" aria-label="Local workspace"><span class="workspace-pulse" aria-hidden="true"></span><span class="label"><b>Local workspace</b><small>Loopback · governed</small></span></div>
   <button type="button" id="new-chat" class="new-chat" title="New chat">${icon('compose')}<span class="label">New chat</span></button>
   <button type="button" id="search-btn" class="search-btn" title="Search and commands (Ctrl K)">${icon('search')}<span class="label">Search</span><kbd>Ctrl K</kbd></button>
-  <nav class="side-nav" aria-label="Workspace"><ul>
-    <li class="nav-label label" data-level="simple">Workspace</li>
-    ${nav('chat', 'simple', 'Chat')}${nav('media', 'power', 'Media')}${nav('autopilot', 'power', 'Autopilot')}${nav('cowork', 'power', 'Work')}${nav('code', 'engineer', 'Code')}${nav('agents', 'engineer', 'Agents')}${nav('automations', 'engineer', 'Automations')}
-    <li class="nav-more-row"><details class="nav-more" id="nav-more"><summary>${icon('more')}<span class="label">More</span>${icon('chevron','i more-chevron')}</summary><ul>
-      ${nav('knowledge', 'power', 'Knowledge')}${nav('web', 'power', 'Web')}${nav('memory', 'power', 'Memory')}
-      ${nav('models', 'simple', 'Models')}${nav('connections', 'simple', 'Connections')}${nav('mission', 'expert', 'Mission Control')}
-      ${nav('runtimes', 'engineer', 'Runtimes')}${nav('observability', 'engineer', 'Observability')}${nav('marketplace', 'power', 'Marketplace')}${nav('skills', 'power', 'Skills')}${nav('mcp', 'power', 'MCP')}${nav('extensions', 'power', 'Extensions')}${nav('artifacts', 'power', 'Artifacts')}${nav('integrations', 'engineer', 'Integrations')}${nav('support', 'simple', 'Support')}
-    </ul></details></li>
-  </ul></nav>
+  <nav class="side-nav" aria-label="Workspace">
+    ${navSection('Workspace', STUDIO_PRIMARY_NAVIGATION)}
+    <details class="nav-more" id="nav-more"><summary>${icon('more')}<span class="label">Explore workspace</span>${icon('chevron','i more-chevron')}</summary><div class="nav-more-body">${STUDIO_NAVIGATION_SECTIONS.map(({ label, items }) => navSection(label, items)).join('')}</div></details>
+  </nav>
   <div class="recent" aria-labelledby="recent-h"><h2 id="recent-h">Recent</h2><ul id="chat-list" aria-labelledby="recent-h"></ul></div>
   <div class="side-foot">
     <button type="button" id="mode-button" class="mode-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="mode-menu" title="Workspace mode"><span class="mode-dot" aria-hidden="true"></span><span class="label" id="mode-label">Simple</span><small class="label">mode</small>${icon('chevron')}</button>
@@ -2910,7 +2960,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
 <header class="top">
   <button type="button" id="side-open" class="icon-btn mobile-only" aria-label="Open sidebar" aria-expanded="false" aria-controls="side">${icon('menu')}</button>
   <a class="top-brand" data-brand="furypipe" href="#/chat" aria-label="FuryPipe home">${TOP_MARK}${WORDMARK}</a>
-  <div class="top-title" id="top-title"></div>
+  <div class="top-context"><span class="top-kicker">FURYPIPE LOCAL</span><span class="top-title" id="top-title"></span><span class="top-surface">GOVERNED WORKSPACE</span></div>
   <div class="top-right"><span class="privacy" id="privacy" hidden title="This conversation runs on your computer. Nothing is sent to a cloud provider.">${icon('shield')}Private · on this PC</span></div>
 </header>
 <main id="main">
@@ -2919,9 +2969,11 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div class="chat-scroll" id="chat-scroll"><div id="chat-log" class="log" role="log" aria-live="polite" aria-label="Conversation"></div></div>
   <div class="dock"><div class="dock-inner">
     <div class="hero">
+      <div class="hero-kicker"><span class="signal-dot" aria-hidden="true"></span>LOCAL-FIRST WORKSPACE</div>
       <div class="hero-mark" aria-hidden="true"><div class="hero-glow"></div>${HERO_MARK}</div>
       <h2>How can FuryPipe help?</h2>
-      <p>One workspace for every model, agent and tool, starting with the AI on this machine.</p>
+      <p>Ask, build and inspect in one local workspace for models, agents and tools.</p>
+      <div class="hero-trust" aria-label="Workspace guarantees"><span>${icon('shield')}Private by default</span><span>${icon('route')}Explicit routing</span><span>${icon('check')}Visible control</span></div>
     </div>
     <div id="chat-empty" class="setup setup-compact" hidden>
       <div class="setup-copy"><span class="setup-orb" aria-hidden="true"></span><div><h3>Choose your AI</h3><p>Connect a cloud account or install a private local model. Fury Auto can route between what you enable.</p></div></div>

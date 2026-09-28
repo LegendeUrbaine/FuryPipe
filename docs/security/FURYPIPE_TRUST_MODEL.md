@@ -26,5 +26,6 @@ The base model is `docs/SECURITY_MODEL.md` and `SECURITY.md`. This track adds th
 | Memory | off without the encrypted memory config; Studio stores only operator-typed, user-declared facts; recall is data, never instructions | `tests/studio-api.test.ts`, `tests/memory-vnext.test.ts` |
 | Code explorer | realpath-confined to the project (symlink escape → 403); diffs only for worktrees git lists; git without shell, bounded output | `tests/studio-api.test.ts` |
 | Conversations | bounded messages/conversations, serialized writes, file mode 0600 | `tests/studio-chats.test.ts` |
+| Headless analysis | exact `furypipe-headless-request/v1` keys, 256 KiB stdin/body bounds, shared-core analysis only, no execution or workflow registration authority | `tests/fury-headless.test.ts`, `tests/studio-api.test.ts`, `tests/node-security.test.ts` |
 
 No security claim here is absolute; each row states the tested boundary.

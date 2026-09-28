@@ -426,3 +426,23 @@ Conflict rule: technical state → GitHub wins; product intent → master doc wi
   smoke `0.16.0`; compiled stdin CLI smoke; complete package smoke chain and
   Gateway installed-package smoke PASS; current tarball SHA-256
   `dd79e127cd39e1634041fa916cf7f6903914bae02184b6c4e96e1291c5870b84`.
+
+## 2026-09-28 — FuryPipe final security audit
+
+- Audited the roadmap security surfaces at source head
+  `770f354731b264771e27bd71df08500c642c38f4`: authority bypass and duplicate
+  authority paths, SSRF/DNS rebinding, traversal/symlink escape, command and
+  plugin escalation, MCP/prompt poisoning, secret exfiltration, media abuse,
+  permit replay, stale state, unknown provider outcomes and unbounded loops or
+  storage.
+- Added the explicit trust-model row for the bounded shared headless boundary.
+- Local decision: `LOCAL_SECURITY_AUDIT = PASS_WITH_LIMITS`; no new runtime
+  patch was required. Real providers, third-party MCP/OAuth, production
+  topology and human approval remain separate gates.
+- Local proof: full Vitest `344` files / `3587` passed / `6` skipped; targeted
+  security `127/127`; local contracts `186/186`; direct pnpm production audit
+  reported no known vulnerabilities; action pinning `93` references across
+  `22` workflows; typechecks, build, packed package and installed Gateway/MCP
+  smoke all passed. Hosted exact-head CI/security/browser/recovery/clean-room/
+  benchmark checks for the audited head also reported `PASS`.
+- Evidence: `docs/evidence/FURYPIPE_SECURITY_AUDIT_2026-09-28.md`.

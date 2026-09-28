@@ -125,12 +125,6 @@ async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: strin
   return { server, origin };
 }
 
-async function setMode(page: Page, mode: string): Promise<void> {
-  await page.locator('#mode-button').click();
-  await page.locator(`#mode-menu [role=menuitemradio][data-mode="${mode}"]`).click();
-  await page.waitForFunction((m) => document.body.dataset.mode === m, mode);
-}
-
 async function visible(page: Page, selector: string): Promise<boolean> {
   return page.locator(selector).isVisible();
 }
@@ -214,17 +208,19 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#model-button').click();
     await page.locator('#model-pop [role=option]').filter({ hasText: 'Fury Auto' }).click();
 
-    // Progressive UX: Simple hides engineer/expert surfaces; Expert shows all.
-    assert(await page.evaluate(() => document.body.dataset.mode) === 'simple', `${name}: default mode is not Simple`);
-    assert(!(await page.locator('.side-nav a[data-view="agents"]').isVisible()), `${name}: Agents visible in Simple mode`);
-    await setMode(page, 'expert');
-    assert(await page.locator('.side-nav a[data-view="automations"]').isVisible(), `${name}: Automations hidden in Expert mode`);
+    // Daily navigation stays small. Capability routes remain reachable without user modes.
+    assert(await page.locator('.side-nav a[data-view]').evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-view'))).then((views) => JSON.stringify(views) === JSON.stringify(['chat', 'projects'])), `${name}: daily sidebar is not Chat + Projects`);
+    assert(await page.locator('#mode-button').count() === 0, `${name}: legacy user mode control remains`);
+    assert(await page.locator('#effort-select').count() === 0, `${name}: effort control remains in composer`);
+    await page.locator('.side-nav a[data-view="projects"]').focus();
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.activeElement?.id === 'h-projects');
+    await page.locator('#project-chat-list').waitFor();
 
     // Navigation via the keyboard.
-    await page.locator('.side-nav a[data-view="agents"]').focus();
-    await page.keyboard.press('Enter');
+    await page.goto(`${origins.normal}/#/agents`);
     await page.waitForFunction(() => document.activeElement?.id === 'h-agents');
-    assert(await page.locator('.side-nav a[data-view="agents"]').getAttribute('aria-current') === 'page', `${name}: aria-current`);
+    assert(await page.locator('section[data-view="agents"] h1').isVisible(), `${name}: Agent activity route unavailable`);
     await page.locator('#dispatch-mode').selectOption('SPECIALISTS');
     await page.locator('#dispatch-form button[type=submit]').click();
     await page.locator('#dispatch-out table tbody tr').first().waitFor();
@@ -475,10 +471,9 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
 
     // Responsive: desktop, narrow desktop, tablet and phone widths, every view, no horizontal page overflow.
     await page.goto(`${origins.normal}/#/chat`);
-    await setMode(page, 'expert');
     for (const width of [1280, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 844 });
-      for (const view of ['chat', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'observability', 'marketplace', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
+      for (const view of ['chat', 'projects', 'research', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'observability', 'marketplace', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
         await page.goto(`${origins.normal}/#/${view}`);
         await page.locator(`section[data-view="${view}"] h1`).waitFor();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -537,16 +532,32 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await page.locator('#model-pop [role=option]').first().waitFor();
     await shot('02-model-picker.png');
     await page.keyboard.press('Escape');
+    await page.locator('#attach-btn').click();
+    await page.locator('#add-menu').waitFor({ state: 'visible' });
+    await shot('03-add-context.png');
+    await page.getByRole('menuitem', { name: /Media workspace/u }).click();
+    await page.locator('#context-workspace').waitFor({ state: 'visible' });
+    assert(await page.locator('#context-title').textContent() === 'Media workspace', `${type}: Media contextual workspace did not open`);
+    await page.locator('#context-close').click();
+    await page.locator('#attach-btn').click();
+    await page.getByRole('menuitem', { name: /MCP App/u }).click();
+    await page.locator('#context-workspace').waitFor({ state: 'visible' });
+    assert(await page.locator('#context-title').textContent() === 'MCP App', `${type}: MCP contextual workspace did not open`);
+    await page.locator('#context-close').click();
+    await page.locator('#chat-input').focus();
+    await page.keyboard.press('/');
+    await page.locator('#palette-overlay').waitFor({ state: 'visible' });
+    await page.keyboard.press('Escape');
     await page.locator('#attach-input').setInputFiles({ name: 'notes.md', mimeType: 'text/markdown', buffer: Buffer.from('# Notes\nShip the Studio rework.\n') });
     await page.locator('#chat-input').fill('Summarise these notes in one line');
     await page.locator('#attach-tray .att').waitFor();
-    await shot('03-attachment.png');
+    await shot('04-attachment.png');
     await page.locator('#chat-send').click();
     await page.locator('#chat-log .msg:not(.user)').filter({ hasText: 'Hello from a local model.' }).waitFor();
-    await shot('04-conversation.png');
+    await shot('05-conversation.png');
     await page.locator('#route-chip').click();
     await page.locator('#route-pop').waitFor();
-    await shot('05-why-this-route.png');
+    await shot('06-why-this-route.png');
     await page.keyboard.press('Escape');
     await page.goto(`${origins.normal}/#/models`);
     await page.locator('#backends .model-row').first().waitFor();
@@ -556,30 +567,47 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await shot('06b-media-studio-preview.png');
     await page.goto(`${origins.normal}/#/settings`);
     await shot('07-settings.png');
-    await setMode(page, 'expert');
-    await page.goto(`${origins.normal}/#/mission`);
-    await page.locator('section[data-view="mission"] h1').waitFor();
-    await shot('08-expert-mission-control.png');
+    await page.goto(`${origins.normal}/#/projects`);
+    await page.locator('#project-chat-list').waitFor();
+    await shot('08-projects.png');
+    await page.goto(`${origins.normal}/#/settings/ai-models`);
+    await page.locator('#set-ai-models').waitFor();
+    await shot('09-settings-ai-models.png');
+    await page.goto(`${origins.normal}/#/settings/tools`);
+    await page.locator('#set-tools').waitFor();
+    await shot('10-settings-tools.png');
+    await page.goto(`${origins.normal}/#/code`);
+    await page.locator('section[data-view="code"] h1').waitFor();
+    await shot('11-code-workspace.png');
+    await page.goto(`${origins.normal}/#/artifacts`);
+    await page.locator('section[data-view="artifacts"] h1').waitFor();
+    await shot('12-artifacts.png');
+    await page.goto(`${origins.normal}/#/research`);
+    await page.locator('#research-status').waitFor();
+    await shot('13-research.png');
+    await page.goto(`${origins.normal}/#/agents`);
+    await page.locator('section[data-view="agents"] h1').waitFor();
+    await shot('14-agent-activity.png');
     // Browser-level Ctrl+K can be intercepted by the browser chrome in CI.
     // Dispatch the same bubbling DOM KeyboardEvent to verify FuryPipe's handler.
     await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
     await page.locator('#palette-overlay').waitFor({ state: 'visible' });
     await page.locator('#palette-list [role=option]').first().waitFor();
-    await shot('09-command-palette.png');
+    await shot('15-command-palette.png');
     await page.keyboard.press('Escape');
     await page.goto(`${origins.empty}/#/chat`);
     await page.locator('#chat-empty').waitFor({ state: 'visible' });
-    await shot('10-no-local-model.png');
+    await shot('16-no-local-model.png');
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.goto(`${origins.normal}/#/chat`);
     await page.locator('#chat-list button.conv').first().waitFor();
-    await shot('11-chat-1024.png');
+    await shot('17-chat-1024.png');
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${origins.normal}/#/chat`);
     await page.locator('#model-button').waitFor();
-    await shot('12-chat-390.png');
+    await shot('18-chat-390.png');
     await page.locator('#side-open').click();
-    await shot('13-drawer-390.png');
+    await shot('19-drawer-390.png');
     await context.close();
     const light = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', colorScheme: 'light', reducedMotion: 'reduce' });
     const lp = await light.newPage();
@@ -588,8 +616,8 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await lp.goto(`${origins.normal}/#/chat`);
     await lp.locator('#model-button').filter({ hasText: 'Fury Auto' }).waitFor();
     await lp.waitForTimeout(150);
-    await lp.screenshot({ path: path.join(dir, '14-new-chat-light-system.png') });
-    shots.push('14-new-chat-light-system.png');
+    await lp.screenshot({ path: path.join(dir, '20-new-chat-light-system.png') });
+    shots.push('20-new-chat-light-system.png');
   } finally {
     await browser.close();
   }

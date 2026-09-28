@@ -1,17 +1,18 @@
 /**
  * FuryPipe Local information architecture.
  *
- * The shell owns navigation; each view keeps its existing runtime contract.
- * Levels are progressive disclosure gates, not permissions. A hidden entry is
- * still reachable from the command palette after the viewer changes mode.
+ * Daily navigation stays small: Chat and Projects. Technical capabilities
+ * remain reachable through the command palette, contextual workspaces and
+ * Settings. This map contains no user modes and grants no authority.
  */
 
-export type StudioNavigationLevel = 'simple' | 'power' | 'engineer' | 'expert';
+export type StudioNavigationGroup = 'workspace' | 'models' | 'work' | 'developer' | 'settings';
 
 export interface StudioNavigationItem {
   readonly view: string;
   readonly label: string;
-  readonly level: StudioNavigationLevel;
+  readonly group: StudioNavigationGroup;
+  readonly description?: string;
 }
 
 export interface StudioNavigationSection {
@@ -21,54 +22,62 @@ export interface StudioNavigationSection {
 }
 
 export const STUDIO_PRIMARY_NAVIGATION = Object.freeze([
-  { view: 'chat', label: 'Chat', level: 'simple' },
-  { view: 'cowork', label: 'Work', level: 'power' },
-  { view: 'code', label: 'Code', level: 'engineer' },
-  { view: 'agents', label: 'Agents', level: 'engineer' },
-  { view: 'autopilot', label: 'Autopilot', level: 'power' },
+  { view: 'chat', label: 'Chat', group: 'workspace', description: 'Ask FuryPipe for anything.' },
+  { view: 'projects', label: 'Projects', group: 'workspace', description: 'Keep conversations and local context together.' },
 ] as const satisfies readonly StudioNavigationItem[]);
 
-export const STUDIO_NAVIGATION_SECTIONS = Object.freeze([
+/**
+ * Discoverable routes are intentionally not rendered in the daily sidebar.
+ * Command palette, contextual panels and Settings expose them when relevant.
+ */
+export const STUDIO_NAVIGATION_SECTIONS: readonly StudioNavigationSection[] = Object.freeze([
   {
-    key: 'explore',
-    label: 'Explore',
+    key: 'models',
+    label: 'AI & models',
     items: [
-      { view: 'models', label: 'Models', level: 'simple' },
-      { view: 'media', label: 'Media', level: 'power' },
-      { view: 'knowledge', label: 'Knowledge', level: 'power' },
-      { view: 'web', label: 'Web', level: 'power' },
-      { view: 'memory', label: 'Memory', level: 'power' },
+      { view: 'models', label: 'AI & models', group: 'models', description: 'Connected, detected and local model runtimes.' },
+      { view: 'connections', label: 'Connections', group: 'models', description: 'Connect an AI through its official local flow.' },
     ],
   },
   {
-    key: 'operate',
-    label: 'Operate',
+    key: 'work',
+    label: 'Contextual workspaces',
     items: [
-      { view: 'artifacts', label: 'Artifacts', level: 'power' },
-      { view: 'automations', label: 'Automations', level: 'engineer' },
-      { view: 'observability', label: 'Observability', level: 'engineer' },
-      { view: 'mission', label: 'Mission Control', level: 'expert' },
+      { view: 'code', label: 'Code workspace', group: 'work', description: 'Open when a coding task needs files, diff or tests.' },
+      { view: 'artifacts', label: 'Artifacts', group: 'work', description: 'Inspect versioned outputs in context.' },
+      { view: 'knowledge', label: 'Knowledge', group: 'work', description: 'Search indexed project sources.' },
+      { view: 'media', label: 'Media workspace', group: 'work', description: 'Preview image, video and audio work.' },
+      { view: 'research', label: 'Research workspace', group: 'work', description: 'Sources, pages, citations and progress.' },
     ],
   },
   {
-    key: 'connect',
-    label: 'Connect',
+    key: 'developer',
+    label: 'Developer',
     items: [
-      { view: 'connections', label: 'Connections', level: 'simple' },
-      { view: 'runtimes', label: 'Runtimes', level: 'engineer' },
-      { view: 'skills', label: 'Skills', level: 'power' },
-      { view: 'mcp', label: 'MCP', level: 'power' },
-      { view: 'extensions', label: 'Extensions', level: 'power' },
-      { view: 'integrations', label: 'Integrations', level: 'engineer' },
-      { view: 'marketplace', label: 'Marketplace', level: 'power' },
+      { view: 'agents', label: 'Agent activity', group: 'developer', description: 'Visible only while agents work.' },
+      { view: 'automations', label: 'Automations', group: 'developer', description: 'Create and inspect natural-language automations.' },
+      { view: 'memory', label: 'Memory', group: 'developer', description: 'Inspect project memory.' },
+      { view: 'mcp', label: 'MCP', group: 'developer', description: 'Governed MCP sources and tools.' },
+      { view: 'extensions', label: 'Tools & extensions', group: 'developer', description: 'Skills, plugins, extensions and MCP Apps.' },
+      { view: 'observability', label: 'Observability', group: 'developer', description: 'Receipts, usage and runtime evidence.' },
+      { view: 'mission', label: 'Mission Control', group: 'developer', description: 'Supervise a real governed run.' },
+      { view: 'runtimes', label: 'Runtimes', group: 'developer', description: 'Inspect installed agent harnesses.' },
+      { view: 'integrations', label: 'Integrations', group: 'developer', description: 'Inspect declared APIs and webhooks.' },
+      { view: 'skills', label: 'Skills', group: 'developer', description: 'Inspect project instruction skills.' },
+      { view: 'marketplace', label: 'Marketplace', group: 'developer', description: 'Inspect signed capability metadata.' },
+      { view: 'web', label: 'Web', group: 'developer', description: 'Read public web sources through governed tools.' },
     ],
   },
   {
-    key: 'system',
-    label: 'System',
+    key: 'settings',
+    label: 'Settings',
     items: [
-      { view: 'support', label: 'Support', level: 'simple' },
+      { view: 'settings', label: 'Settings', group: 'settings', description: 'Configure FuryPipe without changing the daily chat.' },
+      { view: 'support', label: 'About and support', group: 'settings', description: 'Version, documentation and support.' },
     ],
   },
-] as const satisfies readonly StudioNavigationSection[]);
+]);
 
+export const STUDIO_DISCOVERABLE_NAVIGATION: readonly StudioNavigationItem[] = Object.freeze(
+  STUDIO_NAVIGATION_SECTIONS.flatMap((section) => section.items),
+);

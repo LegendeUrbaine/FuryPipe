@@ -7,7 +7,7 @@ import {
 import { renderStudioHtml } from '../src/studio/studio-page.js';
 
 describe('FuryPipe Local information architecture', () => {
-  it('keeps every workspace view in one progressive disclosure map', () => {
+  it('keeps daily navigation small while preserving discoverable capability routes', () => {
     const items = [
       ...STUDIO_PRIMARY_NAVIGATION,
       ...STUDIO_NAVIGATION_SECTIONS.flatMap((section) => section.items),
@@ -16,21 +16,27 @@ describe('FuryPipe Local information architecture', () => {
 
     expect(new Set(views).size).toBe(views.length);
     expect(views).toContain('chat');
-    expect(views).toContain('autopilot');
+    expect(views).toContain('projects');
+    expect(views).toContain('research');
     expect(views).toContain('observability');
     expect(views).toContain('connections');
+    expect(STUDIO_PRIMARY_NAVIGATION.map((item) => item.view)).toEqual(['chat', 'projects']);
   });
 
-  it('renders the unified shell landmarks without changing runtime view ids', () => {
+  it('renders the local shell without user modes or permanent capability navigation', () => {
     const html = renderStudioHtml().html;
 
     expect(html).toContain('class="workspace-badge"');
-    expect(html).toContain('id="nav-more"');
-    expect(html).toContain('data-nav-section="explore"');
-    expect(html).toContain('data-nav-section="operate"');
-    expect(html).toContain('data-nav-section="connect"');
+    expect(html).toContain('data-view="projects"');
+    expect(html).toContain('data-view="research"');
+    expect(html).toContain('id="add-menu"');
+    expect(html).toContain('id="context-workspace"');
+    expect(html).not.toContain('id="nav-more"');
+    expect(html).not.toContain('id="mode-button"');
+    expect(html).not.toContain('id="mode-menu"');
+    expect(html).not.toContain('id="effort-select"');
+    expect(html).not.toContain('class="suggest"');
     expect(html).toContain('class="hero-trust"');
-    expect(html).toContain('data-view="autopilot"');
     expect(html).toContain('data-view="observability"');
   });
 });

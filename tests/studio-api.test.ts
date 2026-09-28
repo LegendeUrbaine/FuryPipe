@@ -153,7 +153,8 @@ describe('Studio API', () => {
     expect(rejectedResponse.status).toBe(422);
 
     const page = renderStudioHtml().html;
-    expect(page).toContain('href="#/media"');
+    expect(page).toContain('data-view="media"');
+    expect(page).toContain('"view":"media"');
     expect(page).toContain('FuryImage Studio');
     expect(page).toContain('FuryVideo Studio');
     expect(page).toContain('Observability / Cost');

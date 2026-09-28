@@ -18,7 +18,7 @@ import {
   renderFuryPipeWordmarkHtml,
 } from './studio-brand.js';
 import {
-  STUDIO_NAVIGATION_SECTIONS,
+  STUDIO_DISCOVERABLE_NAVIGATION,
   STUDIO_PRIMARY_NAVIGATION,
   type StudioNavigationItem,
 } from './studio-navigation.js';
@@ -75,6 +75,7 @@ const ICONS: Readonly<Record<string, string>> = Object.freeze({
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   compose: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/>',
+  projects: '<path d="M3 7.5h7l2 2h9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 7.5V5a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v.5"/>',
   cowork: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>',
   code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
   agents: '<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V4"/><path d="M9 14h.01M15 14h.01"/>',
@@ -82,6 +83,7 @@ const ICONS: Readonly<Record<string, string>> = Object.freeze({
   automations: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><path d="M6.5 10v3a2 2 0 0 0 2 2H14"/>',
   knowledge: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
   web: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  research: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
   memory: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
   models: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
   media: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8" cy="10" r="1.5"/><path d="m5 17 4-4 3 3 2-2 5 3"/>',
@@ -186,16 +188,6 @@ kbd{font:600 11px/1 var(--font);color:var(--muted);border:1px solid var(--line-2
 .side-nav ul{list-style:none;margin:0;padding:2px 8px;display:flex;flex-direction:column;gap:1px}
 .nav-label{padding:12px 12px 5px;color:var(--faint);font:650 9.5px/1 var(--font);letter-spacing:.12em;text-transform:uppercase;user-select:none}
 .nav-label:first-child{padding-top:6px}
-.nav-more-row{list-style:none;margin-top:4px}
-.nav-more{margin:0}
-.nav-more>summary{display:flex;align-items:center;gap:12px;height:38px;padding:0 12px;border-radius:10px;color:var(--muted);font:500 14px/1 var(--font);cursor:pointer;list-style:none;user-select:none;transition:background .15s,color .15s}
-.nav-more>summary::-webkit-details-marker{display:none}
-.nav-more>summary:hover,.nav-more[open]>summary{background:var(--b3);color:var(--ink)}
-.nav-more>summary .more-chevron{margin-left:auto;width:14px;height:14px;transition:transform .18s var(--ease)}
-.nav-more[open]>summary .more-chevron{transform:rotate(180deg)}
-.nav-more>ul{list-style:none;margin:3px 0 4px;padding:0 0 0 10px;display:flex;flex-direction:column;gap:1px;border-left:1px solid rgba(255,255,255,.055)}
-.nav-more>ul .nav-item{height:35px;font-size:13.5px}
-
 .nav-item{position:relative;display:flex;align-items:center;gap:12px;height:38px;padding:0 12px;border-radius:10px;color:var(--ink-2);text-decoration:none;font:500 14px/1 var(--font);white-space:nowrap;transition:background .15s,color .15s}
 .nav-item:hover{background:var(--b3);color:var(--ink)}
 .nav-item[aria-current="page"]{color:var(--ink);background:linear-gradient(90deg,rgba(255,106,26,.15),rgba(255,106,26,.02) 80%)}
@@ -214,16 +206,12 @@ kbd{font:600 11px/1 var(--font);color:var(--muted);border:1px solid var(--line-2
 .conv-edit{flex:1;min-width:0;margin:3px;height:30px;background:var(--b1);border:1px solid var(--o-line);border-radius:8px;color:var(--ink);padding:0 9px;font:inherit;font-size:13.5px}
 .recent .empty-note{color:var(--muted);font-size:12.5px;padding:6px 12px}
 .side-foot{display:flex;align-items:center;gap:6px;padding:10px;border-top:1px solid var(--line)}
-.mode-btn{flex:1;min-width:0;display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.015);color:var(--ink);cursor:pointer;font:500 13.5px/1 var(--font);white-space:nowrap}
-.mode-btn:hover{border-color:var(--line-2)}.mode-btn .mode-dot{width:8px;height:8px;border-radius:50%;background:var(--o-core);box-shadow:0 0 8px var(--o-core);flex:none}
-.mode-btn small{color:var(--muted);font-weight:500;margin-right:auto}
-.app[data-collapsed="true"] .label,.app[data-collapsed="true"] .recent,.app[data-collapsed="true"] .search-btn kbd,.app[data-collapsed="true"] .brand span,.app[data-collapsed="true"] .mode-btn small,.app[data-collapsed="true"] .mode-btn .i{display:none}
+.app[data-collapsed="true"] .label,.app[data-collapsed="true"] .recent,.app[data-collapsed="true"] .search-btn kbd,.app[data-collapsed="true"] .brand span{display:none}
 .app[data-collapsed="true"] .top-brand{display:flex}
 .app[data-collapsed="true"] .side-top{flex-direction:column;padding:14px 0 8px;gap:10px}
 .app[data-collapsed="true"] .new-chat,.app[data-collapsed="true"] .search-btn{justify-content:center;padding:0;margin-left:12px;margin-right:12px}
 .app[data-collapsed="true"] .nav-item{justify-content:center;padding:0}
 .app[data-collapsed="true"] .side-foot{flex-direction:column}
-.app[data-collapsed="true"] .mode-btn{justify-content:center;padding:0;width:40px;flex:none}
 .main-col{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;isolation:isolate}
 .main-col::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(120deg,rgba(255,255,255,.012),transparent 32%),radial-gradient(700px 360px at 72% 18%,rgba(255,106,26,.028),transparent 72%)}
 .top{display:flex;align-items:center;gap:10px;height:56px;padding:0 16px;flex:none;position:relative;z-index:5;background:linear-gradient(180deg,var(--b1),var(--b0));border-bottom:1px solid var(--line);backdrop-filter:blur(18px) saturate(1.15)}
@@ -253,7 +241,7 @@ main>section.chat{max-width:none;margin:0;padding:0;height:100%;display:flex;fle
 .chat.is-empty .stage-bg::before{content:"";position:absolute;left:8%;right:8%;bottom:-24%;height:66%;background-image:linear-gradient(rgba(255,122,40,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,122,40,.045) 1px,transparent 1px);background-size:54px 54px;transform:perspective(720px) rotateX(64deg);transform-origin:50% 100%;mask-image:radial-gradient(ellipse at 50% 55%,#000 0%,transparent 70%);opacity:.42}
 .chat.is-empty .stage-bg::after{content:"";position:absolute;width:34vw;height:34vw;max-width:520px;max-height:520px;left:50%;top:48%;transform:translate(-50%,-50%);border-radius:50%;border:1px solid rgba(255,122,40,.055);box-shadow:0 0 0 46px rgba(255,122,40,.018),0 0 0 96px rgba(255,122,40,.01);opacity:.8}
 .chat.is-empty .dock{padding-bottom:max(12vh,48px)}
-.chat:not(.is-empty) .hero,.chat:not(.is-empty) .suggest{display:none}
+.chat:not(.is-empty) .hero{display:none}
 .hero{text-align:center;margin:0 auto 22px;position:relative;z-index:1;animation:rise .5s var(--ease-out) both}
 .hero h2{font:650 clamp(30px,3.2vw,40px)/1.08 var(--display);letter-spacing:-.035em;margin:0;color:var(--ink);background:linear-gradient(180deg,#fff 0%,#e6dfd6 55%,#b5ab9f 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 html[data-theme="system"] .hero h2{-webkit-text-fill-color:currentColor;background:none}
@@ -262,10 +250,6 @@ html[data-theme="system"] .hero h2{-webkit-text-fill-color:currentColor;backgrou
 .hero-glow{position:absolute;inset:-58px;border-radius:50%;background:radial-gradient(circle,rgba(255,106,26,.2) 0%,rgba(255,90,0,.06) 42%,transparent 70%);transform:translateZ(-18px);filter:saturate(1.08)}
 .hero-brand-mark{position:relative;width:76px;height:76px;transform:translateZ(20px);filter:drop-shadow(0 14px 28px rgba(255,90,0,.24))}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-.suggest{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;max-width:650px;margin:18px auto 0;position:relative;z-index:1;animation:rise .6s .08s var(--ease-out) both}
-.chip-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--line-2);background:rgba(255,255,255,.02);color:var(--ink-2);font:500 13.5px/1 var(--font);cursor:pointer;transition:border-color .2s,color .2s,background .2s,transform .12s}
-.chip-btn:hover{border-color:var(--o-line);color:var(--ink);background:rgba(255,106,26,.06)}.chip-btn:active{transform:scale(.97)}
-.chip-btn .i{width:16px;height:16px;color:var(--o-hot)}
 .setup{max-width:900px;margin:0 auto 16px;padding:13px 14px;border-radius:var(--r-lg);border:1px solid var(--line-2);background:linear-gradient(180deg,var(--b3),var(--b2));position:relative;z-index:1}
 .setup h3{margin:0 0 6px;font:650 17px/1.3 var(--display);letter-spacing:-.015em}
 .setup p{margin:0 0 14px;color:var(--ink-2);font-size:14px}
@@ -409,8 +393,8 @@ tbody tr{transition:background .15s}tbody tr:hover{background:rgba(255,255,255,.
 .badge.muted{color:var(--muted);border-color:var(--line-2)}
 .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.muted{color:var(--muted)}
 button,select,textarea,input{font:inherit;color:inherit}
-main button:not(.ghost):not(.chip-btn):not(.tool):not(.send):not(.model-btn):not(.route-chip):not(.opt):not(.linkish):not(.icon-btn):not(.seg-btn){display:inline-flex;align-items:center;justify-content:center;gap:8px;height:38px;padding:0 16px;border-radius:11px;border:1px solid rgba(255,140,60,.45);background:linear-gradient(180deg,#ff8f45,var(--o-core));color:#1b0900;font:650 13.5px/1 var(--font);cursor:pointer;box-shadow:0 1px 0 rgba(255,220,190,.5) inset,0 8px 20px -10px rgba(255,90,0,.7);transition:transform .12s var(--ease),filter .2s}
-main button:not(.ghost):not(.chip-btn):not(.tool):not(.send):not(.model-btn):not(.route-chip):not(.opt):not(.linkish):not(.icon-btn):not(.seg-btn):hover{filter:brightness(1.06)}
+main button:not(.ghost):not(.tool):not(.send):not(.model-btn):not(.route-chip):not(.opt):not(.linkish):not(.icon-btn):not(.seg-btn):not(.conv){display:inline-flex;align-items:center;justify-content:center;gap:8px;height:38px;padding:0 16px;border-radius:11px;border:1px solid rgba(255,140,60,.45);background:linear-gradient(180deg,#ff8f45,var(--o-core));color:#1b0900;font:650 13.5px/1 var(--font);cursor:pointer;box-shadow:0 1px 0 rgba(255,220,190,.5) inset,0 8px 20px -10px rgba(255,90,0,.7);transition:transform .12s var(--ease),filter .2s}
+main button:not(.ghost):not(.tool):not(.send):not(.model-btn):not(.route-chip):not(.opt):not(.linkish):not(.icon-btn):not(.seg-btn):not(.conv):hover{filter:brightness(1.06)}
 main button:active{transform:scale(.97)}
 main button.secondary{background:var(--b4)!important;color:var(--ink)!important;border:1px solid var(--line-2)!important;box-shadow:0 1px 0 rgba(255,255,255,.04) inset!important}
 main button.secondary:hover{border-color:var(--line-3)!important}
@@ -524,7 +508,7 @@ details.adv>div{padding:0 18px 16px}
 
 /* ---------- Responsive ---------- */
 @media (max-width:1100px){.settings{grid-template-columns:1fr}.settings-nav{position:static;flex-direction:row;flex-wrap:wrap}}
-@media (max-width:520px){.tool span{display:none}.tool{padding:0;width:34px}.setup-actions{grid-template-columns:1fr}.suggest{grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.setup-copy p{display:none}.top-brand .wordmark{display:none}}
+@media (max-width:520px){.tool span{display:none}.tool{padding:0;width:34px}.setup-actions{grid-template-columns:1fr}.setup-copy p{display:none}.top-brand .wordmark{display:none}}
 @media (max-width:860px){
   .app{grid-template-columns:minmax(0,1fr)}
   .side{position:fixed;z-index:80;top:0;bottom:0;left:0;width:min(300px,86vw);transform:translateX(-102%);transition:transform .26s var(--ease-out);box-shadow:30px 0 80px rgba(0,0,0,.6)}
@@ -540,10 +524,9 @@ details.adv>div{padding:0 18px 16px}
 }
 .memory-graph-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface-2);min-height:220px}.memory-graph-wrap svg{display:block;width:100%;min-width:620px;height:auto}.memory-edge{stroke:var(--line-strong);stroke-width:1.2}.memory-node{fill:var(--surface-3);stroke:var(--line-strong);stroke-width:1.2}.memory-node.active{stroke:var(--accent)}.memory-node.scope{fill:var(--surface)}.memory-label{fill:var(--text);font-size:11px}.memory-small{fill:var(--muted);font-size:9px}
 .set-row-stack{align-items:flex-start}.set-row-stack>div:last-child{min-width:min(520px,100%);flex:1}.set-row-stack textarea{min-height:92px}
-.effort-select{width:auto;min-width:96px;max-width:132px;height:34px;padding:0 9px;border-radius:9px;font-size:12px;background:var(--surface-2);border:1px solid var(--line);color:var(--text)}
 .autopilot-grid{align-items:start}.autopilot-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}.autopilot-stat{padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.autopilot-stat b{display:block;margin-bottom:4px}.autopilot-stat span{font-size:12px;color:var(--muted)}
 .extension-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.extension-card{margin:0}.extension-meta{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.extension-card .risk-RESTRICTED{color:var(--danger)}.creator-name{font-size:24px;font-weight:750;letter-spacing:-.02em}.support-brand{display:flex;align-items:center;gap:11px;margin-bottom:14px}.support-brand-mark{width:48px;height:48px;flex:none;filter:drop-shadow(0 0 12px rgba(255,106,26,.26))}.support-brand .wordmark{font-size:24px;font-weight:700}.brand-tagline{margin:0;color:var(--muted);font:650 10px/1 var(--font);letter-spacing:.28em;text-transform:uppercase}.voice-listening{box-shadow:0 0 0 3px rgba(255,122,26,.18);color:var(--accent)}.support-btn{display:inline-flex;align-items:center;gap:8px}
-@media (max-width:860px){.effort-select{max-width:104px}.extension-grid{grid-template-columns:1fr}}
+@media (max-width:860px){.extension-grid{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
 html[data-motion="reduced"] *,html[data-motion="reduced"] *::before,html[data-motion="reduced"] *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
 
@@ -556,20 +539,76 @@ html[data-motion="reduced"] *,html[data-motion="reduced"] *::before,html[data-mo
 .side-nav{flex:none;min-height:0;max-height:48vh;overflow:auto;padding:2px 10px 10px;scrollbar-gutter:stable}
 .nav-section{margin:12px 0 0}.nav-section:first-child{margin-top:3px}.nav-section-title{margin:0 10px 6px;padding:0;color:var(--faint);font:700 9px/1 var(--font);letter-spacing:.14em;text-transform:uppercase;user-select:none}
 .nav-section>ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}.nav-section .nav-item{height:36px;padding:0 10px;font-size:13.5px}.nav-section .nav-item .i{width:17px;height:17px;color:var(--muted)}.nav-section .nav-item[aria-current="page"] .i{color:var(--o-hot)}
-.nav-more{margin:8px 0 0;border-top:1px solid var(--line);padding-top:8px}.nav-more>summary{height:36px;padding:0 10px;font-size:13.5px}.nav-more-body{padding:0 0 2px}.nav-more-body .nav-section{margin-top:12px}.nav-more-body .nav-section:first-child{margin-top:8px}
-.nav-more[hidden]{display:none}.nav-section[hidden]{display:none!important}
+.nav-section[hidden]{display:none!important}
 .app[data-collapsed="true"] .workspace-badge{justify-content:center;margin:2px 12px 10px;padding:10px 0}.app[data-collapsed="true"] .workspace-badge .label{display:none}.app[data-collapsed="true"] .workspace-pulse{width:9px;height:9px}
-.app[data-collapsed="true"] .nav-section-title{display:none}.app[data-collapsed="true"] .nav-section{margin-top:4px}.app[data-collapsed="true"] .nav-more{margin-left:0;margin-right:0}.app[data-collapsed="true"] .nav-more>summary{justify-content:center;padding:0}.app[data-collapsed="true"] .nav-more .label,.app[data-collapsed="true"] .nav-more .more-chevron{display:none}
+.app[data-collapsed="true"] .nav-section-title{display:none}.app[data-collapsed="true"] .nav-section{margin-top:4px}
 .top{height:64px;padding:0 24px;background:rgba(8,8,10,.82);border-bottom-color:rgba(255,255,255,.085);backdrop-filter:blur(20px) saturate(1.2)}
 .top-context{display:flex;align-items:center;gap:11px;min-width:0}.top-kicker{color:var(--o-hot);font:750 9px/1 var(--mono);letter-spacing:.16em;white-space:nowrap}.top-title{color:var(--ink);font-weight:650}.top-title:empty{display:none}.top-surface{color:var(--muted);font:500 10px/1 var(--mono);letter-spacing:.08em;white-space:nowrap}.top-title:not(:empty)::before{content:"/";color:var(--faint);margin-right:11px;font-weight:400}
 main>section{max-width:1180px;padding:22px 42px 64px}main>section>h1{font-size:31px}.main-col::before{background:linear-gradient(120deg,rgba(255,255,255,.018),transparent 38%),radial-gradient(760px 420px at 74% 12%,rgba(255,106,26,.04),transparent 72%)}
 main>section.chat{max-width:none;padding:0}.chat-scroll{padding-left:34px;padding-right:34px}.log,.dock-inner{max-width:960px}.dock{padding-left:34px;padding-right:34px}
 .hero{max-width:760px;margin-bottom:26px}.hero-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;color:var(--o-hot);font:750 10px/1 var(--mono);letter-spacing:.16em}.signal-dot{width:7px;height:7px;border-radius:50%;background:var(--o-hot);box-shadow:0 0 12px rgba(255,106,26,.8)}.hero h2{font-size:clamp(34px,3.8vw,48px)}.hero p{max-width:62ch;margin-left:auto;margin-right:auto;color:var(--ink-2)}
 .hero-trust{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin-top:18px}.hero-trust span{display:inline-flex;align-items:center;gap:6px;height:27px;padding:0 9px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.018);color:var(--muted);font:550 11px/1 var(--font)}.hero-trust .i{width:13px;height:13px;color:var(--o-hot)}
-.composer{background:linear-gradient(180deg,rgba(27,27,33,.98),rgba(14,14,18,.99));border-color:rgba(255,255,255,.13);box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 26px 80px -30px rgba(0,0,0,.96),0 0 0 1px rgba(255,106,26,.025)}.composer textarea{padding-top:20px}.dock-foot{padding-left:4px;padding-right:4px}.suggest{max-width:720px}
+.composer{background:linear-gradient(180deg,rgba(27,27,33,.98),rgba(14,14,18,.99));border-color:rgba(255,255,255,.13);box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 26px 80px -30px rgba(0,0,0,.96),0 0 0 1px rgba(255,106,26,.025)}.composer textarea{padding-top:20px}.dock-foot{padding-left:4px;padding-right:4px}
 @media (max-width:1100px){main>section{padding-left:28px;padding-right:28px}.top{padding-left:20px;padding-right:20px}}
 @media (max-width:860px){.side-nav{max-height:none;overflow:auto}.top{height:58px;padding:0 14px}.top-surface{display:none}.top-kicker{font-size:8px}.chat-scroll{padding-left:16px;padding-right:16px}.dock{padding-left:16px;padding-right:16px}.hero h2{font-size:clamp(30px,8vw,40px)}}
-@media (max-width:520px){.workspace-badge{margin-left:12px;margin-right:12px}.hero-kicker{margin-bottom:14px}.hero-trust{gap:5px}.hero-trust span{font-size:10px;padding:0 8px}.hero-trust span:nth-child(3){display:none}.composer-bar{flex-direction:column;align-items:stretch;gap:7px}.composer-bar .left{flex:none;width:100%;flex-wrap:nowrap;justify-content:flex-start}.composer-bar .right{width:100%;justify-content:flex-end}.effort-select{flex:1;min-width:0;max-width:none}.model-btn{max-width:none;flex:0 1 auto}.top-context{gap:8px}}
+@media (max-width:520px){.workspace-badge{margin-left:12px;margin-right:12px}.hero-kicker{margin-bottom:14px}.hero-trust{gap:5px}.hero-trust span{font-size:10px;padding:0 8px}.hero-trust span:nth-child(3){display:none}.composer-bar{flex-direction:column;align-items:stretch;gap:7px}.composer-bar .left{flex:none;width:100%;flex-wrap:nowrap;justify-content:flex-start}.composer-bar .right{width:100%;justify-content:flex-end}.model-btn{max-width:none;flex:0 1 auto}.top-context{gap:8px}}
+
+/* ---------- Local 2026 information architecture ---------- */
+.side-nav{max-height:none;padding:2px 10px 8px;overflow:visible}
+.side-nav .nav-label{padding:12px 10px 5px}
+.side-nav .nav-label:first-child{padding-top:4px}
+.side-nav ul{padding:0;gap:2px}
+.side-nav .nav-item{height:38px;padding:0 10px;font-size:13.5px}
+.side-nav .nav-item .i{width:17px;height:17px;color:var(--muted)}
+.side-nav .project-nav{padding-top:3px}
+.side-nav .project-nav .nav-item{color:var(--ink-2)}
+.side-nav .project-nav .nav-item .i{color:var(--o-hot)}
+.settings-link{display:flex;align-items:center;justify-content:center;gap:8px;min-width:40px;height:38px;padding:0 10px;border-radius:10px;color:var(--muted);text-decoration:none;font-size:13px}
+.settings-link:hover{background:var(--b3);color:var(--ink)}
+.settings-link .i{width:17px;height:17px}
+.app[data-collapsed="true"] .settings-link{padding:0;width:40px}
+.app[data-collapsed="true"] .settings-link .label{display:none}
+.app[data-collapsed="true"] .side-foot{justify-content:center}
+.chat-body{display:flex;flex:1;min-height:0;min-width:0}
+.chat-body>.chat-scroll{min-width:0}
+.chat.is-empty .chat-body{display:none}
+.chat.is-empty:has(#context-workspace:not([hidden])) .chat-body{display:flex}
+.context-workspace{width:min(390px,38vw);min-width:300px;overflow:auto;padding:20px;border-left:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.008))}
+.context-head{display:flex;align-items:flex-start;gap:12px;margin-bottom:18px}
+.context-head>div{min-width:0;flex:1}
+.context-kicker{display:block;color:var(--o-hot);font:750 9px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px}
+.context-head h2{margin:0;font:650 20px/1.2 var(--display);letter-spacing:-.02em}
+.context-head p{margin:6px 0 0;color:var(--muted);font-size:13px}
+.context-close{flex:none}
+.context-list{display:grid;gap:8px}
+.context-list a,.context-list button{display:flex;align-items:center;gap:10px;min-height:42px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.018);color:var(--ink-2);text-decoration:none;text-align:left;font:500 13px/1.35 var(--font);cursor:pointer}
+.context-list a:hover,.context-list button:hover{border-color:var(--o-line);color:var(--ink);background:rgba(255,106,26,.06)}
+.context-list .i{width:16px;height:16px;color:var(--o-hot);flex:none}
+.context-note{margin:16px 0 0;padding-top:14px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+.composer-add-menu{min-width:240px;max-width:min(320px,calc(100vw - 24px))}
+.composer-add-menu .opt{width:100%}
+.composer-add-menu .opt small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+.projects-view .lead{max-width:680px}
+.project-layout{display:grid;grid-template-columns:minmax(240px,.78fr) minmax(0,1.22fr);gap:18px;align-items:start}
+.project-card{margin:0}
+.project-card h2,.project-sources h2{margin-top:0}
+.project-name{display:flex;align-items:center;gap:11px;margin:0 0 5px;font:650 22px/1.2 var(--display);letter-spacing:-.02em}
+.project-name .i{width:20px;height:20px;color:var(--o-hot)}
+.project-meta{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;margin:18px 0 0;font-size:13px}
+.project-meta dt{color:var(--muted)}.project-meta dd{margin:0;color:var(--ink-2);text-align:right;overflow-wrap:anywhere}
+.project-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+.project-discussions{min-height:220px}
+.project-discussions h2{margin-top:0}
+.project-chat-list{display:grid;gap:5px}
+.project-chat-list .conv{width:100%;display:flex;align-items:center;min-height:42px;border:1px solid var(--line);background:rgba(255,255,255,.014);padding:9px 11px;color:var(--ink-2)}
+.project-chat-list .conv:hover{border-color:var(--o-line);color:var(--ink)}
+.project-sources{margin-top:18px}
+.project-source-links{display:flex;gap:8px;flex-wrap:wrap}
+.project-source-links a{display:inline-flex;align-items:center;gap:7px;color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--line-2);padding:4px 0}
+.project-source-links a:hover{color:var(--o-hot);border-color:var(--o-line)}
+.settings-nav{max-height:none}
+@media (max-width:900px){.context-workspace{width:min(360px,42vw);min-width:270px}.project-layout{grid-template-columns:1fr}}
+@media (max-width:640px){.chat-body{display:block}.context-workspace{width:100%;min-width:0;max-height:42vh;border-left:0;border-top:1px solid var(--line)}.composer-add-menu{max-width:calc(100vw - 24px)}.project-meta dd{text-align:left}.project-meta{grid-template-columns:1fr}.project-meta dt{margin-top:5px}}
 `;
 
 const SCRIPT = String.raw`
@@ -583,8 +622,8 @@ const SCRIPT = String.raw`
   const tpl = document.createElement('template');
   function ic(name, cls) { tpl.innerHTML = '<svg class="' + (cls || 'i') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || '') + '</svg>'; return tpl.content.firstChild; }
   const store = { get(k, d) { try { const v = localStorage.getItem('furypipe.studio.' + k); return v === null ? d : v; } catch { return d; } }, set(k, v) { try { localStorage.setItem('furypipe.studio.' + k, v); } catch {} } };
-  const views = ['chat','media','observability','marketplace','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
-  const VIEW_TITLES = { chat: 'Chat', media: 'Media Studio', observability: 'Observability / Cost', marketplace: 'Marketplace', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
+  const views = ['chat','projects','research','media','observability','marketplace','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
+  const VIEW_TITLES = { chat: 'Chat', projects: 'Projects', research: 'Research', media: 'Media Studio', observability: 'Observability / Cost', marketplace: 'Marketplace', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
   const PROVIDER = { ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp', vllm: 'vLLM', sglang: 'SGLang', localai: 'LocalAI', jan: 'Jan', 'openai-compatible': 'OpenAI-compatible', 'anthropic-compatible': 'Anthropic-compatible' };
   const SETUP = { ollama: 'https://ollama.com/download', lmstudio: 'https://lmstudio.ai', llamacpp: 'https://github.com/ggml-org/llama.cpp', vllm: 'https://docs.vllm.ai', sglang: 'https://docs.sglang.ai', localai: 'https://localai.io', jan: 'https://jan.ai' };
   const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, media: null, observability: null, marketplace: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
@@ -601,6 +640,20 @@ const SCRIPT = String.raw`
     'New chat': 'Nouvelle discussion',
     'Search': 'Rechercher',
     'Chat': 'Discussion',
+    'Projects': 'Projets',
+    'Project context': 'Contexte du projet',
+    'Current project': 'Projet courant',
+    'Discussions': 'Discussions',
+    'Sources': 'Sources',
+    'Research': 'Recherche',
+    'Research workspace': 'Espace de recherche',
+    'Code workspace': 'Espace code',
+    'Media workspace': 'Espace média',
+    'Artifact workspace': 'Espace artefact',
+    'Agent activity': 'Activité des agents',
+    'MCP App': 'Application MCP',
+    'Contextual workspace': 'Espace contextuel',
+    'Open in workspace': 'Ouvrir dans l’espace',
     'Cowork': 'Travail',
     'Code': 'Code',
     'Agents': 'Agents',
@@ -639,6 +692,23 @@ const SCRIPT = String.raw`
     'Ask FuryPipe anything…': 'Demandez n’importe quoi à FuryPipe…',
     'Message': 'Message',
     'Attach text files': 'Joindre des fichiers texte',
+    'Add context': 'Ajouter du contexte',
+    'Attach a text file': 'Joindre un fichier texte',
+    'Image, video and audio previews': 'Aperçus image, vidéo et audio',
+    'Review outputs beside the conversation': 'Examiner les sorties à côté de la discussion',
+    'Runs and approvals when present': 'Exécutions et approbations lorsqu’elles existent',
+    'Only approved interactive sources': 'Sources interactives approuvées uniquement',
+    'Web sources': 'Sources web',
+    'Indexed knowledge': 'Connaissances indexées',
+    'Voice input': 'Entrée vocale',
+    'Open command palette': 'Ouvrir la palette de commandes',
+    'Close panel': 'Fermer le panneau',
+    'Open Media Studio': 'Ouvrir Media Studio',
+    'Inspect artifacts': 'Examiner les artefacts',
+    'Open MCP sources': 'Ouvrir les sources MCP',
+    'Inspect MCP Apps': 'Examiner les applications MCP',
+    'Image, video and audio previews stay bounded until an approved runtime and provider are available.': 'Les aperçus image, vidéo et audio restent bornés tant qu’un runtime et un fournisseur approuvés ne sont pas disponibles.',
+    'Interactive MCP UI appears only when an approved source exposes one.': 'Une interface MCP interactive apparaît uniquement lorsqu’une source approuvée en expose une.',
     'Read the web pages you link': 'Lire les pages web que vous partagez',
     'Ground answers in your indexed project documents': 'Appuyer les réponses sur les documents indexés du projet',
     'Choose a model': 'Choisir un modèle',
@@ -647,12 +717,6 @@ const SCRIPT = String.raw`
     'Create': 'Créer',
     'Work': 'Travailler',
     'AI can make mistakes. Check important information.': 'L’IA peut se tromper. Vérifiez les informations importantes.',
-    'Simple': 'Simple',
-    'Power': 'Avancé',
-    'Engineer': 'Ingénieur',
-    'Expert': 'Expert',
-    'mode': 'mode',
-    'Workspace mode': 'Mode de travail',
     'Collapse sidebar': 'Réduire la barre latérale',
     'Expand sidebar': 'Déployer la barre latérale',
     'Open sidebar': 'Ouvrir la barre latérale',
@@ -701,6 +765,11 @@ const SCRIPT = String.raw`
     'Make FuryPipe yours. Preferences are stored in this browser.': 'Personnalisez FuryPipe. Les préférences sont stockées dans ce navigateur.',
     'General': 'Général',
     'Appearance': 'Apparence',
+    'AI & models': 'IA et modèles',
+    'Memory': 'Mémoire',
+    'Tools & extensions': 'Outils et extensions',
+    'Developer': 'Développeur',
+    'About': 'À propos',
     'Privacy': 'Confidentialité',
     'Advanced': 'Avancé',
     'Language': 'Langue',
@@ -964,14 +1033,9 @@ const SCRIPT = String.raw`
   const reduceMotion = () => document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ---------- Reasoning effort ---------- */
-  const effortSelect = $('#effort-select');
   const storedEffort = store.get('effort', 'auto');
-  if ([...effortSelect.options].some((o) => o.value === storedEffort)) effortSelect.value = storedEffort;
-  effortSelect.addEventListener('change', () => {
-    store.set('effort', effortSelect.value);
-    const preview = $('#autopilot-effort');
-    if (preview) preview.value = effortSelect.value;
-  });
+  for (const r of $$('input[name="pref-effort"]')) r.checked = r.value === storedEffort;
+  for (const r of $$('input[name="pref-effort"]')) r.addEventListener('change', () => store.set('effort', r.value));
 
   const customInstructions = $('#custom-instructions');
   customInstructions.value = store.get('customInstructions', '');
@@ -1039,28 +1103,6 @@ const SCRIPT = String.raw`
     hero.addEventListener('pointerleave', resetHero);
   }
 
-  /* ---------- Modes ---------- */
-  const LEVELS = ['simple', 'power', 'engineer', 'expert'];
-  const MODE_TEXT = { simple: 'Simple', power: 'Power', engineer: 'Engineer', expert: 'Expert' };
-  function applyMode(mode) {
-    if (!LEVELS.includes(mode)) mode = 'simple';
-    document.body.dataset.mode = mode;
-    const max = LEVELS.indexOf(mode);
-    for (const li of $$('.side-nav li[data-level]')) li.hidden = LEVELS.indexOf(li.dataset.level) > max;
-    for (const section of $$('.nav-section[data-nav-section]')) {
-      section.hidden = ![...section.querySelectorAll('li[data-level]')].some((li) => !li.hidden);
-    }
-    const navMore = $('#nav-more');
-    if (navMore) navMore.hidden = ![...navMore.querySelectorAll('.nav-section[data-nav-section]')].some((section) => !section.hidden);
-    if (navMore && mode !== 'simple') navMore.open = true;
-    $('#mode-label').textContent = MODE_TEXT[mode];
-    for (const b of $$('#mode-menu [role=menuitemradio]')) b.setAttribute('aria-checked', String(b.dataset.mode === mode));
-    for (const r of $$('input[name="pref-mode"]')) r.checked = r.value === mode;
-    store.set('mode', mode);
-  }
-  applyMode(store.get('mode', 'simple'));
-  for (const r of $$('input[name="pref-mode"]')) r.addEventListener('change', () => applyMode(r.value));
-
   /* ---------- Popovers ---------- */
   let openPop = null;
   function closePop(restore) { if (!openPop) return; const { pop, anchor } = openPop; pop.hidden = true; anchor.setAttribute('aria-expanded', 'false'); openPop = null; if (restore !== false) anchor.focus(); }
@@ -1083,19 +1125,13 @@ const SCRIPT = String.raw`
       else if (e.key === 'Escape') { e.preventDefault(); closePop(); }
     });
   }
-  $('#mode-button').addEventListener('click', () => { const m = $('#mode-menu'); m.dataset.align = 'left'; if (openPopover(m, $('#mode-button'), 'left')) { const c = $('#mode-menu [aria-checked=true]'); (c || $('#mode-menu [role=menuitemradio]')).focus(); } });
-  for (const b of $$('#mode-menu [role=menuitemradio]')) b.addEventListener('click', () => { applyMode(b.dataset.mode); closePop(); });
-  menuKeys($('#mode-menu'), '[role=menuitemradio]');
-
   /* ---------- Routing ---------- */
   let firstRoute = true;
   function show(name) {
     if (!views.includes(name)) name = 'notfound';
     for (const s of $$('main > section')) s.hidden = s.dataset.view !== name;
     for (const a of $$('.side-nav a[data-view]')) { if (a.dataset.view === name) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); }
-    const activeNav = $('.side-nav a[data-view="' + name + '"]');
-    const more = $('#nav-more');
-    if (activeNav && activeNav.closest('.nav-more') && more) more.open = true;
+    if (name !== 'chat') closeContextWorkspace(false);
     document.body.dataset.view = name;
     $('#top-title').textContent = name === 'chat' ? (state.conv && state.conv.title ? state.conv.title : '') : (VIEW_TITLES[name] || '');
     $('#privacy').hidden = name !== 'chat' || !state.lastRoute;
@@ -1108,10 +1144,11 @@ const SCRIPT = String.raw`
     }
     firstRoute = false;
     if (name === 'chat' || name === 'models') loadLocal();
+    if (name === 'projects') loadProjects();
+    if (name === 'research') loadResearch();
     if (name === 'media') loadMedia();
     if (name === 'observability') loadObservability();
     if (name === 'marketplace') loadMarketplace();
-    if (name === 'autopilot') $('#autopilot-effort').value = $('#effort-select').value;
     if (name === 'chat') autosize();
     if (name === 'connections') loadConnections();
     if (name === 'runtimes') loadHarnesses();
@@ -1243,6 +1280,60 @@ const SCRIPT = String.raw`
     if (state.pick !== 'auto' && !candidates().some(x => x.model === state.pick.model && x.baseUrl === state.pick.baseUrl)) state.pick = 'auto';
     renderModelButton();
   }
+  const CONTEXT_WORKSPACES = {
+    code: { title: 'Code workspace', description: 'Files, diff, checks and governed edits stay attached to this conversation.', links: [['code', 'Open Code workspace', 'code'], ['artifacts', 'Inspect artifacts', 'artifacts']] },
+    research: { title: 'Research workspace', description: 'Keep sources and project knowledge beside the answer that uses them.', links: [['web', 'Open Web sources', 'web'], ['knowledge', 'Open indexed knowledge', 'knowledge']] },
+    media: { title: 'Media workspace', description: 'Image, video and audio previews stay bounded until an approved runtime and provider are available.', links: [['media', 'Open Media Studio', 'media'], ['artifacts', 'Inspect artifacts', 'artifacts']] },
+    artifact: { title: 'Artifact workspace', description: 'Review versioned outputs without leaving the project context.', links: [['artifacts', 'Open Artifacts', 'artifacts'], ['projects', 'Return to project context', 'projects']] },
+    agent: { title: 'Agent activity', description: 'Agent runs appear here only when a governed run exists.', links: [['agents', 'Open Agent activity', 'agents'], ['mission', 'Open Mission Control', 'mission']] },
+    mcp: { title: 'MCP App', description: 'Interactive MCP UI appears only when an approved source exposes one.', links: [['mcp', 'Open MCP sources', 'mcp'], ['extensions', 'Inspect MCP Apps', 'extensions']] },
+  };
+  function closeContextWorkspace(restore = true) {
+    const panel = $('#context-workspace');
+    if (!panel || panel.hidden) return;
+    panel.hidden = true;
+    if (restore) $('#attach-btn').focus();
+  }
+  function openContextWorkspace(kind) {
+    const panel = $('#context-workspace'); const content = $('#context-content'); const meta = CONTEXT_WORKSPACES[kind];
+    if (!panel || !content || !meta) return;
+    $('#context-title').textContent = meta.title;
+    $('#context-description').textContent = meta.description;
+    content.replaceChildren(...meta.links.map(([view, label, iconName]) => {
+      const link = el('a', { href: '#/' + view }, ic(iconName), el('span', { text: label }));
+      link.addEventListener('click', () => closeContextWorkspace(false));
+      return link;
+    }));
+    panel.hidden = false;
+    $('#context-close').focus();
+  }
+  function loadResearch() {
+    const status = $('#research-status');
+    if (status) status.textContent = 'Research is contextual: add Web or indexed project knowledge from the composer when the question needs it.';
+  }
+  async function loadProjects() {
+    const list = $('#project-chat-list'); const status = $('#project-status');
+    if (!list || !status) return;
+    status.textContent = 'Loading project context…'; list.replaceChildren(el('p', { class: 'muted', text: 'Loading discussions…' }));
+    const results = await Promise.allSettled([getJson('/api/studio/chats.json'), getJson('/api/studio/artifacts.json')]);
+    const chats = results[0].status === 'fulfilled' && Array.isArray(results[0].value.conversations) ? results[0].value.conversations : [];
+    const artifacts = results[1].status === 'fulfilled' && Array.isArray(results[1].value.artifacts) ? results[1].value.artifacts : [];
+    $('#project-chat-count').textContent = String(chats.length);
+    $('#project-artifact-count').textContent = results[1].status === 'fulfilled' ? String(artifacts.length) : 'Unavailable';
+    list.replaceChildren();
+    if (!chats.length) list.append(el('p', { class: 'muted', text: 'No conversations yet.' }));
+    for (const conversation of chats.slice(0, 20)) {
+      const button = el('button', { type: 'button', class: 'conv', title: conversation.title }, conversation.title);
+      button.addEventListener('click', async () => {
+        try {
+          state.conv = await post('/api/studio/chats/get', { id: conversation.id });
+          state.activity = new Map(); state.lastRoute = null; location.hash = '#/chat'; renderConversation(); renderRouteChip(); loadConversations();
+        } catch (error) { status.textContent = 'Could not open discussion: ' + error.message; }
+      });
+      list.append(button);
+    }
+    status.textContent = results[0].status === 'fulfilled' ? 'Project context is local to this checkout.' : 'Project context is partially unavailable.';
+  }
   function renderModels() {
     const hw = state.hw; const gib = (b) => Math.round(b / 1073741824);
     if (hw) {
@@ -1333,7 +1424,10 @@ const SCRIPT = String.raw`
   function hasDraft() { return input.value.trim().length > 0 || state.files.length > 0 || state.pastes.length > 0; }
   function autosize() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 384) + 'px'; $('#chat-send').disabled = !state.busy && (!hasDraft() || !candidates().length); }
   input.addEventListener('input', autosize);
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#chat-form').requestSubmit(); } });
+  input.addEventListener('keydown', (e) => {
+    if ((e.key === '@' || e.key === '/') && !input.value.trim() && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); openPalette(); return; }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('#chat-form').requestSubmit(); }
+  });
   const fmtSize = (n) => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
   const TEXTY = /\.(txt|md|markdown|csv|tsv|json|jsonl|ya?ml|toml|ini|xml|html?|css|scss|js|mjs|cjs|jsx|ts|tsx|py|rb|go|rs|java|kt|c|h|cpp|hpp|cs|php|swift|sh|ps1|sql|log|env\.example)$/i;
   function renderTray() {
@@ -1359,7 +1453,20 @@ const SCRIPT = String.raw`
     }
     renderTray(); autosize();
   }
-  $('#attach-btn').addEventListener('click', () => $('#attach-input').click());
+  const addMenu = $('#add-menu');
+  $('#context-close').addEventListener('click', () => closeContextWorkspace());
+  $('#attach-btn').addEventListener('click', () => {
+    addMenu.dataset.align = 'left';
+    if (openPopover(addMenu, $('#attach-btn'), 'left')) {
+      const first = addMenu.querySelector('[role=menuitem]:not([hidden])');
+      if (first) first.focus();
+    }
+  });
+  $('#add-file').addEventListener('click', () => { closePop(false); $('#attach-input').click(); });
+  $('#add-project').addEventListener('click', () => { closePop(false); location.hash = '#/projects'; });
+  $('#add-palette').addEventListener('click', () => { closePop(false); openPalette(); });
+  for (const b of $$('[data-context-kind]')) b.addEventListener('click', () => { const kind = b.dataset.contextKind; closePop(false); if (kind) openContextWorkspace(kind); });
+  menuKeys(addMenu, '[role=menuitem]');
   $('#attach-input').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
   input.addEventListener('paste', (e) => {
     const files = [...(e.clipboardData && e.clipboardData.files || [])]; if (files.length) { e.preventDefault(); addFiles(files); return; }
@@ -1371,7 +1478,7 @@ const SCRIPT = String.raw`
   composer.addEventListener('dragover', (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
   composer.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $('#drop').hidden = true; });
   composer.addEventListener('drop', (e) => { e.preventDefault(); dragDepth = 0; $('#drop').hidden = true; if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
-  for (const [id, key] of [['#tool-web', 'web'], ['#tool-kb', 'kb']]) $(id).addEventListener('click', () => { state[key] = !state[key]; $(id).setAttribute('aria-pressed', String(state[key])); });
+  for (const [id, key] of [['#tool-web', 'web'], ['#tool-kb', 'kb']]) $(id).addEventListener('click', () => { state[key] = !state[key]; $(id).setAttribute('aria-pressed', String(state[key])); closePop(false); });
 
   /* ---------- Voice dictation (progressive enhancement) ---------- */
   const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1396,7 +1503,6 @@ const SCRIPT = String.raw`
     voiceBtn.addEventListener('click', () => { try { recognition.start(); } catch {} });
   }
 
-  for (const b of $$('.chip-btn[data-prompt]')) b.addEventListener('click', () => { input.value = b.dataset.prompt; autosize(); input.focus(); input.setSelectionRange(input.value.length, input.value.length); });
   function setStatus(text, stage) {
     const s = $('#chat-status'); s.replaceChildren();
     if (stage) s.append(el('span', { class: 'stage-line' }, el('span', { class: 'pulse', 'aria-hidden': 'true' }), el('span', { text })));
@@ -1430,7 +1536,7 @@ const SCRIPT = String.raw`
     return messages;
   }
   async function prepareAutopilot(text, harnessId, route) {
-    const effort = $('#effort-select').value || 'auto';
+    const effort = store.get('effort', 'auto');
     const result = await post('/api/studio/autopilot/preview', {
       objective: text.slice(0, 16000),
       effort,
@@ -1939,6 +2045,7 @@ const SCRIPT = String.raw`
   }
   function newChat() { state.conv = null; state.activity = new Map(); state.lastRoute = null; state.autopilot = null; state.autopilotMessages = []; renderConversation(); renderRouteChip(); loadConversations(); if (location.hash !== '#/chat' && location.hash !== '') location.hash = '#/chat'; setTimeout(() => input.focus(), 0); }
   $('#new-chat').addEventListener('click', () => { newChat(); setDrawer(false); });
+  $('#project-new-chat').addEventListener('click', newChat);
 
   $('#setup-progress-close').addEventListener('click', () => { $('#setup-overlay').hidden = true; });
   $('#setup-overlay').addEventListener('mousedown', (event) => { if (event.target === $('#setup-overlay') && $('#setup-progress-spin').hidden) $('#setup-overlay').hidden = true; });
@@ -1946,16 +2053,13 @@ const SCRIPT = String.raw`
   /* ---------- Command palette ---------- */
   let palItems = []; let palIndex = 0;
   function paletteItems() {
-    const max = LEVELS.indexOf(document.body.dataset.mode || 'simple'); const items = [];
+    const items = [];
     items.push({ icon: 'compose', label: 'New chat', hint: 'Ctrl Shift O', run: newChat });
+    items.push({ icon: 'projects', label: 'Open Projects', hint: 'Local project context', run: () => { location.hash = '#/projects'; } });
     items.push({ icon: 'models', label: 'Change model', run: () => { location.hash = '#/chat'; setTimeout(() => $('#model-button').click(), 30); } });
-    for (const li of $$('.side-nav li[data-level]')) {
-      if (LEVELS.indexOf(li.dataset.level) > max) continue;
-      const a = li.querySelector('a[data-view]');
-      if (!a) continue;
-      items.push({ icon: a.dataset.view, label: 'Go to ' + a.textContent.trim(), run: () => { location.hash = '#/' + a.dataset.view; } });
-    }
-    for (const m of LEVELS) items.push({ icon: 'settings', label: 'Switch to ' + MODE_TEXT[m] + ' mode', run: () => applyMode(m) });
+    for (const item of __DISCOVERABLE_NAVIGATION__) items.push({ icon: item.view, label: 'Go to ' + item.label, hint: item.description, run: () => { location.hash = '#/' + item.view; } });
+    items.push({ icon: 'settings', label: 'Open Settings', hint: 'Preferences and local boundaries', run: () => { location.hash = '#/settings'; } });
+    items.push({ icon: 'settings', label: 'Open Developer settings', hint: 'Technical surfaces stay here', run: () => { location.hash = '#/settings/developer'; } });
     for (const b of $$('#chat-list .conv')) items.push({ icon: 'chat', label: b.textContent, hint: 'Conversation', run: () => b.click() });
     return items;
   }
@@ -2291,7 +2395,7 @@ const SCRIPT = String.raw`
     try {
       const result = await post('/api/studio/autopilot/preview', {
         objective: $('#autopilot-objective').value,
-        effort: $('#autopilot-effort').value,
+        effort: store.get('effort', 'auto'),
         harnessId: $('#autopilot-harness').value || undefined,
         includeWorkspaceGraph: true,
       });
@@ -2916,7 +3020,9 @@ function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/gu, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
-const SCRIPT_WITH_ICONS = SCRIPT.replace('__ICONS__', () => JSON.stringify(ICONS).replace(/</gu, '\\u003c'));
+const SCRIPT_WITH_ICONS = SCRIPT
+  .replace('__ICONS__', () => JSON.stringify(ICONS).replace(/</gu, '\\u003c'))
+  .replace('__DISCOVERABLE_NAVIGATION__', () => JSON.stringify(STUDIO_DISCOVERABLE_NAVIGATION).replace(/</gu, '\\u003c'));
 
 export interface StudioHtmlOptions {
   readonly locale?: 'en' | 'fr';
@@ -2927,16 +3033,14 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   const initialLocale = options.locale === 'fr' ? 'fr' : 'en';
   const scriptFinal = SCRIPT_WITH_ICONS.replace('__SERVER_LANGUAGE__', JSON.stringify(initialLocale));
   const perm = (cap: string, def: string) => `<div><label for="perm-${cap}">${cap.replace('_', ' ')}</label><select id="perm-${cap}">${['ALLOW', 'ASK', 'DENY'].map((d) => `<option${d === def ? ' selected' : ''}>${d}</option>`).join('')}</select></div>`;
-  const nav = ({ view, level, label }: StudioNavigationItem) => `<li data-level="${level}"><a class="nav-item" href="#/${view}" data-view="${view}" title="${label}">${icon(view)}<span class="label">${label}</span></a></li>`;
-  const navSection = (label: string, items: readonly StudioNavigationItem[]) => `<section class="nav-section" data-nav-section="${label.toLowerCase()}"><h2 class="nav-section-title label">${label}</h2><ul>${items.map(nav).join('')}</ul></section>`;
+  const nav = ({ view, label }: StudioNavigationItem) => `<li><a class="nav-item" href="#/${view}" data-view="${view}" title="${label}">${icon(view)}<span class="label">${label}</span></a></li>`;
   const seg = (name: string, options: readonly (readonly [string, string])[]) => `<div class="seg" role="radiogroup" aria-label="${name}">${options.map(([v, t]) => `<label><input type="radio" name="pref-${name}" value="${v}"><span>${t}</span></label>`).join('')}</div>`;
-  const modeItem = (mode: string, name: string, desc: string) => `<button type="button" class="opt" role="menuitemradio" aria-checked="false" data-mode="${mode}"><span class="t"><span class="n">${name}</span><span class="d">${desc}</span></span>${icon('check', 'i ck')}</button>`;
   const faviconHref = `data:image/svg+xml,${encodeURIComponent(FURYPIPE_FAVICON_SVG)}`;
   const html = `<!doctype html>
 <html lang="${initialLocale}" data-theme="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark light"><meta name="theme-color" content="#050506"><meta name="application-name" content="FuryPipe Studio"><link rel="icon" type="image/svg+xml" href="${faviconHref}">
 <title>Chat · FuryPipe Studio</title><style nonce="${nonce}">${CSS}</style></head>
-<body data-mode="simple" data-view="chat"><a class="skip" href="#main" tabindex="0">Skip to content</a>
+<body data-view="chat"><a class="skip" href="#main" tabindex="0">Skip to content</a>
 <div class="app" id="app" data-collapsed="false" data-drawer="closed">
 <aside class="side" id="side" aria-label="FuryPipe">
   <div class="side-top"><a class="brand" data-brand="furypipe" href="#/chat" aria-label="FuryPipe home">${MARK}${WORDMARK}</a>
@@ -2944,14 +3048,13 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div class="workspace-badge" aria-label="Local workspace"><span class="workspace-pulse" aria-hidden="true"></span><span class="label"><b>Local workspace</b><small>Loopback · governed</small></span></div>
   <button type="button" id="new-chat" class="new-chat" title="New chat">${icon('compose')}<span class="label">New chat</span></button>
   <button type="button" id="search-btn" class="search-btn" title="Search and commands (Ctrl K)">${icon('search')}<span class="label">Search</span><kbd>Ctrl K</kbd></button>
-  <nav class="side-nav" aria-label="Workspace">
-    ${navSection('Workspace', STUDIO_PRIMARY_NAVIGATION)}
-    <details class="nav-more" id="nav-more"><summary>${icon('more')}<span class="label">Explore workspace</span>${icon('chevron','i more-chevron')}</summary><div class="nav-more-body">${STUDIO_NAVIGATION_SECTIONS.map(({ label, items }) => navSection(label, items)).join('')}</div></details>
+  <nav class="side-nav" aria-label="Primary">
+    <div class="nav-label">Workspace</div>
+    <ul class="primary-nav">${STUDIO_PRIMARY_NAVIGATION.map(nav).join('')}</ul>
   </nav>
   <div class="recent" aria-labelledby="recent-h"><h2 id="recent-h">Recent</h2><ul id="chat-list" aria-labelledby="recent-h"></ul></div>
   <div class="side-foot">
-    <button type="button" id="mode-button" class="mode-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="mode-menu" title="Workspace mode"><span class="mode-dot" aria-hidden="true"></span><span class="label" id="mode-label">Simple</span><small class="label">mode</small>${icon('chevron')}</button>
-    <a class="icon-btn" href="#/settings" aria-label="Settings" title="Settings">${icon('settings')}</a>
+    <a class="settings-link" href="#/settings" aria-label="Settings" title="Settings">${icon('settings')}<span class="label">Settings</span></a>
   </div>
   <div id="side-resizer" class="side-resizer desktop-only" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0" aria-valuemin="228" aria-valuemax="380" aria-valuenow="272"></div>
 </aside>
@@ -2966,7 +3069,13 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
 <main id="main">
 <section data-view="chat" id="chat" class="chat is-empty" aria-labelledby="h-chat"><h1 id="h-chat" class="sr-only">Chat</h1>
   <div class="stage-bg" aria-hidden="true"></div>
-  <div class="chat-scroll" id="chat-scroll"><div id="chat-log" class="log" role="log" aria-live="polite" aria-label="Conversation"></div></div>
+  <div class="chat-body"><div class="chat-scroll" id="chat-scroll"><div id="chat-log" class="log" role="log" aria-live="polite" aria-label="Conversation"></div></div>
+    <div id="context-workspace" class="context-workspace" hidden role="region" aria-labelledby="context-title">
+      <div class="context-head"><div><span class="context-kicker">Contextual workspace</span><h2 id="context-title">Workspace</h2><p id="context-description"></p></div><button type="button" id="context-close" class="icon-btn context-close" aria-label="Close panel" title="Close panel">${icon('x')}</button></div>
+      <div id="context-content" class="context-list"></div>
+      <p class="context-note">The panel appears only when the task needs it. It does not create a second runtime or bypass FuryPipe approvals.</p>
+    </div>
+  </div>
   <div class="dock"><div class="dock-inner">
     <div class="hero">
       <div class="hero-kicker"><span class="signal-dot" aria-hidden="true"></span>LOCAL-FIRST WORKSPACE</div>
@@ -2976,13 +3085,8 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
       <div class="hero-trust" aria-label="Workspace guarantees"><span>${icon('shield')}Private by default</span><span>${icon('route')}Explicit routing</span><span>${icon('check')}Visible control</span></div>
     </div>
     <div id="chat-empty" class="setup setup-compact" hidden>
-      <div class="setup-copy"><span class="setup-orb" aria-hidden="true"></span><div><h3>Choose your AI</h3><p>Connect a cloud account or install a private local model. Fury Auto can route between what you enable.</p></div></div>
-      <div class="setup-actions">
-        <a class="setup-choice primary" href="#/connections">${icon('connections')}<span><b>Connect AI</b><small>Claude, ChatGPT/Codex, Gemini</small></span></a>
-        <button type="button" class="setup-choice" data-install-runtime="ollama">${icon('cpu')}<span><b>Install Ollama</b><small>Private · on this PC</small></span></button>
-        <a class="setup-choice" href="#/models">${icon('models')}<span><b>Local models</b><small>Find what fits your hardware</small></span></a>
-      </div>
-      <p id="setup-status" class="status muted" role="status"></p>
+      <div class="setup-copy"><div><h3>No local AI is ready yet.</h3><p>Configure a detected runtime or connection in Settings, then return here.</p></div></div>
+      <div class="row"><a class="btn secondary" href="#/settings/ai-models">Configure an AI</a><span id="setup-status" class="status muted" role="status"></span></div>
     </div>
     <form id="chat-form" autocomplete="off">
       <div class="composer" id="composer">
@@ -2991,17 +3095,10 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
         <textarea id="chat-input" rows="1" placeholder="Ask FuryPipe anything…"></textarea>
         <div class="composer-bar">
           <div class="left">
-            <button type="button" id="attach-btn" class="tool icon-only" aria-label="Attach text files" title="Attach text files">${icon('plus')}</button>
+            <button type="button" id="attach-btn" class="tool icon-only" aria-label="Add context" title="Add context" aria-haspopup="menu" aria-expanded="false" aria-controls="add-menu">${icon('plus')}</button>
             <input type="file" id="attach-input" multiple hidden tabindex="-1">
-            <button type="button" id="tool-web" class="tool" aria-label="Web" aria-pressed="false" title="Read the web pages you link">${icon('web')}<span>Web</span></button>
-            <button type="button" id="tool-kb" class="tool" aria-label="Knowledge" aria-pressed="false" title="Ground answers in your indexed project documents">${icon('knowledge')}<span>Knowledge</span></button>
-            <button type="button" id="voice-btn" class="tool icon-only" aria-label="Voice input" title="Speak to FuryPipe" hidden>${icon('mic')}</button>
           </div>
           <div class="right">
-            <label class="sr-only" for="effort-select">Reasoning effort</label>
-            <select id="effort-select" class="effort-select" title="Reasoning effort" aria-label="Reasoning effort">
-              <option value="auto">Auto effort</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">XHigh</option><option value="max">Max</option>
-            </select>
             <button type="button" id="model-button" class="model-btn" aria-haspopup="listbox" aria-expanded="false" aria-controls="model-pop" title="Choose a model"><span class="fury-dot" aria-hidden="true"></span><span class="name" id="model-label">Fury Auto</span><svg class="i chev" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS.chevron}</svg></button>
             <button type="submit" id="chat-send" class="send" aria-label="Send message" disabled>${icon('arrowUp')}</button>
           </div>
@@ -3010,19 +3107,26 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
       </div>
       <div class="dock-foot"><button type="button" id="route-chip" class="route-chip" hidden aria-haspopup="dialog" aria-controls="route-pop"></button><span id="chat-status" class="status" role="status"></span><span class="disclaimer">AI can make mistakes. Check important information.</span></div>
     </form>
-    <div class="suggest" aria-label="Suggestions">
-      <button type="button" class="chip-btn" data-prompt="Research and explain: ">${icon('web')}Research</button>
-      <button type="button" class="chip-btn" data-prompt="Help me write code that ">${icon('code')}Code</button>
-      <button type="button" class="chip-btn" data-prompt="Draft a clear, well-structured ">${icon('compose')}Create</button>
-      <button type="button" class="chip-btn" data-prompt="Plan the steps to ">${icon('cowork')}Work</button>
-    </div>
   </div></div>
+</section>
+<section data-view="projects" class="projects-view" aria-labelledby="h-projects" hidden><h1 id="h-projects">Projects</h1><p class="lead">One local container for this checkout, its discussions, sources and versioned outputs.</p>
+  <div class="project-layout">
+    <article class="card project-card"><h2 class="project-name">${icon('projects')}<span>FuryPipe</span></h2><p class="muted">Current local project</p>
+      <dl class="project-meta"><dt>Scope</dt><dd>Current working directory</dd><dt>Discussions</dt><dd id="project-chat-count">—</dd><dt>Artifacts</dt><dd id="project-artifact-count">—</dd></dl>
+      <div class="project-actions"><button type="button" id="project-new-chat" class="btn">New discussion</button><a class="btn secondary" href="#/settings">Project settings</a></div><p id="project-status" class="status muted" role="status"></p>
+    </article>
+    <article class="card project-card project-discussions"><h2>Discussions</h2><div id="project-chat-list" class="project-chat-list" aria-live="polite"></div></article>
+  </div>
+  <article class="card project-sources"><h2>Sources and outputs</h2><p class="muted">Open the relevant surface only when the task needs it. These links reuse the existing FuryPipe stores and routes.</p><div class="project-source-links"><a href="#/knowledge">${icon('knowledge')}Knowledge</a><a href="#/artifacts">${icon('artifacts')}Artifacts</a><a href="#/research">${icon('research')}Research</a></div></article>
+</section>
+<section data-view="research" aria-labelledby="h-research" hidden><h1 id="h-research">Research</h1><p class="lead">A contextual workspace for sources, citations and project knowledge. It stays available through Chat, Projects and the command palette.</p>
+  <div class="card"><h2>Contextual research</h2><p id="research-status" class="status muted" role="status">Research is contextual: add Web or indexed project knowledge from the composer when the question needs it.</p><div class="project-source-links"><a href="#/web">${icon('web')}Web sources</a><a href="#/knowledge">${icon('knowledge')}Indexed knowledge</a><a href="#/projects">${icon('projects')}Project context</a></div></div>
+  <div class="card"><h2>Boundary</h2><p class="muted">No source is silently added to a response. Network access, citations and external actions remain governed by the existing FuryPipe API and approval rules.</p></div>
 </section>
 <section data-view="autopilot" aria-labelledby="h-autopilot" hidden><h1 id="h-autopilot">Fury Autopilot</h1><p class="lead">One request in; FuryPipe chooses the instruction profile, reasoning effort, trusted skills, MCP candidates, context mode and verification path — then shows you why before anything risky can run.</p>
   <div class="grid autopilot-grid">
     <div class="card"><h2>Preview a request</h2><form id="autopilot-form"><label for="autopilot-objective">Task</label><textarea id="autopilot-objective" required placeholder="e.g. Research the latest MCP security guidance, update the implementation and verify the tests"></textarea>
-      <div class="row"><div><label for="autopilot-effort">Reasoning effort</label><select id="autopilot-effort"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="xhigh">XHigh</option><option value="max">Max</option></select></div>
-      <div><label for="autopilot-harness">Runtime</label><select id="autopilot-harness"><option value="">Any</option>${FURY_HARNESS_REGISTRY.map((h) => `<option value="${h.id}">${escapeHtml(h.displayName)}</option>`).join('')}</select></div><button type="submit">Build route</button></div></form><p id="autopilot-status" class="status muted" role="status"></p></div>
+      <div class="row"><span class="muted">Effort: configured in Settings → AI &amp; models</span><div><label for="autopilot-harness">Runtime</label><select id="autopilot-harness"><option value="">Any</option>${FURY_HARNESS_REGISTRY.map((h) => `<option value="${h.id}">${escapeHtml(h.displayName)}</option>`).join('')}</select></div><button type="submit">Build route</button></div></form><p id="autopilot-status" class="status muted" role="status"></p></div>
     <div class="card"><h2>Automatic, not uncontrolled</h2><ul class="reasons"><li>Relevant SKILL.md instructions are loaded progressively and checksummed.</li><li>MCP tools are selected by intent but still obey trust and per-tool policy.</li><li>Visual context compression is used only when the request benefits from it.</li><li>Mutation, network and external actions still require the existing FuryPipe gates.</li></ul></div>
   </div>
   <div id="autopilot-out" aria-live="polite"></div>
@@ -3187,29 +3291,40 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
 <section data-view="support" aria-labelledby="h-support" hidden><h1 id="h-support">Support FuryPipe</h1><p class="lead">FuryPipe is an independent project built to keep model, agent, skill, MCP, memory and evidence workflows in one governed workspace.</p>
   <div class="grid"><div class="card creator-card"><div class="support-brand" data-brand="furypipe">${SUPPORT_MARK}${WORDMARK}</div><p class="brand-tagline">BUILD · AUTOMATE · CREATE · BEYOND</p><h2>Creator</h2><p class="creator-name">LégendeUrbaine</p><p class="muted">Creator and project lead of FuryPipe.</p></div><div class="card"><h2>Support development</h2><p id="support-copy">Loading support options…</p><div id="support-action"></div><p class="muted">FuryPipe never invents or redirects donation destinations. The button appears only when FURYPIPE_SUPPORT_URL is configured to a valid HTTPS address.</p></div></div>
 </section>
-<section data-view="settings" aria-labelledby="h-settings" hidden><h1 id="h-settings">Settings</h1><p class="lead">Make FuryPipe yours. Preferences are stored in this browser.</p>
-  <div class="settings"><nav class="settings-nav" aria-label="Settings sections"><a href="#/settings/general">General</a><a href="#/settings/appearance">Appearance</a><a href="#/settings/privacy">Privacy</a><a href="#/settings/advanced">Advanced</a></nav>
+<section data-view="settings" aria-labelledby="h-settings" hidden><h1 id="h-settings">Settings</h1><p class="lead">Make FuryPipe yours. Preferences stay in this browser; technical surfaces stay here until a task needs them.</p>
+  <div class="settings"><nav class="settings-nav" aria-label="Settings sections"><a href="#/settings/general">General</a><a href="#/settings/appearance">Appearance</a><a href="#/settings/ai-models">AI &amp; models</a><a href="#/settings/memory">Memory</a><a href="#/settings/privacy">Privacy</a><a href="#/settings/tools">Tools &amp; extensions</a><a href="#/settings/developer">Developer</a><a href="#/settings/about">About</a></nav>
   <div>
     <div class="card set-group" id="set-general"><h2>General</h2>
       <div class="set-row"><div class="t"><b>Language</b><span>Automatically follows your browser language. You can override it here.</span></div>${seg('language', [['auto', 'Auto'], ['en', 'English'], ['fr', 'French']])}</div>
-      <div class="set-row"><div class="t"><b>Workspace mode</b><span>How much of FuryPipe's control plane you see. Power features are always one switch away.</span></div>${seg('mode', [['simple', 'Simple'], ['power', 'Power'], ['engineer', 'Engineer'], ['expert', 'Expert']])}</div>
-      <div class="set-row set-row-stack"><div class="t"><b>Custom instructions</b><span>Your own turn-level preferences, applied after Fury Autopilot's safety boundary. They cannot grant tools or permissions.</span></div><div><textarea id="custom-instructions" maxlength="4000" placeholder="e.g. Prefer concise French answers; use Gradle only for Java projects."></textarea><button type="button" id="custom-instructions-save">Save instructions</button><p id="custom-instructions-status" class="status muted" role="status"></p></div></div></div>
+      <div class="set-row set-row-stack"><div class="t"><b>Custom instructions</b><span>Your own turn-level preferences apply after Fury Autopilot's safety boundary. They cannot grant tools or permissions.</span></div><div><textarea id="custom-instructions" maxlength="4000" placeholder="e.g. Prefer concise French answers; use Gradle only for Java projects."></textarea><button type="button" id="custom-instructions-save">Save instructions</button><p id="custom-instructions-status" class="status muted" role="status"></p></div></div></div>
     <div class="card set-group" id="set-appearance"><h2>Appearance</h2>
       <div class="set-row"><div class="t"><b>Theme</b><span>Dark is the signature FuryPipe look. System follows your OS.</span></div>${seg('theme', [['dark', 'Dark'], ['system', 'System']])}</div>
       <div class="set-row"><div class="t"><b>Motion</b><span>Reduce animation everywhere.</span></div>${seg('motion', [['system', 'System'], ['reduced', 'Reduced']])}</div>
       <div class="set-row"><div class="t"><b>Density</b><span>Spacing around pages.</span></div>${seg('density', [['comfortable', 'Comfortable'], ['compact', 'Compact']])}</div></div>
-    <div class="card set-group" id="set-privacy"><h2>Privacy</h2>
-      <p>Studio chat runs on local models only: messages stay on this computer. Studio listens on loopback, accepts same-origin requests only, and never reads other tools' credentials. Cloud providers run through the governed Gateway with explicit budgets.</p></div>
-    <div class="card set-group" id="set-advanced"><h2>Advanced</h2>
-      <p><a href="/control-plane">Control Plane</a>: the technical dashboard with sessions, compression, readiness, provider and MCP evidence.</p>
-      <p class="muted">Engineer and Expert modes add Code, Agents, Runtimes, Integrations, Automations and Mission Control to the sidebar.</p></div>
+    <div class="card set-group" id="set-ai-models"><h2>AI &amp; models</h2><p>Fury Auto is the default picker. It uses the existing FuryPipe model discovery, connection registry and local runtime evidence; this page does not create a second authority.</p><div class="set-row"><div class="t"><b>Reasoning effort</b><span>AUTO is the default. Manual selection applies to future turns and stays out of the daily composer.</span></div>${seg('effort', [['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'XHigh'], ['max', 'Max']])}</div><div class="project-source-links"><a href="#/models">${icon('models')}Available models</a><a href="#/connections">${icon('connections')}Connections</a><a href="#/runtimes">${icon('cpu')}Local runtimes</a></div></div>
+    <div class="card set-group" id="set-memory"><h2>Memory</h2><p>Project memory is inspectable and governed. It is not silently injected into every answer.</p><div class="project-source-links"><a href="#/memory">${icon('memory')}Open project memory</a></div></div>
+    <div class="card set-group" id="set-privacy"><h2>Privacy</h2><p>Studio listens on loopback and accepts same-origin requests only. Local model messages stay on this computer. FuryPipe does not read browser cookies or other tools' credential stores. Cloud providers, when configured, use the governed Gateway and explicit budgets.</p></div>
+    <div class="card set-group" id="set-tools"><h2>Tools &amp; extensions</h2><p>Capabilities remain contextual and governed. Inspect them when needed without adding permanent daily navigation.</p><div class="project-source-links"><a href="#/extensions">${icon('extensions')}Extensions and MCP Apps</a><a href="#/mcp">${icon('mcp')}MCP</a><a href="#/skills">${icon('skills')}Skills</a><a href="#/integrations">${icon('integrations')}Integrations</a></div></div>
+    <div class="card set-group" id="set-developer"><h2>Developer</h2><p>Technical evidence is available here for people who need it. There is no separate user mode.</p><div class="project-source-links"><a href="#/code">${icon('code')}Code workspace</a><a href="#/observability">${icon('observability')}Observability</a><a href="#/mission">${icon('mission')}Mission Control</a><a href="/control-plane">${icon('settings')}Control Plane</a></div></div>
+    <div class="card set-group" id="set-about"><h2>About</h2><p>FuryPipe Local is a loopback-first interface over the existing FuryPipe API, runtimes and governed providers.</p><div class="project-source-links"><a href="#/support">${icon('support')}About and support</a></div></div>
   </div></div></section>
 <section data-view="notfound" aria-labelledby="h-notfound" hidden><h1 id="h-notfound">Page not found</h1><p class="lead">This Studio view does not exist. <a href="#/chat">Go to Chat</a>.</p></section>
 </main></div></div>
 <div class="pop" id="model-pop" role="dialog" aria-label="Choose a model" hidden><input type="search" id="model-search" placeholder="Search models" aria-label="Search models" autocomplete="off"><div id="model-list" role="listbox" aria-label="Models"></div></div>
 <div class="pop route-pop" id="route-pop" role="dialog" aria-label="Why this route?" hidden tabindex="-1"></div>
-<div class="pop menu" id="mode-menu" role="menu" aria-label="Workspace mode" hidden>
-  ${modeItem('simple', 'Simple', 'Chat and models. Nothing else in the way.')}${modeItem('power', 'Power', 'Adds Cowork, Knowledge, Web, Memory, Skills and MCP.')}${modeItem('engineer', 'Engineer', 'Adds Code, Agents, Automations, Runtimes and Integrations.')}${modeItem('expert', 'Expert', 'Adds Mission Control: live agents, receipts and replay.')}
+<div class="pop menu composer-add-menu" id="add-menu" role="menu" aria-label="Add context" hidden>
+  <button type="button" class="opt" role="menuitem" id="add-file">${icon('file')}<span class="t"><span class="n">Attach a text file</span><small>Read-only context for this message</small></span></button>
+  <button type="button" class="opt" role="menuitem" id="add-project">${icon('projects')}<span class="t"><span class="n">Project context</span><small>Open discussions, sources and artifacts</small></span></button>
+  <button type="button" class="opt" role="menuitem" data-context-kind="research">${icon('research')}<span class="t"><span class="n">Research workspace</span><small>Sources and indexed knowledge</small></span></button>
+  <button type="button" class="opt" role="menuitem" data-context-kind="code">${icon('code')}<span class="t"><span class="n">Code workspace</span><small>Files, checks and governed edits</small></span></button>
+  <button type="button" class="opt" role="menuitem" data-context-kind="media">${icon('media')}<span class="t"><span class="n">Media workspace</span><small>Image, video and audio previews</small></span></button>
+  <button type="button" class="opt" role="menuitem" data-context-kind="artifact">${icon('artifacts')}<span class="t"><span class="n">Artifact workspace</span><small>Review outputs beside the conversation</small></span></button>
+  <button type="button" class="opt" role="menuitem" data-context-kind="agent">${icon('agents')}<span class="t"><span class="n">Agent activity</span><small>Runs and approvals when present</small></span></button>
+  <button type="button" class="opt" role="menuitem" data-context-kind="mcp">${icon('mcp')}<span class="t"><span class="n">MCP App</span><small>Only approved interactive sources</small></span></button>
+  <button type="button" class="opt" role="menuitem" id="tool-web" aria-pressed="false" title="Read the web pages you link">${icon('web')}<span class="t"><span class="n">Web sources</span><small>Use only when this question needs web context</small></span></button>
+  <button type="button" class="opt" role="menuitem" id="tool-kb" aria-pressed="false" title="Ground answers in indexed project documents">${icon('knowledge')}<span class="t"><span class="n">Indexed knowledge</span><small>Use the current project's indexed sources</small></span></button>
+  <button type="button" class="opt" role="menuitem" id="voice-btn" aria-pressed="false" title="Speak to FuryPipe" hidden>${icon('mic')}<span class="t"><span class="n">Voice input</span><small>Browser speech recognition, if available</small></span></button>
+  <button type="button" class="opt" role="menuitem" id="add-palette">${icon('search')}<span class="t"><span class="n">Open command palette</span><small>Ctrl K for every governed capability</small></span></button>
 </div>
 <div class="pop menu" id="conv-menu" role="menu" aria-label="Conversation options" hidden><button type="button" class="opt" role="menuitem" id="conv-rename"><span class="t"><span class="n">Rename</span></span></button><button type="button" class="opt" role="menuitem" id="conv-delete"><span class="t"><span class="n">Delete</span></span></button></div>
 <div class="overlay setup-overlay" id="setup-overlay" hidden><div class="setup-progress" role="dialog" aria-modal="true" aria-labelledby="setup-progress-title">

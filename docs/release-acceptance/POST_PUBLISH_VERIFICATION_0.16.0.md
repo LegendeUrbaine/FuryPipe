@@ -6,7 +6,7 @@ explicitement autorisés. Il n’a pas été exécuté pendant le gel RC.
 ## 1. Registry identity and provenance
 
 ~~~powershell
-$Repo = 'Mistermode45/FuryPipe'
+$Repo = 'LegendeUrbaine/FuryPipe'
 $Version = '0.16.0'
 $Tag = "v$Version"
 

@@ -96,28 +96,34 @@ npx --no-install furypipe start
 Ouvrir avec Chromium, Chrome ou Edge :
 
 ~~~text
-URL       http://127.0.0.1:48721/
-Page      Dashboard / Control Plane
-Viewport  1440x900, puis 390x844
+URL Studio        http://127.0.0.1:48721/
+URL alias         http://127.0.0.1:48721/studio
+URL Control Plane http://127.0.0.1:48721/control-plane
+Viewport          1440x900, puis 390x844
 ~~~
 
 Contrôles courts :
 
 | Contrôle | Décision | Observation attendue |
 |---|---|---|
-| Dashboard | PASS / FAIL | La page s’ouvre, le titre et l’action principale sont compréhensibles. |
+| Studio | PASS / FAIL | Le shell FuryPipe Studio s’ouvre depuis le package installé. |
 | Control Plane / readiness | PASS / FAIL | Les sections sont lisibles; l’état reste observation-only et source-bound. |
 | Empty state | PASS / FAIL | Un profil neuf affiche un état vide explicite, sans données inventées. |
 | Degraded state | PASS / FAIL | Sans credential provider, l’option externe reste unknown/degraded, sans faux succès. |
 | Error state | PASS / FAIL | Ouvrir http://127.0.0.1:48721/does-not-exist; l’erreur/404 est compréhensible. |
 | Responsive | PASS / FAIL | À 390x844, aucune action importante n’est coupée ou recouverte. |
 
-Contrôles read-only facultatifs dans le même navigateur :
+Contrôles read-only facultatifs :
 
 ~~~text
 http://127.0.0.1:48721/api/beta.json
 http://127.0.0.1:48721/api/control-plane.json
+http://127.0.0.1:48721/api/studio/models.json
 ~~~
+
+L’automated browser QA et le clean-room Windows prouvent le chemin installé.
+Ils ne remplacent pas une observation humaine; cette dernière reste un statut
+manuel distinct.
 
 ## 3. WebChat et reconnexion
 
@@ -149,24 +155,17 @@ live appartient à E1 et reste hors de cette acceptance core.
 
 ## 4. Web Studio
 
-Le package expose Web Studio comme artefact statique et comme surface de
-conformance browser. Le contrat actuel ne monte pas Web Studio sur
-http://127.0.0.1:48721/ et furypipe start ne fournit pas de route locale
-/studio-qa.
+Le package installé sert Web Studio depuis le workflow normal
+npx --no-install furypipe start :
 
-Donc :
+- shell : http://127.0.0.1:48721/ et /studio ;
+- API : http://127.0.0.1:48721/api/studio/* ;
+- Control Plane séparé : /control-plane.
 
-- ne pas inventer une URL locale Web Studio;
-- si Mathis dispose d’une cible hébergée autorisée, ouvrir l’URL fournie par
-  le mainteneur, avec le chemin exact /studio-qa;
-- utiliser Chromium à 1440x900, puis 390x844;
-- noter PASS ou FAIL seulement après observation humaine;
-- sans URL hébergée autorisée, laisser Web Studio = PENDING et ne pas le
-  transformer en PASS à partir de la QA automatisée.
-
-La QA automatisée existante couvre la surface statique, mais ne remplace pas
-cette observation humaine : Web Studio cross-engine = 120/120 n’est pas une
-acceptation visuelle humaine.
+Le clean-room installé exact-candidat couvre le shell, la découverte de
+harnesses, Skills, MCP, mémoire, chat, code, SSRF et refus cross-origin.
+La QA navigateur autonome couvre les parcours Studio aux largeurs requises,
+mais ne constitue pas une revue visuelle humaine.
 
 ## 5. Captures minimales
 
@@ -176,7 +175,7 @@ utilisateur :
 ~~~text
 01-dashboard.png       Dashboard à 1440x900
 02-control-plane.png   Control Plane/readiness développé à 1440x900
-03-web-studio.png      Web Studio hébergé, uniquement si URL autorisée
+03-web-studio.png      Web Studio local depuis furypipe start
 04-degraded-state.png  État provider absent/degraded
 05-webchat.png         WebChat connecté, conversation vide
 06-mobile-or-narrow.png Dashboard à 390x844
@@ -223,9 +222,10 @@ Lighthouse, axe ou la suite Playwright comme substitut à cette observation.
 ## Réponse attendue de Mathis
 
 ~~~text
+AUTONOMOUS BROWSER QA = PASS | FAIL
 VISUAL HUMAN = PASS | FAIL | PENDING
 SCREEN READER HUMAN = PASS | FAIL | PENDING
-WEB STUDIO URL = <URL autorisée ou NOT_PROVIDED>
+WEB STUDIO URL = <URL locale ou NOT_PROVIDED>
 SCREENSHOTS = 01..06 ou liste des captures réellement prises
 NOTES = <écarts observés, sans secret>
 ~~~

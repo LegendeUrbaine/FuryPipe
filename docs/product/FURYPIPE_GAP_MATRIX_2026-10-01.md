@@ -1,54 +1,70 @@
-# FuryPipe Reality Gap Matrix
+# FuryPipe reality gap matrix
 
-Evidence is from the finalization branch and exact-head local checks. `PASS` means a bounded current contract is exercised; `PARTIAL` means a real subset exists and the missing boundary is explicit; `BLOCKED` means the gate could not run in this environment.
+This matrix is the bounded product status for the current release-candidate
+validation. Exact commit, package digest and workflow artifacts are recorded by
+the RC Preparation and CI runs; this document does not replace those
+source-bound artifacts.
 
-| Feature | Expected | Current evidence | Status | Action / limitation |
-| --- | --- | --- | --- | --- |
-| Chat | Studio conversation and tools | Existing Studio runtime and chat API tests | PASS | Continue provider-specific live checks when credentials exist |
-| Models / model routing | Provider abstraction and observable routing | Existing model fabric and routing tests | PASS | Cloud model health depends on configured provider |
-| Skills / auto skill routing | Discover and select relevant skills | Existing skill hub plus video skill selection evidence | PASS | Video skills are local workflow metadata, not an external installer |
-| MCP | Discoverable, permission-aware, failure-isolated | Existing MCP hub/API/security tests | PASS | External MCP availability is environment-dependent |
-| Instructions | Context-bounded selection | Existing instruction ledger/routing tests | PASS | No video model prompt is claimed as installed |
-| Agents / subagents | Governed agent runtime | Existing agent fabric/runtime tests | PASS | Live provider invocation is config-dependent |
-| Memory | Durable retrieval and artifact references | Existing memory/runtime tests | PASS | Video recipe persistence is project-local; graph sync remains separate |
-| Graphify | Enrichment with fallback | Existing lifecycle/fallback tests | PASS | Graphify is optional and never a render dependency |
-| Caveman | Output mode | Existing routing tests | PASS | Does not reduce internal validation |
-| Studio | Usable central UI | Studio build/navigation/API tests; Video view integrated; current browser script reached the launch gate | PARTIAL | Exact-head browser run is blocked here: Playwright Chromium executable is unavailable; prior screenshots are not re-used as current proof |
-| Browser / computer | Upload/navigation/download/recovery | `validation:accessibility` and `browser:studio:qa` fail fast with the explicit missing Chromium executable | BLOCKED | Run the same scripts in CI/Windows with Chromium installed; no current human-review claim is made |
-| Coding / research | Core workflows | Existing repository and research boundaries | PASS | Live credentials/tools vary |
-| Headless | Workflow without UI | Eval/automation plus video-render async boundary tests | PASS | Video path requires local FFmpeg/FFprobe |
-| CLI | Help and supported operations | Node entrypoint and `video` CLI tests | PASS | GitHub install/push not authenticated |
-| FuryEval | Regression metrics | Existing evaluator plus checked-in video dataset | PASS | Dataset is deterministic contract evidence, not aesthetic scoring |
-| Artifacts | Discoverable typed evidence | Core artifact runtime plus video artifact manifests | PASS | Global artifact indexing remains existing subsystem |
-| Image | Generation/processing | Existing media generation subsystem/tests and deterministic local contracts | PARTIAL | No live image-provider credential/response was available for this exact-head run |
-| Audio | TTS/ASR/music | Provider slots and audio mix plan exist | PARTIAL | No cleared local French TTS/ASR/music provider installed |
-| Video | Real import/timeline/render/QC | FuryCraft OPPrison fixture rendered to `/workspace/scratch/furypipe-finalization-artifacts-2026-10-01/workspace/furycraft-opprison-final-2026/renders/final.mp4`; 30s, 1080x1920, 30fps, H.264/AAC, decode/QC PASS; timeline describes the actual sequential render segments | PASS | Semantic scene understanding and generative providers are optional and explicit |
-| Video director | Creative planning and repair loop | Storyboard, three hook variants, recipe, policy, QC loop | PARTIAL | Built-in director is deterministic; AI semantic director is optional |
-| Approvals / permits | Plan → approval → bounded execution | Existing permit architecture plus video `confirm` boundary | PASS | End-user approval remains required |
-| Receipts / provenance | No fake values | Render receipt and provenance persisted | PASS | Unknown model fields remain `unknown` |
-| Provider management | Health, license, availability | Video provider registry and doctor | PASS | Optional providers remain non-default until cleared |
-| Settings / doctor | Runtime health and safe diagnostics | Core doctor plus FFmpeg/FFprobe checks | PASS | GPU/model inventory is not fully surfaced by local video doctor |
-| Security | Path, command, body, secret controls | Existing security tests plus manifest path/hash/size confinement, symlink-destination rejection, immutable re-ingest, and cancellation regressions | PASS | Browser console evidence and external-provider security remain blocked/configuration-dependent |
+| Feature | Evidence-backed status | Boundary |
+| --- | --- | --- |
+| Chat | PASS | Installed local Studio chat persistence and API contracts pass; live provider inference remains external. |
+| Models / model routing | PARTIAL | Routing, capability detection and fallback contracts pass; live provider health/auth are not configured here. |
+| Skills / auto skill routing | PASS | Discovery, selection, activation and permission-boundary contracts pass. |
+| MCP | PARTIAL | Local/installed MCP discovery, policy and stdio contracts pass; third-party hosted MCP was not executed. |
+| Instructions | PASS | Instruction ledger and capability routing contracts pass. |
+| Agents / subagents | PARTIAL | Governed runtime contracts pass; live provider-backed execution is not configured. |
+| Memory | PASS | Persistence/retrieval/restart contracts pass within the local encrypted-store scope. |
+| Graphify | PASS | Lifecycle, fallback and retrieval integration contracts pass; Graphify remains optional. |
+| Caveman | PASS | Output-mode routing is covered; it does not reduce internal validation. |
+| Studio | PASS | Installed-package clean-room proves furypipe start serves / and /studio plus /api/studio/*; automated browser QA passes. |
+| Browser / computer | PASS | Chromium/Firefox/WebKit autonomous QA and accessibility automation pass; no human visual or screen-reader claim is made. |
+| Coding / research | PASS | Local bounded repository and research surfaces pass their contracts. |
+| Headless | PASS | CLI/headless contract and machine-readable output pass. |
+| CLI | PASS | Help, invalid-input exits, setup/doctor, package bin and port-conflict paths pass. |
+| FuryEval | PASS | Deterministic evaluator and regression fixtures pass. |
+| Artifacts | PASS | Typed artifact/provenance manifests and local repository contracts pass. |
+| Image | BLOCKED_EXTERNAL | Deterministic media contracts pass; no real image-provider credential/response was available. |
+| Audio | BLOCKED_EXTERNAL | Audio contracts exist; no cleared real TTS/ASR/music provider was available. |
+| Video | PARTIAL | Local renderer/timeline/QC contracts pass and a fixture render exists, but the recorded MP4 was produced from an earlier local source commit, not the final RC HEAD. |
+| Video render | PASS | Renderer, cancellation, duration, aspect-ratio and MP4 contract tests pass. |
+| Video QC | PASS | ffprobe/decode and quality-gate contracts pass on fixture media. |
+| Provider management | PARTIAL | Provider registry, policy and failure classification pass; live credentials and external health are absent. |
+| Settings / doctor | PASS | Safe diagnostics and invalid-configuration handling pass. |
+| Security | PASS within verified scope | Secret scan, audit, path/SSRF, command, body-size, loopback and permission-boundary checks pass. |
+| Build / typecheck / lint / tests | PASS | CI exact-candidate matrix passes: 357 files and 3,633 tests, with lint, typecheck and build. |
+| Packaging / installation | PASS | RC tarball, reproducibility, installed-package clean-room and Windows 2025 Node 24/22/26 jobs pass. |
+| Documentation | PASS | Canonical repository links, release state and external limitations are stated without a false publication claim. |
 
-## Exact-head finalization evidence
+## Exact verification evidence
 
-- `pnpm lint`: PASS; maintained `src`, `scripts`, and `tests` are checked with zero warnings.
-- `pnpm typecheck`: PASS; both the main and hosted-MCP TypeScript projects pass.
-- `pnpm test -- --reporter=dot`: PASS; 357 test files / 3,633 tests on the current correction set.
-- `pnpm build`: PASS; `dist/node.js`, `dist/mcp.js`, declarations, and version smoke emitted successfully.
-- `pnpm run package:smoke`: PASS; all Gateway, MCP, ACP, memory, provider, installed-package, and public-export contracts passed. Tarball: `furypipe-0.16.0.tgz`, 6,032,439 bytes, SHA-256 `8d4c7199a022eacccdf1c6ba8c8acfd793078ab1f9a7b2e0c0d413d3296305bb`.
-- `validation:local-contracts`: PASS; 21 files / 186 tests.
-- `validation:recovery`: PASS; real subprocess kill, durable state, migration interruption and temporary-file cleanup. Automatic replay remains denied; directory fsync is not claimed.
-- `validation:gateway`: PASS; local auth boundary, reconnect, restart and stale-origin denial.
-- `validation:clean-room`: PASS; installed-package-only setup, doctor, migration, start, restart, rollback and uninstall/reinstall in isolated home/config/data.
-- `validation:package-reproducibility`: PASS; source-bound package identity, 760 files, 0 unknown modes, 0 CR files, tarball SHA above.
-- `supply-chain-evidence`: PASS locally; 305 components, 356 dependency edges, 305 licensed, 0 unknown licenses, CycloneDX 1.6. Evidence is unsigned until CI/release signing is available.
-- `pnpm audit --prod --audit-level high`: PASS; no known vulnerabilities found.
-- `validation:furybench`: INCONCLUSIVE on the final local runner. Exact-source runs on `e19d672` and `88e1d656` passed; a later run on the documentation-only successor `57d4c776` reported one `taskPlan` p95 regression. No runtime files differ between those two candidates; keep the performance gate open for a controlled CI/Windows runner. Offline process-boundary benchmark only.
-- `node dist/node.js --version`: PASS (`0.16.0`).
-- `node dist/node.js headless --json` with a workflow request: PASS; machine-readable response, `executionAuthorized: false`.
-- Invalid CLI/headless/video commands: PASS; exit code `2` with actionable errors.
-- `node dist/node.js video doctor --json`: PASS; FFmpeg/FFprobe `6.1.1`, status `READY`.
-- Video regression tests: PASS; targeted video engine/workflow checks 13/13, including symlinked destination rejection and immutable re-ingest.
-- FuryCraft local render: PASS; receipt, provenance, captions, MP4, preview PNG, and QC report are under `/workspace/scratch/furypipe-finalization-artifacts-2026-10-01/`. Final MP4: 30.000 s, 1080×1920, 30 fps, H.264/AAC 48 kHz stereo, 213,073 bytes, SHA-256 `cc5feab0999b96aa33f3aea414eecb878fa9973a9497c1b12cceef586d1a7ddd`, FFmpeg decode exit `0`, QC `PASS`, 14 files.
-- Live image/audio/provider generation: not claimed; no configured credential or real provider response was available.
+- CI run: 36918897631 — 9/9 matrix legs green; lint, typecheck, tests,
+  build, package smoke, reproducibility and audit included.
+- Test result: 357 test files, 3,633 tests passed.
+- Clean Room run: 36918897721 — Ubuntu/macOS/Windows × Node 22/24/26;
+  installed package start, readiness, stop, restart, persistence,
+  uninstall/reinstall and Studio API checks pass.
+- Windows clean-room artifact:
+  furypipe-clean-room-windows-2025-node-24.21.0-41645fbaf90d53277de57df8f63468158ae2e529;
+  artifact digest sha256:9ff3a3629010f0587ad32f5f505528a201bd49ef69b1625af425e64133cd427f.
+- RC Preparation run: 36918897640; artifact digest
+  sha256:66c2be8bd3658786c0844a5327ef9be599db40edf03829377e2a2e06fa152a4a.
+- Cross-Browser QA run: 36918897596 — Chromium 153, Firefox 155 and
+  WebKit 26.6; Dashboard 117/117 and Studio 120/120, no viewport overflow or
+  runtime errors.
+- Web Studio QA run: 36918897579 — 16 Chromium screenshots, 6 dispatch
+  rows per browser, 0 console errors.
+- Accessibility run: 36918897730 — PASS, 0 console errors, 40 focusable
+  controls, 0 unnamed controls and 0 heading jumps.
+- FuryBench run: 36918897478 — PASS, 3 paired rounds / 25 samples,
+  offline-only and no provider performance claim.
+- RC package evidence is read from the exact RC artifact attached to the
+  candidate workflow; do not copy a digest from another commit.
+- Local fixture media is not promoted to exact-head evidence. It remains
+  available for deterministic renderer inspection only.
+
+## Release boundary
+
+The candidate remains NOT_READY for unconditional production release because
+live provider credentials, hosted integrations, signed non-PR provenance,
+protected-branch release integration and production rollback evidence are
+external gates. No provider success is fabricated.

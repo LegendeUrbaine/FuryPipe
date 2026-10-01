@@ -5,11 +5,11 @@
 | Champ | Valeur |
 |---|---|
 | Version | 0.16.0 |
-| Base prévue | eed62617c8778a73038bfeb93a0bacdb6f8e9e08 |
-| Head final |  |
-| Branch | codex/furypipe-v0.16.0-rc |
-| Draft PR |  |
-| Worktree |  |
+| Base prévue | codex/furypipe-final-completion |
+| Head final | supplied by the exact RC artifact; current candidate was checked in PR #238 |
+| Branch | codex/furypipe-production-finalization-2026 |
+| Draft PR | #238 OPEN/DRAFT |
+| Worktree | canonical GitHub branch; no unverified local checkout is used |
 
 ## Gates techniques
 
@@ -19,10 +19,10 @@ production.
 
 | Gate | Statut attendu | Evidence |
 |---|---|---|
-| Package furypipe-0.16.0.tgz | PASS | nom, version, taille, SHA-256, contenu |
-| Automatable blockers | 0 | audit P0/P1/P2 CODE |
-| Upgrade 0.15.0 → 0.16.0 | PASS | tarballs réels, migration, données conservées |
-| Rollback 0.16.0 → 0.15.0 | PASS | rollback package/config/reinstall |
+| Package furypipe-0.16.0.tgz | PASS | RC artifact is source-bound; digest is read from the exact run |
+| Automatable blockers | PASS | CI/security matrix green; external gates remain separate |
+| Upgrade 0.15.0 → 0.16.0 | PASS | clean-room package lifecycle |
+| Rollback 0.16.0 → 0.15.0 | PASS | clean-room package/config/reinstall |
 | Recovery/restart | PASS | evidence recovery liée au SHA |
 | Clean-room matrix | PASS | Ubuntu 24.04/macOS 14/Windows 2025 × Node 22/24/26 |
 | Self-host | PASS | package installé uniquement, HOME/config/data/port isolés |
@@ -32,7 +32,7 @@ production.
 | OAuth contract | PASS | contrat local, OIDC réel séparé |
 | FuryBench | PASS | baseline exacte et seuil documenté |
 | Accessibility automated | PASS | automation liée au SHA |
-| Browser QA | PASS | matrices réellement exécutées |
+| Browser QA | PASS | exact-candidate autonomous browser matrices |
 | Security | PASS within verified scope | audit, secrets, actions, SBOM |
 | SBOM | PASS | SPDX 2.3 et vérification |
 | Provenance preparation | PASS | RC evidence, tarball et workflow |
@@ -54,13 +54,13 @@ production.
 
 ## Autorité et actions interdites dans ce track
 
-    MERGE       = NO
-    RELEASE     = NO
-    TAG         = NO
-    NPM PUBLISH = NO
-    DEPLOY      = NO
+    MERGE       = NOT_EXECUTED
+    RELEASE     = NOT_EXECUTED
+    TAG         = NOT_EXECUTED
+    NPM PUBLISH = NOT_EXECUTED
+    DEPLOY      = NOT_EXECUTED
 
-La clôture technique n’est déclarée que si :
+Technical closure is declared only if:
 
     FURYPIPE_0_16_0_CODE_COMPLETE=YES
     FURYPIPE_0_16_0_AUTOMATED_RELEASE_GATES=PASS

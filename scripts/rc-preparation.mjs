@@ -332,7 +332,7 @@ async function main() {
   assert(typeof pkg.name === 'string' && pkg.name.length > 0, 'package name missing');
   assert(typeof pkg.version === 'string' && parseStableSemver(pkg.version), 'RC preparation requires a stable x.y.z package version');
   const expectedRepository = normalizeRepositoryUrl(pkg.repository);
-  assert(expectedRepository === 'https://github.com/mistermode45/furypipe', 'unexpected package repository: ' + expectedRepository);
+  assert(expectedRepository === 'https://github.com/legendeurbaine/furypipe', 'unexpected package repository: ' + expectedRepository);
 
   const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
   const packDir = join(OUT, 'package');

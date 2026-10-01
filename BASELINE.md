@@ -350,3 +350,21 @@ Baseline d'intégration : `v5-production-hardening` / `bc92bef794df25b2a7c541846
 | Cross-browser / WebChat | PASS hébergé | Firefox/WebKit indisponibles localement |
 | Registre npm | 0.16.0 absent | `latest` = 0.15.0 |
 | Publication / mutation externe | NOT_EXECUTED | aucun merge, tag, release, publish, deploy |
+
+## FuryPipe Ultimate Complete Product Finalization — 2026-10-02 — état avant journal-only commit
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Source de vérité / exact head | PASS exact | PR #238 `OPEN + DRAFT`, base `ebaa8e41fd2a5820fbd33fbfc04aecf8dbb4ca57`, code head `100d3fff5e53b79cf03632f929fbc2c98c73c553`, worktree isolé propre |
+| Installation déterministe | PASS local | `pnpm install --frozen-lockfile` avec pnpm projet `10.21.0`; lockfile inchangé; shim global pnpm défectueux, écart consigné |
+| Tests | PASS local | 357 fichiers ; 3 628 réussis ; 6 ignorés ; 3 634 total |
+| Typecheck / lint / build | PASS local | typecheck principal + hosted MCP ; ESLint `--max-warnings 0` ; dist Node/MCP + déclarations ; version `0.16.0` |
+| Audit production | PASS local | `pnpm audit --prod --audit-level high`, aucune vulnérabilité connue |
+| Package / Gateway installé | PASS local + hébergé | `package:smoke`, Gateway installé, MCP stdio, loopback, arrêt propre, 0 dynamic require ; Windows CI Node 22/24/26 PASS |
+| Démarrage package réel | PASS local borné | `pnpm run start`, endpoints HTTP principaux et routes Studio/doctor en 200, arrêt propre |
+| Browser QA | PASS automatisé | Dashboard `117/117`, Web Studio `120/120`, Studio `3` moteurs, WebChat `15/15`, host `12/12`; external provider/OAuth/hosted checks non exécutés |
+| CI exact-head | PASS hébergé sur le code head | PR #238 ; tous les checks visibles PASS, matrice OS/Node, clean-room, tarball, browser, contracts, gitleaks, SBOM/audit et prepare |
+| Runtime catalog / FuryEval / fixtures | PASS ciblé | catalogue runtime raccordé aux routes Studio/autopilot ; digest dataset stable et comparabilité fail-closed ; fixtures vidéo Windows sans symlink privilégié |
+| Human/client/provider gates | NOT VERIFIED / NOT EXECUTED | validation visuelle humaine, lecteur d’écran, client externe, provider/OAuth, hosted MCP/OpenClaw/Figma non réalisés |
+| Release / provenance / mutation externe | NOT EXECUTED | PR Draft sans review ; pas de merge, release, tag, npm publish, deploy ni attestation signée candidate |
+| Intégrations restantes | PARTIAL | wiring Gateway/provider, Graphify UI, historique FuryEval, reconcile automation et index média non déclarés complets sans preuve runtime |

@@ -118,8 +118,8 @@
   the verified scope.
 - Hosted secret scan passes.
 - Action pinning checks 93 references across 22 workflows.
-- SPDX SBOM contains 235 packages and 18 direct dependencies.
-- The RC tarball contains 614 entries and no detected secret, temporary or
+- SPDX SBOM for the exact RC contains 306 packages; the supply-chain summary contains 305 components and 20 direct components.
+- The exact RC tarball contains 760 entries and no detected secret, temporary or
   private-workspace entry.
 - The package digest above is the post-hotfix candidate digest; the prior
   pre-hotfix digest is obsolete and must not be used for acceptance.

@@ -676,7 +676,7 @@ export class LocalVideoEngine {
       ? await this.prepareConcatInput(root, project, manifest, videoFilter, options.signal)
       : firstInputPath;
     const filterParts = manifest.sources.length > 1 ? [] : [videoFilter];
-    if (captionPath) filterParts.push(`subtitles='${escapeSubtitlePath(captionPath)}':force_style='FontName=Arial,FontSize=18,Outline=2,Shadow=1,Alignment=2,MarginV=120'`);
+    if (captionPath) filterParts.push(`subtitles=filename='${escapeSubtitlePath(captionPath)}':force_style='FontName=Arial,FontSize=18,Outline=2,Shadow=1,Alignment=2,MarginV=120'`);
     const command = ['-hide_banner', '-loglevel', 'error', '-y', '-i', inputPath];
     const inputHasAudio = manifest.sources.length > 1 || first.audioStreams > 0;
     if (!inputHasAudio) command.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');

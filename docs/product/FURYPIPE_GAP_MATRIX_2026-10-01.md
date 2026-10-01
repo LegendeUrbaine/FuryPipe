@@ -35,32 +35,27 @@ source-bound artifacts.
 | Packaging / installation | PASS | RC tarball, reproducibility, installed-package clean-room and Windows 2025 Node 24/22/26 jobs pass. |
 | Documentation | PASS | Canonical repository links, release state and external limitations are stated without a false publication claim. |
 
-## Exact verification evidence
+## Verification evidence
 
-- CI run: 36918897631 — 9/9 matrix legs green; lint, typecheck, tests,
-  build, package smoke, reproducibility and audit included.
-- Test result: 357 test files, 3,633 tests passed.
-- Clean Room run: 36918897721 — Ubuntu/macOS/Windows × Node 22/24/26;
-  installed package start, readiness, stop, restart, persistence,
-  uninstall/reinstall and Studio API checks pass.
-- Windows clean-room artifact:
-  furypipe-clean-room-windows-2025-node-24.21.0-41645fbaf90d53277de57df8f63468158ae2e529;
-  artifact digest sha256:9ff3a3629010f0587ad32f5f505528a201bd49ef69b1625af425e64133cd427f.
-- RC Preparation run: 36918897640; artifact digest
-  sha256:66c2be8bd3658786c0844a5327ef9be599db40edf03829377e2a2e06fa152a4a.
-- Cross-Browser QA run: 36918897596 — Chromium 153, Firefox 155 and
-  WebKit 26.6; Dashboard 117/117 and Studio 120/120, no viewport overflow or
-  runtime errors.
-- Web Studio QA run: 36918897579 — 16 Chromium screenshots, 6 dispatch
-  rows per browser, 0 console errors.
-- Accessibility run: 36918897730 — PASS, 0 console errors, 40 focusable
-  controls, 0 unnamed controls and 0 heading jumps.
-- FuryBench run: 36918897478 — PASS, 3 paired rounds / 25 samples,
-  offline-only and no provider performance claim.
-- RC package evidence is read from the exact RC artifact attached to the
-  candidate workflow; do not copy a digest from another commit.
-- Local fixture media is not promoted to exact-head evidence. It remains
-  available for deterministic renderer inspection only.
+- CI: the exact candidate matrix passes lint, typecheck, tests, build, package
+  smoke, reproducibility and audit on the supported OS/Node matrix.
+- Tests: 357 test files and 3,633 tests passed on the candidate validation.
+- Clean Room: installed-package start, readiness, stop, restart, persistence,
+  uninstall/reinstall and Studio API checks pass on Ubuntu, macOS and Windows
+  across Node 22, 24 and 26.
+- RC Preparation: the artifact is source-bound to the candidate commit and
+  contains the package tarball, installation smoke, upgrade/rollback evidence,
+  SBOM and release-readiness JSON. Read the SHA-256, byte count and artifact
+  digest from that exact workflow artifact; never copy them from an older run.
+- Cross-Browser QA: Chromium, Firefox and WebKit matrices pass for Dashboard
+  and Studio with no viewport overflow or runtime errors.
+- Web Studio QA: the installed local route and browser surface pass; screenshots
+  are autonomous QA evidence, not human visual acceptance.
+- Accessibility: automated focus, naming, heading and console-error checks pass.
+- FuryBench: bounded offline comparison passes; no provider performance claim is
+  made.
+- Local fixture media remains deterministic renderer evidence only. It is not
+  promoted to exact-head generative-provider evidence.
 
 ## Release boundary
 

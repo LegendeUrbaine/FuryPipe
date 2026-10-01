@@ -881,10 +881,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Mistermode45/FuryPipe.git"
+    "url": "git+https://github.com/LegendeUrbaine/FuryPipe.git"
   },
-  "homepage": "https://github.com/Mistermode45/FuryPipe#readme",
+  "homepage": "https://github.com/LegendeUrbaine/FuryPipe#readme",
   "bugs": {
-    "url": "https://github.com/Mistermode45/FuryPipe/issues"
+    "url": "https://github.com/LegendeUrbaine/FuryPipe/issues"
   }
 }

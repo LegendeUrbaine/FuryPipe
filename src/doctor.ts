@@ -56,6 +56,9 @@ export interface DoctorReport {
     readonly claude: DoctorCheck;
     readonly codex: DoctorCheck;
     readonly openclaw: DoctorCheck;
+    /** Local media executables are optional for core chat, but required by local Video Studio. */
+    readonly ffmpeg?: DoctorCheck;
+    readonly ffprobe?: DoctorCheck;
   };
   readonly betaConfig: FuryBetaConfigObservation;
   readonly betaReadiness: FuryBetaReadinessSnapshot;
@@ -64,9 +67,10 @@ export interface DoctorReport {
 
 function commandVersion(command: string): DoctorCheck {
   try {
+    const versionFlag = command === 'ffmpeg' || command === 'ffprobe' ? '-version' : '--version';
     const output = process.platform === 'win32' && (command === 'npm' || command === 'pnpm')
       ? execFileSync('cmd.exe', ['/d', '/s', '/c', `${command} --version`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
-      : execFileSync(command, ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      : execFileSync(command, [versionFlag], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     return output ? { status: 'available', value: output.split(/\r?\n/, 1)[0] } : { status: 'available' };
   } catch {
     return { status: 'unavailable' };
@@ -213,6 +217,8 @@ export function collectDoctorReport(options: DoctorCollectionOptions = {}): Doct
       claude: commandVersion('claude'),
       codex: commandVersion('codex'),
       openclaw: commandVersion('openclaw'),
+      ffmpeg: commandVersion('ffmpeg'),
+      ffprobe: commandVersion('ffprobe'),
     },
     betaConfig: betaReadiness.config,
     betaReadiness: betaReadiness.snapshot,
@@ -310,6 +316,8 @@ export function renderDoctorReport(report: DoctorReport, json = false, locale = 
     `${t('doctor.claude')}: ${check(report.tools.claude)}`,
     `${t('doctor.codex')}: ${check(report.tools.codex)}`,
     `${t('doctor.openclaw')}: ${check(report.tools.openclaw)}`,
+    ...(report.tools.ffmpeg ? [`FFmpeg: ${check(report.tools.ffmpeg)}`] : []),
+    ...(report.tools.ffprobe ? [`FFprobe: ${check(report.tools.ffprobe)}`] : []),
     ...(report.openclaw ? [
       `${t('doctor.openclawConfig')}: ${report.openclaw.config.status} (${report.openclaw.config.path})`,
       `${t('doctor.openclawWorkspace')}: ${report.openclaw.workspace.exists ? 'present' : 'missing'} (${report.openclaw.workspace.path})`,

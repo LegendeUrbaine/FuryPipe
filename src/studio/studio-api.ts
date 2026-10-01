@@ -1,0 +1,1396 @@
+// FuryPipe Studio runtime API.
+//
+// Every route is served only on loopback by the Node host (same guard as the
+// dashboard). Read routes expose discovery results; POST routes are
+// same-origin, JSON-only and size-bounded. Nothing here executes an agent:
+// dispatch is a preview (plan only), and chat is limited to local inference
+// endpoints validated by the FuryLocal boundary (no cloud, no paid call).
+import { discoverFuryHarnesses, type FuryHarnessDiscovery } from '../fury-harness-hub.js';
+import {
+  assertFuryLocalEndpoint,
+  classifyFuryModelFit,
+  discoverFuryHardware,
+  discoverFuryLocalBackends,
+  type FuryHardwareProfile,
+  type FuryLocalBackendKind,
+  type FuryLocalBackendStatus,
+} from '../fury-local-fabric.js';
+import { compileFuryIr, FuryIrError } from '../fury-ir.js';
+import { FuryDispatchError, FURY_DISPATCH_MODES, planFuryDispatch, type FuryDispatchMode, type FuryRuntimeBinding } from '../fury-dispatcher.js';
+import { executeGraphifyRefresh, furyBlastRadius, furyScopeCoupling, loadFuryGraph, planGraphifyLifecycle, planGraphifyRefresh, type FuryGraph, type FuryGraphDetection } from '../fury-graph.js';
+import { compileFuryFlow, dryRunFuryFlow, FuryFlowError } from '../fury-flow.js';
+import { compileFuryWorkflowAutomationPlan, FuryWorkflowAutomationError } from '../fury-workflow-sdk.js';
+import { execFile } from 'node:child_process';
+import { mkdir, readFile, stat } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { createCodingWorktreeManager, createNodeGitWorktreeProvider, discoverCodingRepository } from '../coding-runtime.js';
+import { runFuryHarnessTask } from '../fury-harness-runner.js';
+import type { FuryMissionControl, FuryWorkerBinding } from '../fury-mission-control.js';
+import { planFuryTask } from '../fury-planner.js';
+import { createFuryProofLedger } from '../fury-proof.js';
+import { runFuryTask, type FuryRunResult, type FuryTaskExecutor } from '../fury-run.js';
+import { createFurySkillHub, FurySkillHubError, FURY_SKILL_GOVERNANCE, type FurySkillGovernance, type FurySkillHub } from '../fury-skill-hub.js';
+import { createHash, randomUUID } from 'node:crypto';
+import { createFuryKnowledgeBase, FuryKnowledgeError, type FuryEmbedder, type FuryRetrievalMode } from '../fury-knowledge.js';
+import { createFurySearxngAdapter, furyWebCrawl, furyWebExtract, furyWebFetch, furyWebMap, furyWebSearch, FuryWebError, type FuryWebFetchOptions } from '../fury-web.js';
+import { studioMemoryFromEnv, studioMemoryList, studioMemoryRemember, studioMemoryScopes, studioMemorySearch, type StudioMemory } from './studio-memory.js';
+import { buildFuryIntegrationRegistry } from '../fury-integrations.js';
+import { createStudioChats, StudioChatError, type StudioChats } from './studio-chats.js';
+import { createStudioCode, StudioCodeError } from './studio-code.js';
+import { createFuryMcpHub, FuryMcpHubError, type FuryMcpHub, type FuryMcpPolicy } from '../fury-mcp-hub.js';
+import { discoverFuryAiConnections, type FuryAiConnections } from '../fury-ai-connections.js';
+import { inspectHuggingFaceGguf, recommendHuggingFaceGguf } from '../fury-huggingface-models.js';
+import { installFuryLocalRuntime, type FuryRuntimeSetupId, type FuryRuntimeSetupRunner } from '../fury-runtime-setup.js';
+import { launchFuryAccountLogin, type FuryAccountLoginLauncher, type FuryAccountProvider } from '../fury-account-connect.js';
+import { probeFuryAccountStatuses, type FuryAccountStatusRunner } from '../fury-account-status.js';
+import { FURY_AUTOPILOT_EFFORTS, type FuryAutopilotEffort } from '../fury-autopilot.js';
+import { STUDIO_RESPONSE_STYLES, planStudioAutopilot, type StudioResponseStyle } from './studio-autopilot.js';
+import { FURY_EXTENSION_KINDS, listFuryExtensions, type FuryExtensionKind } from '../fury-extension-catalog.js';
+import { renderTextToImages } from '../core/library.js';
+import { createModelFabricRegistry } from '../core/model-fabric.js';
+import { DEFAULT_PROVIDER_REGISTRY } from '../core/provider-fabric.js';
+import { buildFuryModelHubSnapshot } from '../fury-model-hub.js';
+import { localModelCapabilityId, observeFuryLocalModelsInModelFabric } from '../fury-local-model-fabric.js';
+import { buildFuryWorkspaceGraph } from '../fury-workspace-graph.js';
+import { evaluateFuryDataset, type FuryEvalDataset } from '../fury-eval.js';
+import { createFuryArtifactRepository, type FuryArtifactRepository } from '../fury-artifact-repository-node.js';
+import type { FuryArtifact, FuryArtifactKind, FuryArtifactRestorePlan } from '../fury-artifacts.js';
+import { CodingRuntimeError } from '../coding-runtime.js';
+import {
+  createFuryCodeAdvanced,
+  type FuryCodeAdvanced,
+  type FuryCodeEditPlan,
+  type FuryCodeScriptName,
+  type FuryCodeScriptPlan,
+} from '../fury-code-advanced-node.js';
+import { createFuryMediaStudioGallery, createFuryMediaStudioPreview, createFuryMediaStudioSnapshot, type FuryMediaStudioPreviewOptions } from '../media-studio.js';
+import type { FuryMediaGenerationAdapter, FuryMediaGenerationMode } from '../media-generation-runtime.js';
+import type { FuryMediaGenerationJobEngine } from '../media-generation-job-engine.js';
+import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } from '../fury-video-timeline.js';
+import { createFuryObservabilityNotConfiguredSnapshot, type FuryObservabilityRegistry } from '../fury-observability.js';
+import { createFuryMemoryTimeMachine, type FuryMemorySnapshot } from '../fury-memory-time-machine.js';
+import { createFuryMarketplaceCatalog, type FuryMarketplaceCatalog } from '../fury-marketplace.js';
+import { executeFuryHeadless, FuryHeadlessError } from '../fury-headless.js';
+import { LocalVideoEngine, VideoEngineError, type VideoLocalEngineOptions } from '../video-local-engine.js';
+import { createVideoProviderRegistry } from '../video-providers.js';
+import { runVideoWorkflow, VideoWorkflowError } from '../video-workflow.js';
+import { createVideoHookVariants, createVideoRecipe, createVideoStoryboard, FURYCRAFT_VIDEO_PROFILE, lintFuryCraftPublicContent, type VideoCaptionStyle } from '../video-studio.js';
+
+export const STUDIO_API_PREFIX = '/api/studio/';
+const MAX_POST_BYTES = 256 * 1024;
+const CACHE_MS = 10_000;
+
+export type StudioRoute =
+  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'headless' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
+  | 'runs' | 'run-start' | 'run-act' | 'skills' | 'skill-act' | 'skill-select' | 'skill-install' | 'skill-create' | 'skill-compare'
+  | 'mcp' | 'mcp-add' | 'mcp-act' | 'mcp-probe' | 'mcp-decide'
+  | 'knowledge' | 'knowledge-ingest' | 'knowledge-search'
+  | 'web' | 'visual-render'
+  | 'memory' | 'memory-remember' | 'memory-search' | 'memory-act'
+  | 'integrations' | 'connections' | 'connection-login' | 'support'
+  | 'media' | 'media-preview' | 'media-jobs' | 'media-timeline-preview' | 'observability'
+  | 'video-doctor' | 'video-providers' | 'video-project' | 'video-ingest' | 'video-analyze' | 'video-storyboard' | 'video-render' | 'video-qc' | 'video-artifacts' | 'video-file'
+  | 'marketplace'
+  | 'memory-time-machine' | 'memory-time-machine-diff' | 'memory-time-machine-restore' | 'memory-time-machine-action' | 'memory-time-machine-export'
+  | 'artifacts' | 'artifact-get' | 'artifact-create' | 'artifact-version' | 'artifact-search' | 'artifact-restore-plan' | 'artifact-restore' | 'artifact-export'
+  | 'chats' | 'chat-get' | 'chat-save' | 'chat-branch' | 'chat-delete'
+  | 'code-tree' | 'code-file' | 'code-worktrees' | 'code-diff'
+  | 'code-edit-plan' | 'code-edit-apply' | 'code-script-plan' | 'code-script-run';
+
+const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POST' }>> = Object.freeze({
+  '/api/studio/harnesses.json': { route: 'harnesses', method: 'GET' },
+  '/api/studio/local.json': { route: 'local', method: 'GET' },
+  '/api/studio/models.json': { route: 'models', method: 'GET' },
+  '/api/studio/hardware.json': { route: 'hardware', method: 'GET' },
+  '/api/studio/local-model/inspect': { route: 'local-model-inspect', method: 'POST' },
+  '/api/studio/local-model/recommend': { route: 'local-model-recommend', method: 'POST' },
+  '/api/studio/setup/runtime': { route: 'runtime-setup', method: 'POST' },
+  '/api/studio/setup/runtime/status': { route: 'runtime-setup-status', method: 'GET' },
+  '/api/studio/bindings.json': { route: 'bindings', method: 'GET' },
+  '/api/studio/graph.json': { route: 'graph', method: 'GET' },
+  '/api/studio/graph/lifecycle': { route: 'graph-lifecycle', method: 'POST' },
+  '/api/studio/graph/refresh': { route: 'graph-refresh', method: 'POST' },
+  '/api/studio/blast-radius': { route: 'blast-radius', method: 'POST' },
+  '/api/studio/dispatch-preview': { route: 'dispatch-preview', method: 'POST' },
+  '/api/studio/autopilot/preview': { route: 'autopilot-preview', method: 'POST' },
+  '/api/studio/eval': { route: 'eval', method: 'POST' },
+  '/api/studio/headless': { route: 'headless', method: 'POST' },
+  '/api/studio/extensions.json': { route: 'extensions', method: 'GET' },
+  '/api/studio/support.json': { route: 'support', method: 'GET' },
+  '/api/studio/media.json': { route: 'media', method: 'GET' },
+  '/api/studio/media/preview': { route: 'media-preview', method: 'POST' },
+  '/api/studio/media/jobs.json': { route: 'media-jobs', method: 'GET' },
+  '/api/studio/media/timeline/preview': { route: 'media-timeline-preview', method: 'POST' },
+  '/api/studio/video/doctor.json': { route: 'video-doctor', method: 'GET' },
+  '/api/studio/video/providers.json': { route: 'video-providers', method: 'GET' },
+  '/api/studio/video/project': { route: 'video-project', method: 'POST' },
+  '/api/studio/video/ingest': { route: 'video-ingest', method: 'POST' },
+  '/api/studio/video/analyze': { route: 'video-analyze', method: 'POST' },
+  '/api/studio/video/storyboard': { route: 'video-storyboard', method: 'POST' },
+  '/api/studio/video/render': { route: 'video-render', method: 'POST' },
+  '/api/studio/video/qc': { route: 'video-qc', method: 'POST' },
+  '/api/studio/video/artifacts.json': { route: 'video-artifacts', method: 'GET' },
+  '/api/studio/video/file': { route: 'video-file', method: 'GET' },
+  '/api/studio/observability.json': { route: 'observability', method: 'GET' },
+  '/api/studio/marketplace.json': { route: 'marketplace', method: 'GET' },
+  '/api/studio/memory/time-machine.json': { route: 'memory-time-machine', method: 'GET' },
+  '/api/studio/memory/time-machine/diff': { route: 'memory-time-machine-diff', method: 'POST' },
+  '/api/studio/memory/time-machine/restore': { route: 'memory-time-machine-restore', method: 'POST' },
+  '/api/studio/memory/time-machine/action': { route: 'memory-time-machine-action', method: 'POST' },
+  '/api/studio/memory/time-machine/export.json': { route: 'memory-time-machine-export', method: 'GET' },
+  '/api/studio/artifacts.json': { route: 'artifacts', method: 'GET' },
+  '/api/studio/artifacts/get': { route: 'artifact-get', method: 'POST' },
+  '/api/studio/artifacts/create': { route: 'artifact-create', method: 'POST' },
+  '/api/studio/artifacts/version': { route: 'artifact-version', method: 'POST' },
+  '/api/studio/artifacts/search': { route: 'artifact-search', method: 'POST' },
+  '/api/studio/artifacts/restore/plan': { route: 'artifact-restore-plan', method: 'POST' },
+  '/api/studio/artifacts/restore': { route: 'artifact-restore', method: 'POST' },
+  '/api/studio/artifacts/export': { route: 'artifact-export', method: 'GET' },
+  '/api/studio/chat': { route: 'chat', method: 'POST' },
+  '/api/studio/flow-preview': { route: 'flow-preview', method: 'POST' },
+  '/api/studio/flow-automation-preview': { route: 'flow-automation-preview', method: 'POST' },
+  '/api/studio/runs.json': { route: 'runs', method: 'GET' },
+  '/api/studio/runs': { route: 'run-start', method: 'POST' },
+  '/api/studio/runs/act': { route: 'run-act', method: 'POST' },
+  '/api/studio/skills.json': { route: 'skills', method: 'GET' },
+  '/api/studio/skills/act': { route: 'skill-act', method: 'POST' },
+  '/api/studio/skills/select': { route: 'skill-select', method: 'POST' },
+  '/api/studio/skills/install': { route: 'skill-install', method: 'POST' },
+  '/api/studio/skills/create': { route: 'skill-create', method: 'POST' },
+  '/api/studio/skills/compare': { route: 'skill-compare', method: 'POST' },
+  '/api/studio/mcp.json': { route: 'mcp', method: 'GET' },
+  '/api/studio/mcp/add': { route: 'mcp-add', method: 'POST' },
+  '/api/studio/mcp/act': { route: 'mcp-act', method: 'POST' },
+  '/api/studio/mcp/probe': { route: 'mcp-probe', method: 'POST' },
+  '/api/studio/mcp/decide': { route: 'mcp-decide', method: 'POST' },
+  '/api/studio/knowledge.json': { route: 'knowledge', method: 'GET' },
+  '/api/studio/knowledge/ingest': { route: 'knowledge-ingest', method: 'POST' },
+  '/api/studio/knowledge/search': { route: 'knowledge-search', method: 'POST' },
+  '/api/studio/web': { route: 'web', method: 'POST' },
+  '/api/studio/visual/render': { route: 'visual-render', method: 'POST' },
+  '/api/studio/memory.json': { route: 'memory', method: 'GET' },
+  '/api/studio/memory/remember': { route: 'memory-remember', method: 'POST' },
+  '/api/studio/memory/search': { route: 'memory-search', method: 'POST' },
+  '/api/studio/memory/act': { route: 'memory-act', method: 'POST' },
+  '/api/studio/integrations.json': { route: 'integrations', method: 'GET' },
+  '/api/studio/connections.json': { route: 'connections', method: 'GET' },
+  '/api/studio/connections/login': { route: 'connection-login', method: 'POST' },
+  '/api/studio/chats.json': { route: 'chats', method: 'GET' },
+  '/api/studio/chats/get': { route: 'chat-get', method: 'POST' },
+  '/api/studio/chats/save': { route: 'chat-save', method: 'POST' },
+  '/api/studio/chats/branch': { route: 'chat-branch', method: 'POST' },
+  '/api/studio/chats/delete': { route: 'chat-delete', method: 'POST' },
+  '/api/studio/code/tree': { route: 'code-tree', method: 'POST' },
+  '/api/studio/code/file': { route: 'code-file', method: 'POST' },
+  '/api/studio/code/worktrees.json': { route: 'code-worktrees', method: 'GET' },
+  '/api/studio/code/diff': { route: 'code-diff', method: 'POST' },
+  '/api/studio/code/edit/plan': { route: 'code-edit-plan', method: 'POST' },
+  '/api/studio/code/edit/apply': { route: 'code-edit-apply', method: 'POST' },
+  '/api/studio/code/script/plan': { route: 'code-script-plan', method: 'POST' },
+  '/api/studio/code/script/run': { route: 'code-script-run', method: 'POST' },
+});
+
+export function studioApiRoute(pathname: string): { route: StudioRoute; method: 'GET' | 'POST' } | null {
+  return ROUTES[pathname] ?? null;
+}
+
+export interface StudioApiOptions {
+  /** Project root for FuryGraph (the runtime working directory). */
+  readonly projectRoot: string;
+  readonly discoverHarnesses?: () => Promise<FuryHarnessDiscovery>;
+  readonly discoverLocal?: () => Promise<{ readonly backends: readonly FuryLocalBackendStatus[] }>;
+  readonly discoverHardware?: () => Promise<FuryHardwareProfile>;
+  /** Safe account/provider hints. Never returns credential values or browser-session data. */
+  readonly discoverConnections?: () => Promise<FuryAiConnections>;
+  /** Public Hugging Face catalog fetch hook (tests); no credentials are attached. */
+  readonly huggingFaceFetch?: typeof fetch;
+  /** Test hook for the fixed, explicit local-runtime package installer. */
+  readonly runtimeSetupRunner?: FuryRuntimeSetupRunner;
+  readonly runtimeSetupPlatform?: NodeJS.Platform;
+  /** Test hook for explicit official CLI sign-in launch. */
+  readonly accountLoginLauncher?: FuryAccountLoginLauncher;
+  readonly accountLoginPlatform?: NodeJS.Platform;
+  /** Test hook for official CLI auth-status probes. */
+  readonly accountStatusRunner?: FuryAccountStatusRunner;
+  readonly accountStatusPlatform?: NodeJS.Platform;
+  readonly loadGraph?: (root: string) => Promise<{ readonly graph: FuryGraph; readonly detections?: readonly FuryGraphDetection[] }>;
+  readonly now?: () => number;
+  /** Task executor for real runs; defaults to the structured-CLI harness runner. */
+  readonly executor?: FuryTaskExecutor;
+  /** Where writer and integration worktrees are created (default: OS temp dir). */
+  readonly worktreeRoot?: string;
+  /** Skills Hub; defaults to one keyed by project under ~/.furypipe/studio/skill-hub. */
+  readonly skillHub?: FurySkillHub;
+  /** MCP Hub; defaults to one keyed by project under ~/.furypipe/studio/mcp-hub. */
+  readonly mcpHub?: FuryMcpHub;
+  /** Knowledge base state directory (default ~/.furypipe/studio/knowledge/<project>). */
+  readonly knowledgeDir?: string;
+  /** Local SearXNG endpoint for web search (default: FURYPIPE_SEARXNG_URL, else search is not configured). */
+  readonly searxngUrl?: string;
+  /** Network hooks for tests (DNS override, dialer). */
+  readonly webFetch?: Pick<FuryWebFetchOptions, 'resolveHostname' | 'dial'>;
+  /** Memory store; defaults to the encrypted local memory config, else disabled. */
+  readonly memory?: StudioMemory;
+  /** Conversation store directory (default ~/.furypipe/studio/chats/<project>). */
+  readonly chatsDir?: string;
+  /** Persistent Artifacts repository. Inject for tests/custom storage; otherwise RecoveryStore-backed local state is used. */
+  readonly artifactRepository?: FuryArtifactRepository;
+  /** Artifact RecoveryStore root (default ~/.furypipe/studio/artifacts/<project>). */
+  readonly artifactsDir?: string;
+  /** Provider-neutral media adapters observed by Studio; observation never grants execution authority. */
+  readonly mediaAdapters?: readonly FuryMediaGenerationAdapter[];
+  /** Optional durable media job projection; Studio only reads jobs and never submits from this route. */
+  readonly mediaJobEngine?: Pick<FuryMediaGenerationJobEngine, 'list'>;
+  /** Optional evidence registry; Studio only reads its immutable snapshot. */
+  readonly observability?: Pick<FuryObservabilityRegistry, 'snapshot'>;
+  /** Optional signed marketplace metadata catalog; Studio only reads its immutable snapshot. */
+  readonly marketplace?: Pick<FuryMarketplaceCatalog, 'snapshot'>;
+  /** Optional local video engine. Tests and desktop hosts inject a bounded engine. */
+  readonly videoEngine?: LocalVideoEngine;
+  /** Root for local video projects when the engine is not injected. */
+  readonly videoWorkspaceRoot?: string;
+  /** Root containing user-provided media when the engine is not injected. */
+  readonly videoAssetRoot?: string;
+}
+
+interface StudioRun {
+  readonly runId: string;
+  readonly intent: string;
+  readonly startedAt: number;
+  status: 'running' | FuryRunResult['status'] | 'ERROR';
+  mission?: FuryMissionControl;
+  result?: FuryRunResult;
+  error?: string;
+}
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' },
+  });
+}
+
+function problem(status: number, code: string, message: string): Response {
+  return json({ error: { code, message } }, status);
+}
+
+async function readJson(request: Request): Promise<unknown> {
+  const type = request.headers.get('content-type') ?? '';
+  if (!/^application\/json(?:;|$)/iu.test(type)) throw Object.assign(new Error('content-type must be application/json'), { status: 415 });
+  const declared = Number(request.headers.get('content-length') ?? '0');
+  if (declared > MAX_POST_BYTES) throw Object.assign(new Error('request body too large'), { status: 413 });
+  const reader = request.body?.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  if (reader) for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_POST_BYTES) {
+      await reader.cancel();
+      throw Object.assign(new Error('request body too large'), { status: 413 });
+    }
+    chunks.push(value);
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+  } catch {
+    throw Object.assign(new Error('body is not valid JSON'), { status: 400 });
+  }
+}
+
+/** Derive runtime bindings from what is actually installed/reachable. Scores stay 0 until FuryBench provides them. */
+export function studioBindings(harnesses: FuryHarnessDiscovery, local: readonly FuryLocalBackendStatus[]): FuryRuntimeBinding[] {
+  const bindings: FuryRuntimeBinding[] = [];
+  for (const backend of local) {
+    if (!backend.reachable) continue;
+    for (const model of backend.models.slice(0, 32)) {
+      if (model.modality === 'embeddings') continue;
+      bindings.push({
+        id: `native:${backend.kind}:${model.id}`.slice(0, 200), harnessId: 'furypipe-native', provider: backend.kind, model: model.id,
+        locality: 'local', available: true, scores: {}, estimatedCostUsdPerTask: 0,
+      });
+      const cc = harnesses.harnesses.find((h) => h.id === 'claude-code' && h.installed);
+      if (cc && backend.protocols.includes('anthropic-messages')) {
+        bindings.push({ id: `claude-code:${backend.kind}:${model.id}`.slice(0, 200), harnessId: 'claude-code', provider: backend.kind, model: model.id, locality: 'local', available: true, scores: {}, estimatedCostUsdPerTask: 0 });
+      }
+      const codex = harnesses.harnesses.find((h) => h.id === 'codex' && h.installed);
+      if (codex && (backend.kind === 'ollama' || backend.kind === 'lmstudio')) {
+        bindings.push({ id: `codex:${backend.kind}:${model.id}`.slice(0, 200), harnessId: 'codex', provider: backend.kind, model: model.id, locality: 'local', available: true, scores: {}, estimatedCostUsdPerTask: 0 });
+      }
+    }
+  }
+  for (const h of harnesses.harnesses) {
+    if (!h.installed || h.id === 'furypipe-native') continue;
+    // The harness's own default (cloud) model; its identity and cost are not known to FuryPipe.
+    bindings.push({ id: `${h.id}:default`, harnessId: h.id, provider: 'harness-default', model: 'harness-default', locality: 'cloud', available: true, scores: {}, estimatedCostUsdPerTask: 0 });
+  }
+  return bindings;
+}
+
+function gitHead(cwd: string): Promise<string> {
+  return new Promise((resolve, reject) => execFile('git', ['rev-parse', 'HEAD'], { cwd, shell: false, windowsHide: true }, (e, out) => (e ? reject(Object.assign(new Error('project root is not a git repository with a commit'), { status: 409 })) : resolve(String(out).trim()))));
+}
+
+export function createStudioApi(options: StudioApiOptions) {
+  const now = options.now ?? Date.now;
+  const cache = new Map<string, { at: number; value: Promise<unknown> }>();
+  const cached = <T>(key: string, load: () => Promise<T>): Promise<T> => {
+    const hit = cache.get(key);
+    if (hit && now() - hit.at < CACHE_MS) return hit.value as Promise<T>;
+    const value = load();
+    cache.set(key, { at: now(), value });
+    value.catch(() => cache.delete(key));
+    return value;
+  };
+  const discovery = <T>(load: () => Promise<T>) => () => load().catch((error: unknown) => {
+    throw Object.assign(new Error(`discovery failed: ${error instanceof Error ? error.message.slice(0, 200) : 'unknown'}`), { status: 503 });
+  });
+  const harnesses = () => cached('harnesses', discovery(options.discoverHarnesses ?? (() => discoverFuryHarnesses())));
+  const local = () => cached('local', discovery(options.discoverLocal ?? (() => discoverFuryLocalBackends())));
+  const hardware = () => cached('hardware', discovery(options.discoverHardware ?? (() => discoverFuryHardware())));
+  const connections = discovery(options.discoverConnections ?? (async () => {
+    const discovered = await harnesses();
+    const verification = await probeFuryAccountStatuses(discovered, {
+      ...(options.accountStatusRunner ? { runner: options.accountStatusRunner } : {}),
+      ...(options.accountStatusPlatform ? { platform: options.accountStatusPlatform } : {}),
+    });
+    return discoverFuryAiConnections(discovered, process.env, verification);
+  }));
+  const graphInspection = () => cached('graph-inspection', async () => (await (options.loadGraph ?? loadFuryGraph)(options.projectRoot)));
+  const graph = () => cached('graph', async () => (await graphInspection()).graph);
+
+  const projectKey = createHash('sha256').update(path.resolve(options.projectRoot)).digest('hex').slice(0, 16);
+  const skills = options.skillHub ?? createFurySkillHub({ projectRoot: options.projectRoot, stateDir: path.join(os.homedir(), '.furypipe', 'studio', 'skill-hub', projectKey) });
+  const mcp = options.mcpHub ?? createFuryMcpHub({ projectRoot: options.projectRoot, stateDir: path.join(os.homedir(), '.furypipe', 'studio', 'mcp-hub', projectKey) });
+  const videoEngine = options.videoEngine ?? new LocalVideoEngine({
+    workspaceRoot: options.videoWorkspaceRoot ?? path.join(os.homedir(), '.furypipe', 'studio', 'video', projectKey),
+    assetRoot: options.videoAssetRoot ?? options.projectRoot,
+  });
+
+  // Embeddings come only from a reachable loopback backend that lists an embeddings model.
+  const knowledge = async () => {
+    const backends = (await local().catch(() => ({ backends: [] as readonly FuryLocalBackendStatus[] }))).backends;
+    const model = backends.filter((b) => b.reachable).flatMap((b) => b.models).find((m) => m.modality === 'embeddings');
+    const embed: FuryEmbedder | undefined = model ? async (input) => {
+      const url = assertFuryLocalEndpoint(model.baseUrl);
+      const res = await fetch(new URL('v1/embeddings', url.href.endsWith('/') ? url.href : `${url.href}/`), { method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(120_000), headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: model.id, input }) });
+      if (res.status !== 200) throw Object.assign(new Error(`local embeddings answered HTTP ${res.status}`), { status: 502 });
+      const body = await res.json() as { data?: { embedding?: number[] }[] };
+      return (body.data ?? []).map((d) => d.embedding ?? []);
+    } : undefined;
+    return { kb: createFuryKnowledgeBase({ stateDir: options.knowledgeDir ?? path.join(os.homedir(), '.furypipe', 'studio', 'knowledge', projectKey), ...(embed && model ? { embed, embeddingModel: `${model.backend}:${model.id}` } : {}) }), embeddingModel: model ? `${model.backend}:${model.id}` : null };
+  };
+
+  const chats: StudioChats = createStudioChats({ stateDir: options.chatsDir ?? path.join(os.homedir(), '.furypipe', 'studio', 'chats', projectKey), now });
+  const artifacts = options.artifactRepository ?? createFuryArtifactRepository({
+    root: options.artifactsDir ?? path.join(os.homedir(), '.furypipe', 'studio', 'artifacts', projectKey),
+    projectId: projectKey,
+  });
+  const artifactSummary = (artifact: FuryArtifact) => {
+    const latest = artifact.versions.at(-1)!;
+    return Object.freeze({
+      id: artifact.id,
+      kind: artifact.kind,
+      title: artifact.title,
+      projectId: artifact.projectId,
+      createdAt: artifact.createdAt,
+      updatedAt: artifact.updatedAt,
+      versions: artifact.versions.length,
+      latest: Object.freeze({
+        version: latest.version,
+        createdAt: latest.createdAt,
+        mediaType: latest.mediaType,
+        byteLength: latest.byteLength,
+        contentSha256: latest.contentSha256,
+        metadata: latest.metadata,
+      }),
+    });
+  };
+  const artifactMetadata = (value: unknown): Readonly<Record<string, string>> | undefined => {
+    if (value === undefined) return undefined;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw Object.assign(new Error('artifact metadata must be an object'), { status: 400 });
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length > 32 || entries.some(([key, item]) => !key || key.length > 64 || typeof item !== 'string' || item.length > 512)) {
+      throw Object.assign(new Error('artifact metadata must contain at most 32 bounded string entries'), { status: 400 });
+    }
+    return Object.freeze(Object.fromEntries(entries as [string, string][]));
+  };
+  const artifactKind = (value: unknown): FuryArtifactKind => {
+    const kinds: readonly FuryArtifactKind[] = ['text', 'markdown', 'json', 'code', 'image', 'audio', 'video', 'binary-reference'];
+    if (typeof value !== 'string' || !kinds.includes(value as FuryArtifactKind)) {
+      throw Object.assign(new Error('artifact kind is invalid'), { status: 400 });
+    }
+    return value as FuryArtifactKind;
+  };
+  const code = createStudioCode(options.projectRoot);
+  let codeAdvancedPromise: Promise<FuryCodeAdvanced> | undefined;
+  const codeAdvanced = (): Promise<FuryCodeAdvanced> => (codeAdvancedPromise ??= createFuryCodeAdvanced({ projectRoot: options.projectRoot, now }));
+  const codeEditPlans = new Map<string, FuryCodeEditPlan>();
+  const codeScriptPlans = new Map<string, FuryCodeScriptPlan>();
+  const rememberCodePlan = <T>(store: Map<string, T>, digest: string, plan: T): void => {
+    while (store.size >= 64) {
+      const oldest = store.keys().next().value as string | undefined;
+      if (oldest === undefined) break;
+      store.delete(oldest);
+    }
+    store.set(digest, plan);
+  };
+  let memoryState: StudioMemory | undefined = options.memory;
+  const memory = () => (memoryState ??= studioMemoryFromEnv());
+  const memoryStore = () => {
+    const m = memory();
+    if (!m.enabled || !m.store) throw Object.assign(new Error(m.reason ?? 'memory is off'), { status: 409 });
+    return m.store;
+  };
+  const memoryTimeMachine = () => createFuryMemoryTimeMachine({ memory: memoryStore(), now });
+  const marketplaceCatalog = () => options.marketplace ?? createFuryMarketplaceCatalog({ entries: [], trustedKeys: [] });
+  const studioMemoryScope = (value: unknown): 'project' | 'user' => {
+    if (value !== 'project' && value !== 'user') throw Object.assign(new Error('scope must be project or user'), { status: 400 });
+    return value;
+  };
+
+  const runs = new Map<string, StudioRun>();
+  type RuntimeSetupJob = {
+    readonly id:string;
+    readonly runtime:FuryRuntimeSetupId;
+    readonly startedAt:number;
+    state:'running'|'installed'|'failed'|'unsupported';
+    next:string;
+    error?:string;
+  };
+  const runtimeSetupJobs = new Map<string, RuntimeSetupJob>();
+  const cleanRuntimeSetupJobs = () => {
+    const cutoff = now() - 30 * 60_000;
+    for (const [id, job] of runtimeSetupJobs) if (job.startedAt < cutoff && job.state !== 'running') runtimeSetupJobs.delete(id);
+  };
+  const runtimeSetupSnapshot = (job:RuntimeSetupJob) => Object.freeze({
+    id:job.id, runtime:job.runtime, state:job.state, startedAt:job.startedAt, next:job.next, ...(job.error ? { error:job.error } : {}),
+  });
+  const ledger = createFuryProofLedger();
+  const runSnapshot = (r: StudioRun) => ({
+    runId: r.runId, intent: r.intent, startedAt: r.startedAt, status: r.status,
+    ...(r.error ? { error: r.error } : {}),
+    workers: (r.mission?.workers() ?? []).map((w) => ({ workerId: w.workerId, taskId: w.taskId, role: w.role, state: w.state, progress: w.progress, harnessId: w.binding.harnessId, provider: w.binding.provider, model: w.binding.model, locality: w.binding.locality, worktree: w.worktree, usage: w.usage, errors: w.errors.slice(-3), receipts: w.receiptIds.length })),
+    totals: r.mission?.totals() ?? null,
+    replayEntries: r.mission?.replay().entries.length ?? 0,
+    ...(r.result ? { verdict: r.result.judgement.verdict, pendingGates: r.result.pendingGates, bundleDigest: r.result.bundle.bundleDigest, requirements: r.result.judgement.requirements.map((q) => ({ id: q.id, status: q.status })) } : {}),
+  });
+
+  return Object.freeze({
+    async handle(route: StudioRoute, request: Request): Promise<Response> {
+      try {
+        switch (route) {
+          case 'harnesses':
+            return json(await harnesses());
+          case 'connections':
+            return json(await connections());
+          case 'connection-login': {
+            const body = await readJson(request) as { provider?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'launching account sign-in requires confirm: true');
+            if (body.provider !== 'anthropic' && body.provider !== 'openai' && body.provider !== 'google') return problem(400, 'invalid-input', 'provider must be anthropic, openai or google');
+            const result = launchFuryAccountLogin(body.provider as FuryAccountProvider, await harnesses(), {
+              ...(options.accountLoginLauncher ? { launcher: options.accountLoginLauncher } : {}),
+              ...(options.accountLoginPlatform ? { platform: options.accountLoginPlatform } : {}),
+            });
+            return json(result, result.status === 'launched' ? 202 : 409);
+          }
+          case 'hardware':
+            return json(await hardware());
+          case 'local-model-inspect': {
+            const body = await readJson(request) as { model?: unknown };
+            if (typeof body.model !== 'string' || !body.model.trim() || body.model.length > 512) return problem(400, 'invalid-input', 'model must be a Hugging Face owner/model or URL');
+            return json(await inspectHuggingFaceGguf(body.model, await hardware(), { ...(options.huggingFaceFetch ? { fetch: options.huggingFaceFetch } : {}) }));
+          }
+          case 'local-model-recommend': {
+            const body = await readJson(request) as { profile?: unknown };
+            const profile = body.profile === 'coding' || body.profile === 'reasoning' || body.profile === 'vision' ? body.profile : 'general';
+            return json(await recommendHuggingFaceGguf(await hardware(), { profile, ...(options.huggingFaceFetch ? { fetch: options.huggingFaceFetch } : {}) }));
+          }
+          case 'runtime-setup': {
+            const body = await readJson(request) as { runtime?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'installing local AI requires confirm: true');
+            if (body.runtime !== 'ollama' && body.runtime !== 'lmstudio') return problem(400, 'invalid-input', 'runtime must be ollama or lmstudio');
+            cleanRuntimeSetupJobs();
+            const existing = [...runtimeSetupJobs.values()].find((job) => job.runtime === body.runtime && job.state === 'running');
+            if (existing) return json(runtimeSetupSnapshot(existing), 202);
+            const job:RuntimeSetupJob = {
+              id:randomUUID(),
+              runtime:body.runtime,
+              startedAt:now(),
+              state:'running',
+              next:'Installing with Windows Package Manager…',
+            };
+            runtimeSetupJobs.set(job.id, job);
+            void installFuryLocalRuntime(body.runtime as FuryRuntimeSetupId, {
+              ...(options.runtimeSetupRunner ? { runner: options.runtimeSetupRunner } : {}),
+              ...(options.runtimeSetupPlatform ? { platform: options.runtimeSetupPlatform } : {}),
+            }).then((result) => {
+              job.state = result.status;
+              job.next = result.next;
+              cache.delete('local');
+            }).catch((error:unknown) => {
+              job.state = 'failed';
+              job.error = error instanceof Error ? error.message.slice(0,500) : 'runtime installation failed';
+              job.next = 'Installation failed.';
+            });
+            return json(runtimeSetupSnapshot(job), 202);
+          }
+          case 'runtime-setup-status': {
+            cleanRuntimeSetupJobs();
+            const id = new URL(request.url).searchParams.get('id');
+            if (!id || id.length > 100) return problem(400, 'invalid-input', 'setup job id is required');
+            const job = runtimeSetupJobs.get(id);
+            return job ? json(runtimeSetupSnapshot(job)) : problem(404, 'not-found', 'setup job not found');
+          }
+          case 'local': {
+            const [status, hw] = await Promise.all([local(), hardware()]);
+            return json({
+              backends: status.backends.map((b) => ({
+                ...b,
+                models: b.models.map((m) => ({ ...m, fit: classifyFuryModelFit(m, hw) })),
+              })),
+            });
+          }
+          case 'models': {
+            const [localState, connectionState] = await Promise.all([local(), connections()]);
+            const modelRegistry = createModelFabricRegistry();
+            observeFuryLocalModelsInModelFabric(modelRegistry, localState.backends);
+            return json(buildFuryModelHubSnapshot({
+              providers: DEFAULT_PROVIDER_REGISTRY,
+              models: modelRegistry,
+              connections: connectionState,
+            }));
+          }
+          case 'bindings': {
+            const [h, l] = await Promise.all([harnesses(), local()]);
+            return json({ bindings: studioBindings(h, l.backends), scoring: 'unscored: routing scores come from FuryBench runs; none recorded yet' });
+          }
+          case 'graph': {
+            const g = await graph();
+            const files = g.nodes.filter((n) => n.kind === 'file').length;
+            return json({ provider: g.provider, stale: g.stale, staleFiles: g.staleFiles.slice(0, 50), outputs: g.outputs, nodes: g.nodes.length, files, edges: g.edges.length });
+          }
+          case 'graph-lifecycle': {
+            const body = await readJson(request) as { changedFiles?: unknown };
+            if (body?.changedFiles !== undefined && (!Array.isArray(body.changedFiles) || body.changedFiles.length > 200 || !body.changedFiles.every((file) => typeof file === 'string'))) {
+              return problem(400, 'invalid-input', 'changedFiles must contain at most 200 text paths');
+            }
+            const loaded = await graphInspection();
+            const detections = loaded.detections ?? [{ provider: loaded.graph.provider, available: true, detail: 'custom graph loader' } satisfies FuryGraphDetection];
+            return json(planGraphifyLifecycle({ graph: loaded.graph, detections, changedFiles: body?.changedFiles as string[] | undefined }));
+          }
+          case 'graph-refresh': {
+            const body = await readJson(request) as { confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'Graphify refresh requires confirm: true');
+            const plan = planGraphifyRefresh(options.projectRoot);
+            const receipt = await executeGraphifyRefresh(plan, { confirm: true, now });
+            return receipt.outcome === 'SUCCEEDED'
+              ? json({ plan, receipt })
+              : json({ error: { code: 'graph-refresh-failed', message: receipt.error ?? 'Graphify refresh failed' }, plan, receipt }, 502);
+          }
+          case 'blast-radius': {
+            const body = await readJson(request) as { files?: unknown; depth?: unknown };
+            if (!Array.isArray(body?.files) || body.files.length === 0 || body.files.length > 200 || !body.files.every((f) => typeof f === 'string')) {
+              return problem(400, 'invalid-input', 'files must be a non-empty array of relative paths');
+            }
+            const depth = typeof body.depth === 'number' ? body.depth : 2;
+            return json(furyBlastRadius(await graph(), body.files as string[], depth));
+          }
+          case 'dispatch-preview': {
+            const body = await readJson(request) as { ir?: unknown; mode?: unknown; graphAware?: unknown };
+            const mode = typeof body?.mode === 'string' && (FURY_DISPATCH_MODES as readonly string[]).includes(body.mode) ? body.mode as FuryDispatchMode : 'AUTO';
+            const ir = compileFuryIr(body?.ir);
+            const [h, l] = await Promise.all([harnesses(), local()]);
+            const candidates = studioBindings(h, l.backends);
+            let coupling: ((a: readonly string[], b: readonly string[]) => number) | undefined;
+            if (body?.graphAware === true) {
+              const g = await graph().catch(() => undefined);
+              if (g) coupling = (a, b) => furyScopeCoupling(g, a, b);
+            }
+            const plan = planFuryDispatch({ ir, candidates, mode, ...(coupling ? { coupling } : {}) });
+            return json({ plan, candidates: candidates.map((c) => ({ id: c.id, harnessId: c.harnessId, provider: c.provider, model: c.model, locality: c.locality })), execution: 'NOT_EXECUTED: preview only' });
+          }
+          case 'autopilot-preview': {
+            const body = await readJson(request) as { objective?: unknown; harnessId?: unknown; effort?: unknown; responseStyle?: unknown; customInstructions?: unknown; localModel?: unknown; localBackend?: unknown; includeWorkspaceGraph?: unknown };
+            if (typeof body.objective !== 'string' || !body.objective.trim() || body.objective.length > 32_768 || body.objective.includes('\0')) {
+              return problem(400, 'invalid-input', 'objective is required (max 32768 characters)');
+            }
+            if (body.harnessId !== undefined && (typeof body.harnessId !== 'string' || body.harnessId.length > 128 || body.harnessId.includes('\0'))) {
+              return problem(400, 'invalid-input', 'harnessId must be bounded text');
+            }
+            if (body.customInstructions !== undefined && (typeof body.customInstructions !== 'string' || body.customInstructions.length > 4_000 || body.customInstructions.includes('\0'))) {
+              return problem(400, 'invalid-input', 'customInstructions must be bounded text');
+            }
+            const effort = typeof body.effort === 'string' && (FURY_AUTOPILOT_EFFORTS as readonly string[]).includes(body.effort)
+              ? body.effort as FuryAutopilotEffort
+              : 'auto';
+            let responseStyle: StudioResponseStyle = 'auto';
+            if (body.responseStyle !== undefined) {
+              if (typeof body.responseStyle !== 'string' || !(STUDIO_RESPONSE_STYLES as readonly string[]).includes(body.responseStyle)) {
+                return problem(400, 'invalid-input', 'responseStyle is unsupported');
+              }
+              responseStyle = body.responseStyle as StudioResponseStyle;
+            }
+            const harnessId = typeof body.harnessId === 'string' && body.harnessId ? body.harnessId : undefined;
+            const localBackend = typeof body.localBackend === 'string' ? body.localBackend : undefined;
+            const localModel = typeof body.localModel === 'string' ? body.localModel : undefined;
+            if ((localBackend === undefined) !== (localModel === undefined)) {
+              return problem(400, 'invalid-input', 'localBackend and localModel must be supplied together');
+            }
+            if (localBackend !== undefined && (!['ollama','lmstudio','llamacpp','vllm','sglang','localai','jan','openai-compatible','anthropic-compatible'].includes(localBackend) || !localModel || localModel.length > 512 || localModel.includes('\0'))) {
+              return problem(400, 'invalid-input', 'local model selection is invalid');
+            }
+            const [harnessDiscovery, localDiscovery] = await Promise.all([harnesses(), local()]);
+            const modelFabric = createModelFabricRegistry();
+            const modelHealth = observeFuryLocalModelsInModelFabric(modelFabric, localDiscovery.backends);
+            const selectedModelCapabilityId = localBackend && localModel
+              ? localModelCapabilityId(localBackend as FuryLocalBackendKind, localModel)
+              : undefined;
+            if (selectedModelCapabilityId && !modelFabric.list().some((model) => `custom/${model.id}` === selectedModelCapabilityId)) {
+              return problem(409, 'model-unavailable', 'selected local model is not present in the current discovery snapshot');
+            }
+            const compiled = await planStudioAutopilot({
+              objective: body.objective,
+              projectRoot: options.projectRoot,
+              skills,
+              mcp,
+              harnesses: harnessDiscovery,
+              modelFabric,
+              modelHealth,
+              ...(selectedModelCapabilityId ? { selectedModelCapabilityId } : {}),
+              effort,
+              ...(harnessId ? { harnessId } : {}),
+              responseStyle,
+              ...(typeof body.customInstructions === 'string' && body.customInstructions.trim()
+                ? { customInstructions: body.customInstructions.trim() }
+                : {}),
+            });
+            let workspaceGraph:ReturnType<typeof buildFuryWorkspaceGraph>|undefined;
+            if(body.includeWorkspaceGraph===true){
+              const repositoryGraph=await graph().catch(()=>undefined);
+              const m=memory();
+              const memories=m.enabled&&m.store
+                ? await studioMemoryList(m.store,options.projectRoot,now()).catch(()=>[])
+                : [];
+              workspaceGraph=buildFuryWorkspaceGraph({
+                projectRoot:options.projectRoot,
+                ...(repositoryGraph?{repositoryGraph}:{}),
+                capabilityGraph:compiled.capabilityGraph,
+                memories,
+              });
+            }
+            return json({
+              ...compiled,
+              ...(workspaceGraph?{workspaceGraph}:{}),
+              plan: compiled.plan,
+              compiled,
+              excludedSkills: compiled.skills.excluded,
+              execution: 'NOT_EXECUTED: instructions compiled; tools, scripts and MCP execution remain separately governed',
+            });
+          }
+          case 'eval': {
+            const body = await readJson(request) as { dataset?: unknown };
+            if (!body || typeof body !== 'object' || body.dataset === undefined) {
+              return problem(400, 'invalid-input', 'dataset is required');
+            }
+            try {
+              const report = evaluateFuryDataset(body.dataset as FuryEvalDataset);
+              return json({
+                ...report,
+                authority: 'evaluation-only',
+                execution: 'NOT_EXECUTED: FuryEval evaluates supplied observations only',
+              });
+            } catch (error) {
+              return problem(422, 'eval-rejected', (error as Error).message);
+            }
+          }
+          case 'headless':
+            return json(executeFuryHeadless(await readJson(request)));
+          case 'extensions': {
+            const params = new URL(request.url).searchParams;
+            const rawKind = params.get('kind');
+            const kind = rawKind && (FURY_EXTENSION_KINDS as readonly string[]).includes(rawKind)
+              ? rawKind as FuryExtensionKind
+              : undefined;
+            return json({
+              extensions: listFuryExtensions({
+                ...(params.get('q') ? { query: params.get('q')! } : {}),
+                ...(kind ? { kind } : {}),
+                includeRestricted: params.get('restricted') === '1',
+              }),
+              installation: 'LOCAL_REVIEW_REQUIRED: catalog entries are never downloaded or activated automatically',
+            });
+          }
+          case 'media':
+            return json(createFuryMediaStudioSnapshot({
+              ...(options.mediaAdapters === undefined ? {} : { adapters: options.mediaAdapters }),
+              now,
+            }));
+          case 'media-jobs':
+            if (options.mediaJobEngine === undefined) return json({
+              format: 'furypipe-media-studio-gallery/v1',
+              authority: 'read-only-media-job-history',
+              state: 'NOT_CONFIGURED',
+              jobs: [],
+            });
+            return json(createFuryMediaStudioGallery(await options.mediaJobEngine.list({ limit: 1_000 })));
+          case 'media-preview': {
+            const body = await readJson(request) as { surface?: unknown; operation?: unknown; prompt?: unknown; outputMimeType?: unknown; options?: unknown };
+            if (body?.surface !== 'image' && body?.surface !== 'video' && body?.surface !== 'audio') return problem(400, 'invalid-input', 'media surface must be image, video or audio');
+            if (typeof body.operation !== 'string' || typeof body.prompt !== 'string' || typeof body.outputMimeType !== 'string') return problem(400, 'invalid-input', 'media operation, prompt and outputMimeType are required');
+            try {
+              return json(createFuryMediaStudioPreview({
+                surface: body.surface,
+                operation: body.operation as FuryMediaGenerationMode,
+                prompt: body.prompt,
+                outputMimeType: body.outputMimeType,
+                ...(body.options === undefined ? {} : { options: body.options as FuryMediaStudioPreviewOptions }),
+                ...(options.mediaAdapters === undefined ? {} : { adapters: options.mediaAdapters }),
+              }));
+            } catch (error) {
+              return problem(422, 'media-preview-rejected', (error as Error).message.slice(0, 300));
+            }
+          }
+          case 'media-timeline-preview': {
+            const body = await readJson(request) as { project?: unknown };
+            try {
+              return json(createFuryVideoTimelinePreview(body.project as FuryVideoTimelineProjectInput));
+            } catch (error) {
+              return problem(422, 'media-timeline-preview-rejected', (error as Error).message.slice(0, 300));
+            }
+          }
+          case 'video-doctor':
+            return json(await videoEngine.doctor());
+          case 'video-providers': {
+            const doctor = await videoEngine.doctor();
+            const registry = createVideoProviderRegistry({ ffmpegAvailable: doctor.ffmpeg.status === 'PASS', ffprobeAvailable: doctor.ffprobe.status === 'PASS' });
+            return json({ doctor, providers: registry.list(), health: registry.health() });
+          }
+          case 'video-project': {
+            const body = await readJson(request) as { project?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'creating a video project requires confirm: true');
+            if (body.project === undefined) return problem(400, 'invalid-input', 'project is required');
+            return json({ project: await videoEngine.createProject(body.project), executionAuthorized: true }, 201);
+          }
+          case 'video-ingest': {
+            const body = await readJson(request) as { projectId?: unknown };
+            if (typeof body.projectId !== 'string' || !body.projectId.trim()) return problem(400, 'invalid-input', 'projectId is required');
+            return json(await videoEngine.ingest(body.projectId));
+          }
+          case 'video-analyze': {
+            const body = await readJson(request) as { projectId?: unknown };
+            if (typeof body.projectId !== 'string' || !body.projectId.trim()) return problem(400, 'invalid-input', 'projectId is required');
+            return json(await videoEngine.analyze(body.projectId));
+          }
+          case 'video-storyboard': {
+            const body = await readJson(request) as { projectId?: unknown; captionScript?: unknown };
+            if (typeof body.projectId !== 'string' || !body.projectId.trim()) return problem(400, 'invalid-input', 'projectId is required');
+            const project = await videoEngine.getProject(body.projectId);
+            const analysis = await videoEngine.analyze(body.projectId).catch(() => undefined);
+            const sourceDurationMs = analysis?.sources.reduce((total, source) => total + Math.max(0, source.source.durationMs), 0) ?? 0;
+            const availableDurationMs = sourceDurationMs > 0 ? sourceDurationMs : project.targetDurationSeconds * 1000;
+            const durationMs = Math.max(1000, Math.min(project.targetDurationSeconds * 1000, availableDurationMs));
+            const profile = project.brand.toLowerCase() === 'furycraft' ? FURYCRAFT_VIDEO_PROFILE : { id: project.brand || 'generic', name: project.brand || 'Generic video', language: 'en-US', defaultCta: 'Learn more', forbiddenTerms: [], playerFacingTerms: {} };
+            const storyboard = createVideoStoryboard({ sourcePaths: project.sourcePaths, durationMs, profile });
+            const hookVariants = createVideoHookVariants(storyboard, profile);
+            const script = typeof body.captionScript === 'string' ? body.captionScript : storyboard.shots.map((shot) => shot.voiceLine).join(' ');
+            const policy = profile.id === 'furycraft' ? lintFuryCraftPublicContent({ title: project.title, script, captions: storyboard.shots.map((shot) => shot.captionText), overlays: hookVariants.map((variant) => variant.firstLine), cta: profile.defaultCta }) : { status: 'PASS' as const, profileId: profile.id, violations: [], checkedFields: ['title', 'script', 'captions', 'overlays', 'cta'] };
+            return json({ storyboard, hookVariants, policy });
+          }
+          case 'video-render': {
+            const body = await readJson(request) as { projectId?: unknown; confirm?: unknown; force?: unknown; captionScript?: unknown; captionStyle?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'video rendering requires confirm: true');
+            if (typeof body.projectId !== 'string' || !body.projectId.trim()) return problem(400, 'invalid-input', 'projectId is required');
+            if (body.captionScript !== undefined && (typeof body.captionScript !== 'string' || body.captionScript.length > 64_000)) return problem(400, 'invalid-input', 'captionScript is invalid');
+            const styles: readonly string[] = ['clean', 'premium-gaming', 'kinetic', 'minimal', 'high-impact'];
+            if (body.captionStyle !== undefined && (typeof body.captionStyle !== 'string' || !styles.includes(body.captionStyle))) return problem(400, 'invalid-input', 'captionStyle is invalid');
+            const project = await videoEngine.getProject(body.projectId);
+            const result = await runVideoWorkflow(videoEngine, { project, confirm: true, force: body.force === true, ...(typeof body.captionScript === 'string' ? { captionScript: body.captionScript } : {}), ...(typeof body.captionStyle === 'string' ? { captionStyle: body.captionStyle as VideoCaptionStyle } : {}) });
+            return json(result, 201);
+          }
+          case 'video-qc': {
+            const body = await readJson(request) as { projectId?: unknown };
+            if (typeof body.projectId !== 'string' || !body.projectId.trim()) return problem(400, 'invalid-input', 'projectId is required');
+            return json(await videoEngine.qc(body.projectId));
+          }
+          case 'video-artifacts': {
+            const projectId = new URL(request.url).searchParams.get('projectId');
+            if (!projectId) return problem(400, 'invalid-input', 'projectId is required');
+            return json({ projectId, artifacts: await videoEngine.listArtifacts(projectId) });
+          }
+          case 'video-file': {
+            const projectId = new URL(request.url).searchParams.get('projectId');
+            if (!projectId) return problem(400, 'invalid-input', 'projectId is required');
+            const artifact = (await videoEngine.listArtifacts(projectId)).find((item) => item.type === 'video');
+            if (!artifact) return problem(404, 'not-found', 'video artifact not found');
+            const metadata = await stat(artifact.path);
+            if (metadata.size > 512 * 1024 * 1024) return problem(413, 'output-too-large', 'video output exceeds the Studio response bound');
+            const bytes = await readFile(artifact.path);
+            return new Response(bytes, { status: 200, headers: { 'content-type': 'video/mp4', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'content-length': String(bytes.byteLength) } });
+          }
+          case 'observability':
+            return json(options.observability?.snapshot() ?? createFuryObservabilityNotConfiguredSnapshot(now));
+          case 'marketplace':
+            return json(marketplaceCatalog().snapshot());
+          case 'memory-time-machine': {
+            const scopes = studioMemoryScopes(options.projectRoot);
+            const snapshot = await memoryTimeMachine().snapshot({ scopes: [scopes.project, scopes.user], now: now() });
+            return json({ enabled: true, snapshot, authority: 'memory-vnext-read-only', executionAuthority: false });
+          }
+          case 'memory-time-machine-export': {
+            const scopes = studioMemoryScopes(options.projectRoot);
+            const snapshot = await memoryTimeMachine().snapshot({ scopes: [scopes.project, scopes.user], now: now() });
+            return json(memoryTimeMachine().exportSnapshot({ snapshot, now: now() }));
+          }
+          case 'memory-time-machine-diff': {
+            const body = await readJson(request) as { from?: unknown; to?: unknown };
+            if (!body?.from || !body?.to) return problem(400, 'invalid-input', 'from and to snapshots are required');
+            try {
+              return json(memoryTimeMachine().diff({ from: body.from as FuryMemorySnapshot, to: body.to as FuryMemorySnapshot }));
+            } catch (error) {
+              return problem(422, 'memory-time-machine-diff-rejected', (error as Error).message.slice(0, 300));
+            }
+          }
+          case 'memory-time-machine-restore': {
+            const body = await readJson(request) as { memoryId?: unknown; scope?: unknown; version?: unknown; confirm?: unknown };
+            if (typeof body?.memoryId !== 'string' || !body.memoryId.trim() || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1) {
+              return problem(400, 'invalid-input', 'memoryId and positive version are required');
+            }
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'restoring memory requires confirm: true');
+            const scope = studioMemoryScope(body.scope);
+            return json(await memoryTimeMachine().executeAction({
+              action: 'restore', memoryId: body.memoryId, scope: studioMemoryScopes(options.projectRoot)[scope], version: body.version, confirm: true, now: now(),
+            }), 201);
+          }
+          case 'memory-time-machine-action': {
+            const body = await readJson(request) as { action?: unknown; memoryId?: unknown; scope?: unknown; version?: unknown; confirm?: unknown; execute?: unknown };
+            if (body.action !== 'archive' && body.action !== 'pin' && body.action !== 'delete') return problem(400, 'invalid-input', 'action must be archive, pin or delete');
+            if (typeof body.memoryId !== 'string' || !body.memoryId.trim()) return problem(400, 'invalid-input', 'memoryId is required');
+            if (body.version !== undefined && (typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 1)) return problem(400, 'invalid-input', 'version must be a positive integer');
+            if (body.confirm !== undefined && typeof body.confirm !== 'boolean') return problem(400, 'invalid-input', 'confirm must be boolean');
+            const scope = studioMemoryScope(body.scope);
+            const action = { action: body.action, memoryId: body.memoryId, scope: studioMemoryScopes(options.projectRoot)[scope], ...(body.version === undefined ? {} : { version: body.version as number }), ...(body.confirm === undefined ? {} : { confirm: body.confirm as boolean }), now: now() } as const;
+            if (body.execute === true) return json(await memoryTimeMachine().executeAction(action), 201);
+            return json(memoryTimeMachine().planAction(action));
+          }
+          case 'artifacts':
+            return json({ artifacts: (await artifacts.list()).map(artifactSummary), authority: 'persistent-artifact-store' });
+          case 'artifact-get': {
+            const body = await readJson(request) as { id?: unknown };
+            if (typeof body?.id !== 'string' || !body.id.trim()) return problem(400, 'invalid-input', 'artifact id is required');
+            const artifact = await artifacts.get(body.id.trim());
+            if (!artifact) return problem(404, 'artifact-not-found', 'artifact not found');
+            return json({ artifact, authority: 'persistent-artifact-store' });
+          }
+          case 'artifact-create': {
+            const body = await readJson(request) as {
+              id?: unknown; kind?: unknown; title?: unknown; content?: unknown; mediaType?: unknown; metadata?: unknown; confirm?: unknown;
+            };
+            if (body?.confirm !== true) return problem(400, 'confirmation-required', 'creating an artifact requires confirm: true');
+            if (typeof body.id !== 'string' || typeof body.title !== 'string' || typeof body.content !== 'string') {
+              return problem(400, 'invalid-input', 'artifact id, title and content are required');
+            }
+            if (body.mediaType !== undefined && typeof body.mediaType !== 'string') return problem(400, 'invalid-input', 'artifact mediaType must be text');
+            const artifact = await artifacts.create({
+              id: body.id,
+              kind: artifactKind(body.kind),
+              title: body.title,
+              content: body.content,
+              ...(typeof body.mediaType === 'string' ? { mediaType: body.mediaType } : {}),
+              ...(body.metadata === undefined ? {} : { metadata: artifactMetadata(body.metadata)! }),
+              now: new Date(now()).toISOString(),
+            });
+            return json({ artifact, summary: artifactSummary(artifact), writePerformed: true, executionAuthorized: false }, 201);
+          }
+          case 'artifact-version': {
+            const body = await readJson(request) as { artifactId?: unknown; content?: unknown; mediaType?: unknown; metadata?: unknown; confirm?: unknown };
+            if (body?.confirm !== true) return problem(400, 'confirmation-required', 'adding an artifact version requires confirm: true');
+            if (typeof body.artifactId !== 'string' || typeof body.content !== 'string') return problem(400, 'invalid-input', 'artifactId and content are required');
+            if (body.mediaType !== undefined && typeof body.mediaType !== 'string') return problem(400, 'invalid-input', 'artifact mediaType must be text');
+            const artifact = await artifacts.appendVersion({
+              artifactId: body.artifactId,
+              content: body.content,
+              ...(typeof body.mediaType === 'string' ? { mediaType: body.mediaType } : {}),
+              ...(body.metadata === undefined ? {} : { metadata: artifactMetadata(body.metadata)! }),
+              now: new Date(now()).toISOString(),
+            });
+            return json({ artifact, summary: artifactSummary(artifact), writePerformed: true, executionAuthorized: false });
+          }
+          case 'artifact-search': {
+            const body = await readJson(request) as { query?: unknown };
+            if (typeof body?.query !== 'string' || !body.query.trim() || body.query.length > 512) return problem(400, 'invalid-input', 'artifact search query is required (max 512 characters)');
+            return json({ artifacts: (await artifacts.search(body.query.trim())).map(artifactSummary), authority: 'persistent-artifact-store' });
+          }
+          case 'artifact-restore-plan': {
+            const body = await readJson(request) as { artifactId?: unknown; sourceVersion?: unknown };
+            if (typeof body?.artifactId !== 'string' || !Number.isSafeInteger(body.sourceVersion) || Number(body.sourceVersion) < 1) {
+              return problem(400, 'invalid-input', 'artifactId and positive integer sourceVersion are required');
+            }
+            return json(await artifacts.planRestore(body.artifactId, Number(body.sourceVersion)));
+          }
+          case 'artifact-restore': {
+            const body = await readJson(request) as { plan?: unknown; confirm?: unknown };
+            if (body?.confirm !== true) return problem(400, 'confirmation-required', 'artifact restore requires confirm: true');
+            if (!body.plan || typeof body.plan !== 'object' || Array.isArray(body.plan)) return problem(400, 'invalid-input', 'restore plan is required');
+            const rawPlan = body.plan as Record<string, unknown>;
+            if (typeof rawPlan.artifactId !== 'string' || !Number.isSafeInteger(rawPlan.sourceVersion)) return problem(400, 'invalid-input', 'restore plan is invalid');
+            const receipt = await artifacts.executeRestore({
+              plan: body.plan as FuryArtifactRestorePlan,
+              confirm: true,
+              now: new Date(now()).toISOString(),
+            });
+            return json(receipt);
+          }
+          case 'artifact-export': {
+            const exported = await artifacts.exportProject();
+            if (exported.bytes > 8 * 1024 * 1024) return problem(413, 'export-too-large', 'artifact export exceeds the Studio 8 MiB response bound');
+            return json(exported);
+          }
+          case 'support': {
+            const configured = process.env.FURYPIPE_SUPPORT_URL?.trim();
+            let supportUrl: string | undefined;
+            if (configured) {
+              try {
+                const parsed = new URL(configured);
+                if (parsed.protocol === 'https:' && !parsed.username && !parsed.password) supportUrl = parsed.toString();
+              } catch {}
+            }
+            return json({
+              project: 'FuryPipe',
+              creator: 'LégendeUrbaine',
+              ...(supportUrl ? { supportUrl } : {}),
+              configured: supportUrl !== undefined,
+            });
+          }
+          case 'flow-preview': {
+            const body = await readJson(request) as { flow?: unknown; fixtures?: unknown; approvals?: unknown };
+            const flow = compileFuryFlow(body?.flow);
+            let run: unknown;
+            if (body?.fixtures !== undefined) {
+              if (!body.fixtures || typeof body.fixtures !== 'object' || Array.isArray(body.fixtures)) return problem(400, 'invalid-input', 'fixtures must be an object');
+              const approvals = Array.isArray(body.approvals) ? body.approvals.filter((a): a is string => typeof a === 'string').slice(0, 100) : [];
+              run = dryRunFuryFlow(flow, { fixtures: body.fixtures as Record<string, unknown>, approvals });
+            }
+            return json({ flow, ...(run ? { run } : {}), execution: 'DRY_RUN: deterministic handlers are pass-through, agentic nodes use fixtures; no side effect' });
+          }
+          case 'flow-automation-preview': {
+            const body = await readJson(request) as { flow?: unknown };
+            return json(compileFuryWorkflowAutomationPlan(body?.flow));
+          }
+          case 'runs':
+            return json({ runs: [...runs.values()].map(runSnapshot).reverse() });
+          case 'run-act': {
+            const body = await readJson(request) as { runId?: unknown; workerId?: unknown; action?: unknown };
+            const run = typeof body?.runId === 'string' ? runs.get(body.runId) : undefined;
+            if (!run?.mission) return problem(404, 'unknown-run', 'run not found');
+            if (body.action !== 'STOP') return problem(400, 'invalid-input', 'only STOP is available on a live run');
+            run.mission.act(String(body.workerId), 'STOP', { reason: 'stopped by operator' });
+            return json(runSnapshot(run));
+          }
+          case 'run-start': {
+            const body = await readJson(request) as { intent?: unknown; plannedFiles?: unknown; mode?: unknown; profile?: unknown; allowCloud?: unknown; confirm?: unknown; capabilities?: unknown; approvedCapabilities?: unknown };
+            if (body?.confirm !== true) return problem(400, 'confirmation-required', 'starting agents requires confirm: true');
+            // Cowork permissions: DENY never runs, ASK must be approved (or it is refused) before agents start.
+            let capabilities: Partial<Record<'READ' | 'WRITE' | 'EXECUTE' | 'NETWORK' | 'EXTERNAL_ACTION', 'ALLOW' | 'ASK' | 'DENY'>> | undefined;
+            if (body.capabilities !== undefined) {
+              const caps = body.capabilities as Record<string, unknown>;
+              const names = ['READ', 'WRITE', 'EXECUTE', 'NETWORK', 'EXTERNAL_ACTION'] as const;
+              if (!caps || typeof caps !== 'object' || Object.keys(caps).some((k) => !(names as readonly string[]).includes(k)) || Object.values(caps).some((v) => v !== 'ALLOW' && v !== 'ASK' && v !== 'DENY')) return problem(400, 'invalid-input', 'capabilities map READ/WRITE/EXECUTE/NETWORK/EXTERNAL_ACTION to ALLOW, ASK or DENY');
+              if (caps.EXTERNAL_ACTION === 'ALLOW') return problem(400, 'invalid-input', 'external actions only run through a human gate; use ASK or DENY');
+              const approved = new Set(Array.isArray(body.approvedCapabilities) ? body.approvedCapabilities.filter((c): c is string => typeof c === 'string') : []);
+              const pending = names.filter((n) => caps[n] === 'ASK' && n !== 'EXTERNAL_ACTION' && !approved.has(n));
+              if (pending.length) return json({ error: { code: 'approval-required', message: `approve or deny before agents start: ${pending.join(', ')}` }, approvalRequired: pending }, 409);
+              capabilities = Object.fromEntries(names.filter((n) => caps[n] !== undefined).map((n) => [n, caps[n] === 'ASK' && n !== 'EXTERNAL_ACTION' ? 'ALLOW' : caps[n]])) as typeof capabilities;
+            }
+            if (typeof body.intent !== 'string' || !body.intent.trim() || body.intent.length > 4_000) return problem(400, 'invalid-input', 'intent is required');
+            if (!Array.isArray(body.plannedFiles) || body.plannedFiles.length > 200 || !body.plannedFiles.every((f) => typeof f === 'string')) return problem(400, 'invalid-input', 'plannedFiles must be an array of relative paths');
+            if ([...runs.values()].filter((r) => r.status === 'running').length >= 2) return problem(429, 'too-many-runs', 'two runs are already active');
+            const runId = `run-${now().toString(36)}-${runs.size + 1}`;
+            const graphValue = await graph().catch(() => undefined);
+            const plan = planFuryTask({ runId, intent: body.intent, plannedFiles: body.plannedFiles as string[], ...(capabilities ? { capabilities } : {}), ...(graphValue ? { graph: graphValue } : {}) });
+            const [h, l] = await Promise.all([harnesses(), local()]);
+            const all = studioBindings(h, l.backends);
+            // Paid-call guard: cloud runtimes only on explicit request.
+            const candidates = body.allowCloud === true ? all : all.filter((c) => c.locality === 'local');
+            const mode = typeof body.mode === 'string' && (FURY_DISPATCH_MODES as readonly string[]).includes(body.mode) ? body.mode as FuryDispatchMode : 'AUTO';
+            const dispatch = planFuryDispatch({ ir: plan.ir, candidates, mode, ...(typeof body.profile === 'string' ? { profile: body.profile as never } : {}), ...(graphValue ? { coupling: (a, b) => furyScopeCoupling(graphValue, a, b) } : {}) });
+            if (dispatch.status !== 'PLANNED') return problem(409, 'dispatch-blocked', dispatch.reasons.join('; ') || 'dispatch blocked');
+            const repoRoot = options.projectRoot;
+            const baseSha = await gitHead(repoRoot);
+            const root = path.join(options.worktreeRoot ?? path.join(os.tmpdir(), 'furypipe-studio-runs'), runId);
+            await mkdir(path.join(root, 'writers'), { recursive: true });
+            const bindingsById = new Map(candidates.map((c) => [c.id, c]));
+            const workerBindings: FuryWorkerBinding[] = candidates.map((c) => ({ bindingId: c.id, harnessId: c.harnessId, provider: c.provider, model: c.model, locality: c.locality }));
+            const executor: FuryTaskExecutor = options.executor ?? (async ({ assignment, binding, worktree, capsule }) => {
+              const status = h.harnesses.find((x) => x.id === binding.harnessId);
+              if (!status?.installed || !status.executable) return { ok: false, receipts: [], error: `${binding.harnessId} has no executable adapter on this machine` };
+              const b = bindingsById.get(binding.bindingId)!;
+              const localBackend = b.locality === 'local' ? l.backends.find((x) => x.kind === b.provider && x.reachable) : undefined;
+              const res = await runFuryHarnessTask({
+                harnessId: binding.harnessId, executable: status.executable, worktree, taskId: assignment.taskId, runId, capsule,
+                authority: assignment.authority, timeoutMs: plan.ir.budget.maxWallTimeMs,
+                ...(b.model !== 'harness-default' ? { model: b.model } : {}),
+                ...(localBackend ? { local: { kind: localBackend.kind as 'ollama' | 'lmstudio', baseUrl: localBackend.baseUrl } } : {}),
+              }, ledger);
+              return { ok: res.exitCode === 0 && !res.timedOut, receipts: res.receipts, ...(res.exitCode !== 0 ? { error: `harness exited ${res.exitCode ?? 'by timeout'}` } : {}) };
+            });
+            const run: StudioRun = { runId, intent: body.intent, startedAt: now(), status: 'running' };
+            runs.set(runId, run);
+            const repository = await discoverCodingRepository(repoRoot);
+            void runFuryTask({
+              runId, ir: plan.ir, plan: dispatch, bindings: workerBindings, repository, repoRoot, baseSha,
+              manager: createCodingWorktreeManager({ provider: createNodeGitWorktreeProvider() }),
+              writableRoot: path.join(root, 'writers'), integrationRoot: path.join(root, 'integration'), ledger, execute: executor,
+              ...(graphValue ? { graph: graphValue } : {}),
+              onMission: (m) => { run.mission = m; },
+            }).then((result) => { run.result = result; run.status = result.status; }, (error: unknown) => { run.status = 'ERROR'; run.error = error instanceof Error ? error.message.slice(0, 300) : 'run failed'; });
+            return json({ runId, status: 'running', dispatch: { mode: dispatch.mode, benefit: dispatch.dispatchBenefit, reasons: dispatch.reasons, agents: dispatch.agents } }, 202);
+          }
+          case 'skills':
+            return json(await skills.list());
+          case 'skill-act': {
+            const body = await readJson(request) as { name?: unknown; action?: unknown; value?: unknown };
+            const name = String(body?.name ?? '');
+            switch (body?.action) {
+              case 'ENABLE': return json(await skills.setEnabled(name, true));
+              case 'DISABLE': return json(await skills.setEnabled(name, false));
+              case 'PIN': return json(await skills.pin(name));
+              case 'UNPIN': return json(await skills.unpin(name));
+              case 'GOVERNANCE':
+                if (!(FURY_SKILL_GOVERNANCE as readonly unknown[]).includes(body.value)) return problem(400, 'invalid-input', `value must be one of ${FURY_SKILL_GOVERNANCE.join(', ')}`);
+                return json(await skills.setGovernance(name, body.value as FurySkillGovernance));
+              case 'ROLLBACK': return json(await skills.rollback(name, String(body.value ?? '')));
+              default: return problem(400, 'invalid-input', 'action must be ENABLE, DISABLE, PIN, UNPIN, GOVERNANCE or ROLLBACK');
+            }
+          }
+          case 'skill-select': {
+            const body = await readJson(request) as { objective?: unknown; harnessId?: unknown };
+            if (typeof body?.objective !== 'string' || !body.objective.trim() || body.objective.length > 16_000) return problem(400, 'invalid-input', 'objective is required');
+            return json({ ...(await skills.autoSelect(body.objective, typeof body.harnessId === 'string' ? { harnessId: body.harnessId } : {})), execution: 'NOT_EXECUTED: instruction routing only' });
+          }
+          case 'skill-install': {
+            const body = await readJson(request) as { sourceDir?: unknown; confirm?: unknown };
+            if (body?.confirm !== true) return problem(400, 'confirmation-required', 'installing a skill requires confirm: true');
+            if (typeof body.sourceDir !== 'string' || !path.isAbsolute(body.sourceDir) || body.sourceDir.length > 1_024) return problem(400, 'invalid-input', 'sourceDir must be an absolute local directory');
+            return json(await skills.install(body.sourceDir), 201);
+          }
+          case 'skill-create': {
+            const body = await readJson(request) as {
+              name?: unknown; description?: unknown; instructions?: unknown; version?: unknown; author?: unknown; license?: unknown;
+              harnesses?: unknown; allowedTools?: unknown; type?: unknown; triggers?: unknown; examples?: unknown; tests?: unknown; confirm?: unknown;
+            };
+            if (body?.confirm !== true) return problem(400, 'confirmation-required', 'creating a skill requires confirm: true');
+            const arrayOfStrings = (value: unknown): string[] | undefined => {
+              if (value === undefined) return undefined;
+              if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) throw Object.assign(new Error('skill list fields must contain only strings'), { status: 400 });
+              return value as string[];
+            };
+            return json(await skills.create({
+              name: String(body.name ?? ''),
+              description: String(body.description ?? ''),
+              instructions: String(body.instructions ?? ''),
+              ...(typeof body.version === 'string' ? { version: body.version } : {}),
+              ...(typeof body.author === 'string' ? { author: body.author } : {}),
+              ...(typeof body.license === 'string' ? { license: body.license } : {}),
+              ...(typeof body.type === 'string' ? { type: body.type as never } : {}),
+              ...(body.harnesses !== undefined ? { harnesses: arrayOfStrings(body.harnesses)! } : {}),
+              ...(body.allowedTools !== undefined ? { allowedTools: arrayOfStrings(body.allowedTools)! } : {}),
+              ...(body.triggers !== undefined ? { triggers: arrayOfStrings(body.triggers)! } : {}),
+              ...(body.examples !== undefined ? { examples: arrayOfStrings(body.examples)! } : {}),
+              ...(body.tests !== undefined ? { tests: arrayOfStrings(body.tests)! } : {}),
+            }), 201);
+          }
+          case 'skill-compare': {
+            const body = await readJson(request) as { name?: unknown; a?: unknown; b?: unknown };
+            return json(await skills.compare(String(body?.name ?? ''), String(body?.a ?? ''), String(body?.b ?? '')));
+          }
+          case 'mcp':
+            return json(await mcp.list());
+          case 'mcp-add': {
+            const body = await readJson(request) as { name?: unknown; transport?: unknown; command?: unknown; args?: unknown; url?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'adding an MCP source requires confirm: true');
+            if (typeof body.name !== 'string') return problem(400, 'invalid-input', 'MCP source name is required');
+            if (body.transport === 'stdio') {
+              if (typeof body.command !== 'string') return problem(400, 'invalid-input', 'stdio MCP command is required');
+              if (body.args !== undefined && (!Array.isArray(body.args) || !body.args.every((arg) => typeof arg === 'string'))) return problem(400, 'invalid-input', 'MCP args must be strings');
+              return json(await mcp.addProjectSource({ name: body.name, transport: 'stdio', command: body.command, ...(Array.isArray(body.args) ? { args: body.args as string[] } : {}) }), 201);
+            }
+            if (body.transport === 'streamable_http' || body.transport === 'sse') {
+              if (typeof body.url !== 'string') return problem(400, 'invalid-input', 'HTTP MCP URL is required');
+              return json(await mcp.addProjectSource({ name: body.name, transport: body.transport, url: body.url }), 201);
+            }
+            return problem(400, 'invalid-input', 'transport must be stdio, streamable_http or legacy sse');
+          }
+          case 'mcp-act': {
+            const body = await readJson(request) as { sourceId?: unknown; action?: unknown; tool?: unknown; value?: unknown };
+            const id = String(body?.sourceId ?? '');
+            switch (body?.action) {
+              case 'ENABLE': return json(await mcp.setEnabled(id, true));
+              case 'DISABLE': return json(await mcp.setEnabled(id, false));
+              case 'TRUST': return json(await mcp.setTrusted(id, true));
+              case 'UNTRUST': return json(await mcp.setTrusted(id, false));
+              case 'DEFAULT_POLICY': return json(await mcp.setDefaultPolicy(id, body.value as FuryMcpPolicy));
+              case 'TOOL_POLICY': return json(await mcp.setToolPolicy(id, String(body.tool ?? ''), body.value === null ? null : body.value as FuryMcpPolicy));
+              default: return problem(400, 'invalid-input', 'action must be ENABLE, DISABLE, TRUST, UNTRUST, DEFAULT_POLICY or TOOL_POLICY');
+            }
+          }
+          case 'mcp-probe': {
+            const body = await readJson(request) as { sourceId?: unknown; allowRemote?: unknown; confirm?: unknown };
+            if (body?.confirm !== true) return problem(400, 'confirmation-required', 'a health probe starts the configured server; it requires confirm: true');
+            return json(await mcp.probe(String(body.sourceId ?? ''), { allowRemote: body.allowRemote === true }));
+          }
+          case 'mcp-decide': {
+            const body = await readJson(request) as { sourceId?: unknown; tool?: unknown };
+            return json(await mcp.decide(String(body?.sourceId ?? ''), String(body?.tool ?? '')));
+          }
+          case 'knowledge': {
+            const { kb, embeddingModel } = await knowledge();
+            return json({ ...(await kb.stats()), availableEmbeddingModel: embeddingModel });
+          }
+          case 'knowledge-ingest': {
+            const body = await readJson(request) as { dir?: unknown; label?: unknown };
+            const rel = typeof body?.dir === 'string' ? body.dir : '';
+            const abs = path.resolve(options.projectRoot, rel);
+            if (!rel || path.isAbsolute(rel) || (abs !== path.resolve(options.projectRoot) && !abs.startsWith(`${path.resolve(options.projectRoot)}${path.sep}`))) return problem(400, 'invalid-input', 'dir must be a relative folder inside the project');
+            const { kb } = await knowledge();
+            return json(await kb.ingest(abs, { label: typeof body.label === 'string' && body.label ? body.label : path.basename(abs) }));
+          }
+          case 'knowledge-search': {
+            const body = await readJson(request) as { query?: unknown; mode?: unknown; limit?: unknown };
+            const mode = body?.mode === 'lexical' || body?.mode === 'semantic' || body?.mode === 'hybrid' ? body.mode as FuryRetrievalMode : undefined;
+            const { kb } = await knowledge();
+            return json(await kb.search(String(body?.query ?? ''), { ...(mode ? { mode } : {}), ...(typeof body?.limit === 'number' ? { limit: body.limit } : {}) }));
+          }
+          case 'web': {
+            const body = await readJson(request) as { action?: unknown; url?: unknown; query?: unknown; maxPages?: unknown };
+            const net: FuryWebFetchOptions = { ...(options.webFetch ?? {}), ledger };
+            const url = typeof body?.url === 'string' ? body.url : '';
+            switch (body?.action) {
+              case 'FETCH': {
+                const doc = await furyWebFetch(url, net);
+                const page = /html|xml/u.test(doc.contentType) ? furyWebExtract(doc.body, doc.url) : { title: '', description: '', headings: [], text: doc.body.slice(0, 200_000), links: [] };
+                return json({ capability: 'FETCH+EXTRACT', url: doc.url, status: doc.status, contentType: doc.contentType, bytes: doc.bytes, sha256: doc.sha256, redirects: doc.redirects, receiptId: doc.receipt?.receiptId, title: page.title, description: page.description, headings: page.headings, text: page.text.slice(0, 20_000), links: page.links.slice(0, 200) });
+              }
+              case 'MAP': return json({ capability: 'MAP', ...(await furyWebMap(url, net)) });
+              case 'CRAWL': return json({ capability: 'CRAWL', ...(await furyWebCrawl(url, { ...net, maxPages: typeof body.maxPages === 'number' ? Math.min(body.maxPages, 50) : 10 })) });
+              case 'SEARCH': {
+                const endpoint = options.searxngUrl ?? process.env.FURYPIPE_SEARXNG_URL;
+                return json({ capability: 'SEARCH', ...(await furyWebSearch(String(body.query ?? ''), endpoint ? createFurySearxngAdapter(endpoint) : undefined)) });
+              }
+              default: return problem(400, 'invalid-input', 'action must be FETCH, MAP, CRAWL or SEARCH (browser actions go through the governed browser runtime)');
+            }
+          }
+          case 'code-edit-plan': {
+            const body = await readJson(request) as { path?: unknown; replacement?: unknown };
+            if (typeof body.path !== 'string' || typeof body.replacement !== 'string') {
+              return problem(400, 'invalid-input', 'path and replacement are required');
+            }
+            const plan = await (await codeAdvanced()).planEdit({ path: body.path, replacement: body.replacement });
+            rememberCodePlan(codeEditPlans, plan.planDigestSha256, plan);
+            return json(plan);
+          }
+          case 'code-edit-apply': {
+            const body = await readJson(request) as { planDigestSha256?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'applying a code edit requires confirm: true');
+            if (typeof body.planDigestSha256 !== 'string') return problem(400, 'invalid-input', 'planDigestSha256 is required');
+            const plan = codeEditPlans.get(body.planDigestSha256);
+            if (!plan) return problem(409, 'plan-unavailable', 'code edit plan is missing, expired or already consumed');
+            codeEditPlans.delete(body.planDigestSha256);
+            const advanced = await codeAdvanced();
+            const approval = await advanced.approveEdit(plan, {
+              confirm: true,
+              approvedBy: 'studio-operator',
+              approvedAt: new Date(now()).toISOString(),
+            });
+            return json(await advanced.applyEdit(plan, approval));
+          }
+          case 'code-script-plan': {
+            const body = await readJson(request) as { script?: unknown };
+            if (body.script !== 'test' && body.script !== 'typecheck' && body.script !== 'build') {
+              return problem(400, 'invalid-input', 'script must be test, typecheck or build');
+            }
+            const plan = await (await codeAdvanced()).planScript(body.script as FuryCodeScriptName);
+            rememberCodePlan(codeScriptPlans, plan.planDigestSha256, plan);
+            return json(plan);
+          }
+          case 'code-script-run': {
+            const body = await readJson(request) as { planDigestSha256?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'running a project script requires confirm: true');
+            if (typeof body.planDigestSha256 !== 'string') return problem(400, 'invalid-input', 'planDigestSha256 is required');
+            const plan = codeScriptPlans.get(body.planDigestSha256);
+            if (!plan) return problem(409, 'plan-unavailable', 'code script plan is missing, expired or already consumed');
+            codeScriptPlans.delete(body.planDigestSha256);
+            const advanced = await codeAdvanced();
+            const approval = await advanced.approveScript(plan, {
+              confirm: true,
+              approvedBy: 'studio-operator',
+              approvedAt: new Date(now()).toISOString(),
+            });
+            return json(await advanced.runScript(plan, approval));
+          }
+          case 'code-tree':
+            return json(await code.tree(((await readJson(request)) as { path?: unknown })?.path ?? ''));
+          case 'code-file':
+            return json(await code.file(((await readJson(request)) as { path?: unknown })?.path));
+          case 'code-worktrees': {
+            // Attach the Mission Control workers (and their receipts) that ran in each worktree.
+            const workers = [...runs.values()].flatMap((r) => (r.mission?.workers() ?? []).map((w) => ({ runId: r.runId, verdict: r.result?.judgement.verdict ?? null, taskId: w.taskId, role: w.role, state: w.state, worktree: w.worktree, receipts: w.receiptIds.length, harnessId: w.binding.harnessId })));
+            const list = await code.worktrees();
+            return json({ worktrees: list.map((w) => ({ ...w, workers: workers.filter((x) => x.worktree && path.resolve(x.worktree) === path.resolve(w.path)) })) });
+          }
+          case 'code-diff': {
+            const body = await readJson(request) as { worktree?: unknown; base?: unknown };
+            return json(await code.diff(body?.worktree, body?.base));
+          }
+          case 'chats':
+            return json({ conversations: await chats.list() });
+          case 'chat-get':
+            return json(await chats.get(((await readJson(request)) as { id?: unknown })?.id));
+          case 'chat-save': {
+            const body = await readJson(request) as { id?: unknown; title?: unknown; messages?: unknown };
+            return json(await chats.save({ ...(body?.id !== undefined ? { id: body.id } : {}), ...(body?.title !== undefined ? { title: body.title } : {}), messages: body?.messages }));
+          }
+          case 'chat-branch': {
+            const body = await readJson(request) as { id?: unknown; atMessage?: unknown };
+            return json(await chats.branch(body?.id, body?.atMessage), 201);
+          }
+          case 'chat-delete':
+            return json(await chats.remove(((await readJson(request)) as { id?: unknown })?.id));
+          case 'integrations': {
+            const { sources } = await mcp.list();
+            return json(await buildFuryIntegrationRegistry({ projectRoot: options.projectRoot, mcp: sources }));
+          }
+          case 'visual-render': {
+            const body = await readJson(request) as { text?: unknown; model?: unknown; reflow?: unknown };
+            if (typeof body.text !== 'string' || !body.text.trim()) {
+              return problem(400, 'invalid-input', 'visual render text is required');
+            }
+            if (body.text.length > 24_000) {
+              return problem(413, 'input-too-large', 'visual preview is limited to 24,000 characters');
+            }
+            if (body.model !== undefined && (typeof body.model !== 'string' || body.model.length > 256 || /[\u0000-\u001f]/u.test(body.model))) {
+              return problem(400, 'invalid-input', 'visual model identifier is invalid');
+            }
+            const result = await renderTextToImages(body.text, {
+              ...(typeof body.model === 'string' && body.model.trim() ? { model: body.model.trim() } : {}),
+              reflow: body.reflow !== false,
+              shrink: true,
+              maxCharsPerImage: 8_000,
+            });
+            if (result.pages.length > 4) {
+              return problem(413, 'render-too-large', 'visual preview produced too many pages');
+            }
+            const totalBytes = result.pages.reduce((sum, page) => sum + page.png.byteLength, 0);
+            if (totalBytes > 8 * 1024 * 1024) {
+              return problem(413, 'render-too-large', 'visual preview exceeds the 8 MiB output bound');
+            }
+            return json({
+              format: 'furypipe-studio-visual-preview/v1',
+              sourceChars: body.text.length,
+              model: typeof body.model === 'string' && body.model.trim() ? body.model.trim() : null,
+              reflow: body.reflow !== false,
+              droppedChars: result.droppedChars,
+              pixels: result.pixels,
+              totalBytes,
+              pages: result.pages.map((page, index) => ({
+                index,
+                width: page.width,
+                height: page.height,
+                bytes: page.png.byteLength,
+                dataUrl: `data:image/png;base64,${Buffer.from(page.png).toString('base64')}`,
+              })),
+              note: 'Preview uses FuryPipe native renderer only. Production provider transforms still apply ExactGuard, model capability, profitability, image-count and byte-budget gates.',
+            });
+          }
+          case 'memory': {
+            const m = memory();
+            if (!m.enabled || !m.store) return json({ enabled: false, reason: m.reason, records: [] });
+            return json({ enabled: true, status: await m.store.status(now()), records: await studioMemoryList(m.store, options.projectRoot, now()) });
+          }
+          case 'memory-remember': {
+            const body = await readJson(request) as { text?: unknown; scope?: unknown; memoryClass?: unknown };
+            if (typeof body?.text !== 'string' || !body.text.trim() || body.text.length > 4_000) return problem(400, 'invalid-input', 'text is required (max 4000 characters)');
+            if (body.scope !== 'project' && body.scope !== 'user') return problem(400, 'invalid-input', 'scope must be project or user');
+            return json(await studioMemoryRemember(memoryStore(), options.projectRoot, { text: body.text.trim(), scope: body.scope, ...(typeof body.memoryClass === 'string' ? { memoryClass: body.memoryClass } : {}) }, now()), 201);
+          }
+          case 'memory-search': {
+            const body = await readJson(request) as { query?: unknown };
+            if (typeof body?.query !== 'string' || !body.query.trim() || body.query.length > 2_000) return problem(400, 'invalid-input', 'query is required');
+            return json({ hits: await studioMemorySearch(memoryStore(), options.projectRoot, body.query, now()), authority: 'memory-data-only' });
+          }
+          case 'memory-act': {
+            const body = await readJson(request) as { memoryId?: unknown; scope?: unknown; action?: unknown };
+            if (typeof body?.memoryId !== 'string' || (body.scope !== 'project' && body.scope !== 'user')) return problem(400, 'invalid-input', 'memoryId and scope are required');
+            const store = memoryStore();
+            const selector = { memoryId: body.memoryId, scope: studioMemoryScopes(options.projectRoot)[body.scope], now: now() };
+            if (body.action === 'DISABLE') return json(await store.disable(selector));
+            if (body.action === 'ACTIVATE') return json(await store.activate(selector));
+            if (body.action === 'FORGET') return json(await store.requestForget({ memoryId: body.memoryId, scope: selector.scope, hard: true, now: now() }));
+            return problem(400, 'invalid-input', 'action must be DISABLE, ACTIVATE or FORGET');
+          }
+          case 'chat': {
+            const body = await readJson(request) as { kind?: unknown; baseUrl?: unknown; model?: unknown; messages?: unknown };
+            if (typeof body?.baseUrl !== 'string' || typeof body.model !== 'string' || body.model.length > 256 || !Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > 64) {
+              return problem(400, 'invalid-input', 'baseUrl, model and 1..64 messages are required');
+            }
+            const messages = body.messages.map((m) => {
+              const role = (m as { role?: unknown }).role;
+              const content = (m as { content?: unknown }).content;
+              if ((role !== 'user' && role !== 'assistant' && role !== 'system') || typeof content !== 'string' || content.length > 32_768) throw Object.assign(new Error('invalid message'), { status: 400 });
+              return { role, content };
+            });
+            const url = assertFuryLocalEndpoint(body.baseUrl); // loopback only from Studio
+            const upstream = await fetch(new URL('v1/chat/completions', url.href.endsWith('/') ? url.href : `${url.href}/`), {
+              method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(300_000),
+              headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
+              body: JSON.stringify({ model: body.model, stream: true, messages }),
+            });
+            if (upstream.status !== 200 || !upstream.body) return problem(502, 'local-backend-error', `local backend answered HTTP ${upstream.status}`);
+            return new Response(upstream.body, {
+              status: 200,
+              headers: {
+                'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-store',
+                'x-furypipe-locality': 'local', 'x-furypipe-backend': String(body.kind ?? 'openai-compatible').slice(0, 32) as FuryLocalBackendKind,
+              },
+            });
+          }
+        }
+      } catch (error) {
+        const status = (error as { status?: number }).status;
+        if (status) return problem(status, status === 503 ? 'discovery-failed' : status === 409 ? 'not-runnable' : 'invalid-request', (error as Error).message);
+        if (error instanceof FuryIrError) return problem(422, 'invalid-ir', error.message);
+        if (error instanceof FuryDispatchError) return problem(422, 'dispatch-rejected', error.message);
+        if (['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'ETIMEDOUT', 'EHOSTUNREACH', 'EPROTO'].includes((error as NodeJS.ErrnoException).code ?? '')) return problem(502, 'upstream-unreachable', `upstream unreachable (${(error as NodeJS.ErrnoException).code})`);
+        if (error instanceof StudioCodeError) return problem(error.status, 'code-rejected', error.message);
+        if (error instanceof CodingRuntimeError) {
+          const conflict = error.code === 'permit-invalid' || error.code === 'permit-expired' || error.code === 'permit-consumed';
+          const denied = error.code === 'policy-denied' || error.code === 'path-denied' || error.code === 'symlink-denied';
+          return problem(conflict ? 409 : denied ? 403 : 422, 'code-runtime-rejected', error.message);
+        }
+        if (error instanceof StudioChatError) return problem(error.status, 'chat-rejected', error.message);
+        if (error instanceof VideoEngineError) {
+          const status = error.code === 'VIDEO_TOOL_UNAVAILABLE' || error.code === 'VIDEO_TOOL_FAILED' ? 503 : error.code === 'VIDEO_PROJECT_NOT_FOUND' ? 404 : error.code === 'VIDEO_PROJECT_EXISTS' ? 409 : error.code === 'VIDEO_PATH_DENIED' ? 403 : 422;
+          return problem(status, error.code.toLowerCase(), error.message.slice(0, 500));
+        }
+        if (error instanceof VideoWorkflowError) {
+          return problem(error.code === 'VIDEO_APPROVAL_REQUIRED' ? 400 : error.code === 'VIDEO_DOCTOR_NOT_READY' ? 503 : 422, error.code.toLowerCase(), error.message);
+        }
+        if (error instanceof FuryWebError) return problem(error.code === 'blocked' ? 403 : error.code === 'not-configured' ? 409 : 502, `web-${error.code}`, error.message);
+        if (error instanceof FuryKnowledgeError) return problem(422, 'knowledge-rejected', error.message);
+        if (error instanceof FuryMcpHubError) return problem(/^unknown MCP source/u.test(error.message) ? 404 : 422, 'mcp-rejected', error.message);
+        if (error instanceof FurySkillHubError) return problem(/^unknown skill/u.test(error.message) ? 404 : 422, 'skill-rejected', error.message);
+        if (route.startsWith('artifact')) return problem(/^unknown artifact/u.test((error as Error).message) ? 404 : 422, 'artifact-rejected', (error as Error).message.slice(0, 300));
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT' || (error as NodeJS.ErrnoException).code === 'ENOTDIR') return problem(404, 'not-found', 'path not found');
+        if (error instanceof FuryHeadlessError) return problem(422, 'headless-rejected', error.message);
+        if (error instanceof FuryWorkflowAutomationError) return problem(422, 'invalid-workflow-automation', error.message);
+        if (error instanceof FuryFlowError) return problem(422, 'invalid-flow', error.message);
+        if ((error as Error).name === 'FuryLocalFabricError') return problem(403, 'endpoint-denied', (error as Error).message);
+        if ((error as Error).name === 'FuryGraphError') return problem(404, 'graph-unavailable', (error as Error).message);
+        if (route.startsWith('memory')) return problem(422, 'memory-rejected', (error as Error).message.slice(0, 300));
+        return problem(500, 'internal', 'studio request failed');
+      }
+    },
+  });
+}

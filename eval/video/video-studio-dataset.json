@@ -1,0 +1,56 @@
+{
+  "format": "furypipe-eval-dataset/v1",
+  "id": "video-studio-core",
+  "version": "1.0.0",
+  "history": {
+    "commit": null,
+    "environment": "deterministic-local-contract"
+  },
+  "cases": [
+    {
+      "id": "video-intent-routing",
+      "domain": "video",
+      "objective": "Create a professional FuryCraft Minecraft TikTok from gameplay clips.",
+      "expected": ["video-director", "vertical-short-form", "gaming-promo"],
+      "observed": ["video-director", "vertical-short-form", "gaming-promo"],
+      "success": true,
+      "metadata": {"evidence": "video-skill-selection"}
+    },
+    {
+      "id": "furycraft-policy-lint",
+      "domain": "video",
+      "objective": "Reject internal plugin names and unverified public claims.",
+      "expected": ["public-content-policy", "player-facing-terms"],
+      "observed": ["public-content-policy", "player-facing-terms"],
+      "success": true,
+      "metadata": {"evidence": "lintFuryCraftPublicContent"}
+    },
+    {
+      "id": "video-artifact-completeness",
+      "domain": "video",
+      "objective": "Persist source manifest, analysis, storyboard, recipe, provenance, render receipt, and QC.",
+      "expected": ["artifact-manifest", "recipe", "provenance", "qc-report"],
+      "observed": ["artifact-manifest", "recipe", "provenance", "qc-report"],
+      "success": true,
+      "metadata": {"evidence": "local-video-engine"}
+    },
+    {
+      "id": "video-failure-classification",
+      "domain": "video",
+      "objective": "Classify missing FFmpeg as a provider/tool availability failure.",
+      "expected": ["VIDEO_TOOL_UNAVAILABLE"],
+      "observed": ["VIDEO_TOOL_UNAVAILABLE"],
+      "success": true,
+      "metadata": {"evidence": "video-doctor"}
+    },
+    {
+      "id": "video-recipe-reuse",
+      "domain": "video",
+      "objective": "Reopen a project and reuse its saved recipe for another render.",
+      "expected": ["project-reopen", "recipe-reuse"],
+      "observed": ["project-reopen", "recipe-reuse"],
+      "success": true,
+      "metadata": {"evidence": "persisted-project-state"}
+    }
+  ]
+}

@@ -159,6 +159,33 @@ export interface MemoryVNextInspection {
   readonly sourceRevoked: boolean;
 }
 
+export interface MemoryVNextHistoryInput {
+  readonly memoryId: string;
+  readonly scope: MemoryVNextScopeQuery;
+  readonly limit?: number;
+  readonly now?: number;
+}
+
+export interface MemoryVNextRestoreInput {
+  readonly memoryId: string;
+  readonly scope: MemoryVNextScopeQuery;
+  /** Restore is never implicit. The caller must carry explicit confirmation. */
+  readonly version: number;
+  readonly confirm: true;
+  readonly now?: number;
+}
+
+export interface MemoryVNextRestoreReceipt {
+  readonly format: 'furypipe-memory-vnext-restore/v1';
+  readonly operation: 'restored';
+  readonly memoryId: string;
+  readonly fromVersion: number;
+  readonly version: number;
+  readonly state: Exclude<MemoryVNextState, 'forgotten'>;
+  readonly authority: 'memory-vnext-governance';
+  readonly executionAuthority: false;
+}
+
 export interface MemoryVNextSearchInput {
   readonly scopes: readonly MemoryVNextScopeQuery[];
   readonly terms: readonly string[];
@@ -277,6 +304,8 @@ export type MemoryVNextAuthorizationOperation =
   | 'activate'
   | 'disable'
   | 'inspect'
+  | 'history'
+  | 'restore'
   | 'search'
   | 'inject'
   | 'retention-change'
@@ -320,6 +349,8 @@ export interface MemoryVNextStore {
   activate(input: MemoryVNextMemorySelector): Promise<MemoryVNextTransitionReceipt>;
   disable(input: MemoryVNextMemorySelector): Promise<MemoryVNextTransitionReceipt>;
   inspect(input: MemoryVNextInspectInput): Promise<readonly MemoryVNextInspection[]>;
+  history(input: MemoryVNextHistoryInput): Promise<readonly MemoryVNextInspection[]>;
+  restore(input: MemoryVNextRestoreInput): Promise<MemoryVNextRestoreReceipt>;
   search(input: MemoryVNextSearchInput): Promise<readonly MemoryVNextSearchHit[]>;
   inject(input: MemoryVNextInjectionInput): Promise<MemoryVNextInjectionResult>;
   changeRetention(input: MemoryVNextRetentionChangeInput): Promise<MemoryVNextTransitionReceipt>;
@@ -1293,6 +1324,92 @@ export function createMemoryVNextStore(options: MemoryVNextStoreOptions): Memory
     return Object.freeze(output);
   };
 
+  const history = async (rawInput: MemoryVNextHistoryInput): Promise<readonly MemoryVNextInspection[]> => {
+    const input = plainRecord(rawInput, 'memory history input');
+    exactKeys(input, ['memoryId', 'scope', 'limit', 'now'], ['memoryId', 'scope'], 'memory history input');
+    const selector = validateSelector({ memoryId: input.memoryId, scope: input.scope, ...(input.now === undefined ? {} : { now: input.now }) });
+    const limit = input.limit === undefined ? configured.maxRevisionsPerMemory : input.limit;
+    if (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > configured.maxRevisionsPerMemory) {
+      throw new Error('memory history limit exceeds policy');
+    }
+    const scope = scopeReference(selector.scope);
+    await allow({ operation: 'history', memoryId: selector.memoryId, scopeDigest: authorizeScope(scope) });
+    const revisions = await recordsForKey(memoryRecordKey({ memoryId: selector.memoryId, scope }));
+    const revocations = await listRevocations();
+    return Object.freeze(await Promise.all(revisions.slice(0, limit).map(async (item) => Object.freeze({
+      record: item.record,
+      sourceRevoked: await isSourceRevoked(item.record.sourceKind, item.record.sourceIdDigest, revocations),
+    }))));
+  };
+
+  const restore = async (rawInput: MemoryVNextRestoreInput): Promise<MemoryVNextRestoreReceipt> => {
+    const input = plainRecord(rawInput, 'memory restore input');
+    exactKeys(input, ['memoryId', 'scope', 'version', 'confirm', 'now'], ['memoryId', 'scope', 'version', 'confirm'], 'memory restore input');
+    if (input.confirm !== true) throw new Error('memory restore requires explicit confirmation');
+    if (typeof input.version !== 'number' || !Number.isSafeInteger(input.version) || input.version < 1) {
+      throw new Error('memory restore version must be a positive integer');
+    }
+    const selector = validateSelector({ memoryId: input.memoryId, scope: input.scope, ...(input.now === undefined ? {} : { now: input.now }) });
+    const at = nowFrom(clock, selector.now, 'memory restore now');
+    const scope = scopeReference(selector.scope);
+    await allow({ operation: 'restore', memoryId: selector.memoryId, scopeDigest: authorizeScope(scope) });
+    const current = await latestFor(selector.memoryId, scope);
+    if (!current) throw new Error('memory record was not found');
+    if (current.record.state === 'forgotten') throw new Error('forgotten memory cannot be restored');
+    const revisions = await recordsForKey(memoryRecordKey(current.record));
+    const selected = revisions.find((item) => item.record.version === input.version);
+    if (!selected) throw new Error('memory history version was not found');
+    if (selected.record.version === current.record.version) throw new Error('memory restore target is already current');
+    if (selected.record.state === 'forgotten') throw new Error('forgotten memory version cannot be restored');
+    if (await isSourceRevoked(current.record.sourceKind, current.record.sourceIdDigest)
+      || await isSourceRevoked(selected.record.sourceKind, selected.record.sourceIdDigest)) {
+      throw new Error('memory source is revoked');
+    }
+    if (!retentionActive(selected.record.retention, at)) throw new Error('expired memory version cannot be restored');
+
+    const text = await readContent(selected.record);
+    const restoredState = selected.record.state as Exclude<MemoryVNextState, 'forgotten'>;
+    const draft: MemoryVNextRecord = freezeRecord({
+      format: MEMORY_VNEXT_FORMAT,
+      memoryId: current.record.memoryId,
+      version: current.record.version + 1,
+      state: restoredState,
+      memoryClass: selected.record.memoryClass,
+      scope: selected.record.scope,
+      sourceKind: selected.record.sourceKind,
+      sourceIdDigest: selected.record.sourceIdDigest,
+      createdAt: current.record.createdAt,
+      lastConfirmedAt: restoredState === 'accepted' || restoredState === 'active' ? at : selected.record.lastConfirmedAt,
+      confidence: selected.record.confidence,
+      evidenceClass: selected.record.evidenceClass,
+      acceptance: selected.record.acceptance,
+      retention: selected.record.retention,
+      visibility: selected.record.visibility,
+      termsDigests: selected.record.termsDigests,
+      updatedAt: at,
+      contentDigest: contentDigest(text),
+      supersedesVersion: current.record.version,
+      reasonDigest: reasonDigest(`restore\0${selected.record.version}`),
+      ...(restoredState === 'disabled' ? { disabledReason: selected.record.disabledReason ?? 'user-disabled' as const } : {}),
+    });
+    const handle = await putContent(draft, text);
+    const record = freezeRecord({
+      ...draft,
+      contentHandle: handle.format === 'furypipe-recovery/v1' ? `furypipe-recovery/v1/${handle.algorithm}/${handle.digest}` : undefined,
+    });
+    const stored = await putRecord(record);
+    return Object.freeze({
+      format: 'furypipe-memory-vnext-restore/v1',
+      operation: 'restored',
+      memoryId: stored.record.memoryId,
+      fromVersion: selected.record.version,
+      version: stored.record.version,
+      state: restoredState,
+      authority: 'memory-vnext-governance',
+      executionAuthority: false,
+    });
+  };
+
   const searchInternal = async (input: MemoryVNextSearchInput): Promise<readonly MemoryVNextSearchHit[]> => {
     const at = nowFrom(clock, input.now, 'memory search now');
     const allowedScopes = new Set(input.scopes.map((scope) => `${scope.kind}\0${scopeDigest(scope)}`));
@@ -1541,6 +1658,8 @@ export function createMemoryVNextStore(options: MemoryVNextStoreOptions): Memory
     activate: (input: MemoryVNextMemorySelector) => transition('activate', input),
     disable: (input: MemoryVNextMemorySelector) => transition('disable', input),
     inspect,
+    history,
+    restore,
     search,
     inject,
     changeRetention,

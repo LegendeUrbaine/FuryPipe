@@ -798,6 +798,7 @@
   "scripts": {
     "audit": "pnpm audit --prod --audit-level high",
     "build": "node scripts/build.mjs",
+    "start": "node bin/cli.js start",
     "build:atlas": "tsx scripts/gen-atlas.ts",
     "dev:node": "tsx watch src/node.ts",
     "dev:worker": "wrangler dev",

@@ -48,7 +48,7 @@ import { FURY_AUTOPILOT_EFFORTS, type FuryAutopilotEffort } from '../fury-autopi
 import { STUDIO_RESPONSE_STYLES, planStudioAutopilot, type StudioResponseStyle } from './studio-autopilot.js';
 import { FURY_EXTENSION_KINDS, listFuryExtensions, type FuryExtensionKind } from '../fury-extension-catalog.js';
 import { renderTextToImages } from '../core/library.js';
-import { createModelFabricRegistry } from '../core/model-fabric.js';
+import { createModelFabricRegistry, inspectRuntimeModels } from '../core/model-fabric.js';
 import { DEFAULT_PROVIDER_REGISTRY } from '../core/provider-fabric.js';
 import { buildFuryModelHubSnapshot } from '../fury-model-hub.js';
 import { localModelCapabilityId, observeFuryLocalModelsInModelFabric } from '../fury-local-model-fabric.js';
@@ -556,6 +556,7 @@ export function createStudioApi(options: StudioApiOptions) {
           case 'models': {
             const [localState, connectionState] = await Promise.all([local(), connections()]);
             const modelRegistry = createModelFabricRegistry();
+            modelRegistry.upsertMany(inspectRuntimeModels());
             observeFuryLocalModelsInModelFabric(modelRegistry, localState.backends);
             return json(buildFuryModelHubSnapshot({
               providers: DEFAULT_PROVIDER_REGISTRY,
@@ -644,6 +645,7 @@ export function createStudioApi(options: StudioApiOptions) {
             }
             const [harnessDiscovery, localDiscovery] = await Promise.all([harnesses(), local()]);
             const modelFabric = createModelFabricRegistry();
+            modelFabric.upsertMany(inspectRuntimeModels());
             const modelHealth = observeFuryLocalModelsInModelFabric(modelFabric, localDiscovery.backends);
             const selectedModelCapabilityId = localBackend && localModel
               ? localModelCapabilityId(localBackend as FuryLocalBackendKind, localModel)

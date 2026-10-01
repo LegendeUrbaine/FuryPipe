@@ -60,7 +60,7 @@ function runtime(
         'wait', 'inspect_url',
       ],
       maxActionTtlMs: 1000,
-      maxTimeoutMs: 50,
+      maxTimeoutMs: 500,
     },
     now: input.now,
     downloadsRoot: input.root,
@@ -247,7 +247,7 @@ describe('Phase 6 managed browser runtime', () => {
     });
     const session = await browser.createSession('operator-1');
     const page = await browser.createPage(session);
-    const permit = await browser.authorize({ action: 'click', session, page, selector: '#slow' });
+    const permit = await browser.authorize({ action: 'click', session, page, selector: '#slow' }, { timeoutMs: 25 });
     const result = await browser.invoke(permit);
     expect(result.receipt).toMatchObject({ outcome: 'outcome-unknown', errorCode: 'timeout' });
     await expect(browser.invoke(permit)).rejects.toThrow(/already consumed/i);

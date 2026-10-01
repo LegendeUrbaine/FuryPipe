@@ -90,6 +90,21 @@ describe('FuryEval', () => {
     expect(comparison.candidateResultDigestSha256).toBe(other.resultDigestSha256);
   });
 
+  it('refuses to compare different dataset content with the same identity and version', () => {
+    const baseline = evaluateFuryDataset(dataset(['security-skill', 'review-model']));
+    const changedContent = evaluateFuryDataset(dataset(['security-skill'], {
+      objective: 'Review repository security with the changed fixture.',
+    }));
+    const comparison = compareFuryEvalReports(baseline, changedContent);
+
+    expect(baseline.datasetId).toBe(changedContent.datasetId);
+    expect(baseline.datasetVersion).toBe(changedContent.datasetVersion);
+    expect(baseline.datasetDigestSha256).not.toBe(changedContent.datasetDigestSha256);
+    expect(comparison.comparable).toBe(false);
+    expect(comparison.regressions).toEqual([]);
+    expect(comparison.improvements).toEqual([]);
+  });
+
   it('fails closed on duplicate ids and invalid numeric evidence', () => {
     const base = dataset(['security-skill']);
     expect(() => evaluateFuryDataset({

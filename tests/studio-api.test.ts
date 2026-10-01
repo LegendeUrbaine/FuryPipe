@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { FuryHarnessDiscovery } from '../src/fury-harness-hub.js';
 import { FURY_HARNESS_REGISTRY } from '../src/fury-harness-hub.js';
 import type { FuryLocalBackendStatus } from '../src/fury-local-fabric.js';
+import { normalizeOpenAIModelsPayload, registerRuntimeModelCatalog, resetRuntimeModelFabricForTests } from '../src/core/model-fabric.js';
 import { createFuryObservabilityRegistry } from '../src/fury-observability.js';
 import { createStudioApi, studioApiRoute, studioBindings } from '../src/studio/studio-api.js';
 import { renderStudioHtml, STUDIO_EXAMPLE_FLOW, STUDIO_EXAMPLE_IR } from '../src/studio/studio-page.js';
@@ -13,6 +14,7 @@ import { renderStudioHtml, STUDIO_EXAMPLE_FLOW, STUDIO_EXAMPLE_IR } from '../src
 const servers: Server[] = [];
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((s) => new Promise((r) => s.close(r))));
+  resetRuntimeModelFabricForTests();
 });
 
 const harnesses: FuryHarnessDiscovery = {
@@ -207,6 +209,9 @@ describe('Studio API', () => {
   });
 
   it('exposes a read-only model hub without treating configuration as execution authority', async () => {
+    registerRuntimeModelCatalog(normalizeOpenAIModelsPayload({
+      data: [{ id: 'gpt-catalog-runtime', owned_by: 'openai' }],
+    }, '2026-10-02T00:00:00.000Z'));
     const studio = createStudioApi({
       projectRoot: process.cwd(),
       discoverHarnesses: async () => harnesses,
@@ -246,6 +251,11 @@ describe('Studio API', () => {
     });
     expect(body.models).toContainEqual(expect.objectContaining({
       id: 'local:ollama:qwen2.5-coder:7b',
+      executionAuthorized: false,
+    }));
+    expect(body.models).toContainEqual(expect.objectContaining({
+      provider: 'openai',
+      id: 'gpt-catalog-runtime',
       executionAuthorized: false,
     }));
   });

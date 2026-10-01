@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { LocalVideoEngine } from '../src/video-local-engine.js';
 
 const execFileAsync = promisify(execFile);
+const directoryLinkType = process.platform === 'win32' ? 'junction' : 'dir';
 let root = '';
 let engine: LocalVideoEngine;
 
@@ -139,12 +140,14 @@ describe('local video engine', () => {
       brand: 'generic',
       platform: 'tiktok',
     });
-    const outside = `${root}/outside-destination.mp4`;
-    await copyFile(`${root}/fixture-two.mp4`, outside);
-    await symlink(outside, `${root}/workspace/symlink-destination-smoke/inputs/001.mp4`);
+    const outside = `${root}/outside-destination`;
+    await mkdir(outside, { recursive: true });
+    const outsideFile = `${outside}/001.mp4`;
+    await copyFile(`${root}/fixture-two.mp4`, outsideFile);
+    await symlink(outside, `${root}/workspace/symlink-destination-smoke/inputs/001.mp4`, directoryLinkType);
 
     await expect(engine.ingest('symlink-destination-smoke')).rejects.toMatchObject({ code: 'VIDEO_PATH_DENIED' });
-    expect(await readFile(outside)).toEqual(await readFile(`${root}/fixture-two.mp4`));
+    expect(await readFile(outsideFile)).toEqual(await readFile(`${root}/fixture-two.mp4`));
   });
 
   it('rejects a symlinked inputs directory before creating a destination', async () => {
@@ -162,7 +165,7 @@ describe('local video engine', () => {
     const outside = `${root}/outside-inputs`;
     await mkdir(outside, { recursive: true });
     await rm(`${root}/workspace/symlink-inputs-smoke/inputs`, { recursive: true, force: true });
-    await symlink(outside, `${root}/workspace/symlink-inputs-smoke/inputs`, 'dir');
+    await symlink(outside, `${root}/workspace/symlink-inputs-smoke/inputs`, directoryLinkType);
 
     await expect(engine.ingest('symlink-inputs-smoke')).rejects.toMatchObject({ code: 'VIDEO_PATH_DENIED' });
     expect(await readFile(`${root}/fixture.mp4`)).toBeInstanceOf(Buffer);

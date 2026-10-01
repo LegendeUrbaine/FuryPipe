@@ -13,6 +13,10 @@ const execFileAsync = promisify(execFile);
 const ROOT = process.cwd();
 const MAX_OUTPUT = 4 * 1024 * 1024;
 const COMMAND_TIMEOUT_MS = 120_000;
+// A clean Windows/npm install can exceed the normal command budget on a cold
+// hosted runner. Keep that extra allowance scoped to the install itself;
+// Gateway and fixture commands must remain fail-fast.
+const PACKAGE_INSTALL_TIMEOUT_MS = 300_000;
 const GATEWAY_STOP_TIMEOUT_MS = 10_000;
 const DYNAMIC_REQUIRE_ERROR = 'Dynamic require of "child_process" is not supported';
 
@@ -32,14 +36,14 @@ function npmInvocation(args) {
   return { file: process.execPath, args: [npmCli, ...args] };
 }
 
-async function run(file, args, cwd, env = process.env) {
+async function run(file, args, cwd, env = process.env, timeoutMs = COMMAND_TIMEOUT_MS) {
   try {
     const result = await execFileAsync(file, args, {
       cwd,
       env,
       encoding: 'utf8',
       maxBuffer: MAX_OUTPUT,
-      timeout: COMMAND_TIMEOUT_MS,
+      timeout: timeoutMs,
       killSignal: 'SIGTERM',
       windowsHide: true,
       shell: false,
@@ -48,14 +52,15 @@ async function run(file, args, cwd, env = process.env) {
   } catch (error) {
     const stdout = String(error.stdout ?? '');
     const stderr = String(error.stderr ?? '');
-    const detail = `${file} ${args.join(' ')} failed (exit=${String(error.code ?? 'unknown')}, signal=${String(error.signal ?? 'none')}, timedOut=${String(error.killed === true)}, timeoutMs=${COMMAND_TIMEOUT_MS}, stdoutSha256=${sha256(stdout)}, stderrSha256=${sha256(stderr)}, stderrTail=${stderr.slice(-2_000)})`;
+    const detail = `${file} ${args.join(' ')} failed (exit=${String(error.code ?? 'unknown')}, signal=${String(error.signal ?? 'none')}, timedOut=${String(error.killed === true)}, timeoutMs=${timeoutMs}, stdoutSha256=${sha256(stdout)}, stderrSha256=${sha256(stderr)}, stderrTail=${stderr.slice(-2_000)})`;
     throw new Error(detail);
   }
 }
 
 async function runNpm(args, cwd, env = process.env) {
   const invocation = npmInvocation(args);
-  return run(invocation.file, invocation.args, cwd, env);
+  const timeoutMs = args[0] === 'install' ? PACKAGE_INSTALL_TIMEOUT_MS : COMMAND_TIMEOUT_MS;
+  return run(invocation.file, invocation.args, cwd, env, timeoutMs);
 }
 
 async function freePort() {

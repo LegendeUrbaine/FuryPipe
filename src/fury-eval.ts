@@ -245,7 +245,22 @@ export function evaluateFuryDataset(dataset:FuryEvalDataset):FuryEvalReport{
       precision:round(precision),recall:round(recall),f1:round(f1),success:item.success,
     });
   });
-  const canonicalDataset=Object.freeze({format:FURY_EVAL_DATASET_FORMAT,id,version:dataset.version,cases:Object.freeze(normalized),history:historyInput??null});
+  // The dataset digest identifies the evaluation population and expectations.
+  // Observations, success annotations, latency, cost and history belong to a
+  // report/run; including them would make two runs on the same dataset look
+  // incomparable by construction.
+  const canonicalDataset=Object.freeze({
+    format:FURY_EVAL_DATASET_FORMAT,
+    id,
+    version:dataset.version,
+    cases:Object.freeze(normalized.map((item)=>Object.freeze({
+      id:item.id,
+      domain:item.domain,
+      objective:item.objective,
+      expected:item.expected,
+      ...(item.metadata===undefined?{}:{metadata:item.metadata}),
+    }))),
+  });
   const datasetDigestSha256=digest(canonicalDataset);
   const byDomain:Partial<Record<FuryEvalDomain,FuryEvalDomainMetrics>>={};
   for(const domain of DOMAINS){
@@ -288,7 +303,9 @@ export function compareFuryEvalReports(baseline:FuryEvalReport,candidate:FuryEva
   if(!baseline||baseline.format!==FURY_EVAL_REPORT_FORMAT||!candidate||candidate.format!==FURY_EVAL_REPORT_FORMAT) throw new Error('valid FuryEval reports are required');
   const tolerance=options.tolerance??0;
   if(typeof tolerance!=='number'||!Number.isFinite(tolerance)||tolerance<0||tolerance>1) throw new Error('tolerance must be between 0 and 1');
-  const comparable=baseline.datasetId===candidate.datasetId&&baseline.datasetVersion===candidate.datasetVersion;
+  const comparable=baseline.datasetId===candidate.datasetId
+    && baseline.datasetVersion===candidate.datasetVersion
+    && baseline.datasetDigestSha256===candidate.datasetDigestSha256;
   const deltas=Object.freeze({
     successRate:round(candidate.overall.successRate-baseline.overall.successRate),
     precision:round(candidate.overall.precision-baseline.overall.precision),

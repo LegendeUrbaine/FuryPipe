@@ -265,6 +265,8 @@ function containedPath(root: string, path: string): void {
 async function secureWorkspacePath(root: string, relativePath: string, kind: 'file' | 'directory' | 'any' = 'any', requireExisting = false): Promise<string> {
   const candidate = resolve(root, relativePath);
   relativeSafe(root, candidate);
+  // On macOS, tmpdir() commonly returns a /var path whose realpath is under
+  // /private/var. Use the canonical root for canonical containment checks.
   const rootReal = await realpath(root);
   const parentReal = await realpath(dirname(candidate));
   containedPath(rootReal, parentReal);
@@ -477,7 +479,8 @@ export class LocalVideoEngine {
     });
     if (metadata.isSymbolicLink() || !metadata.isFile()) throw new VideoEngineError('VIDEO_PATH_DENIED', `source is not a regular file: ${sourcePath}`);
     const actual = await realpath(candidate);
-    relativeSafe(this.assetRoot, actual);
+    const assetRootReal = await realpath(this.assetRoot);
+    relativeSafe(assetRootReal, actual);
     if (!ALLOWED_EXTENSIONS.has(extname(actual).toLowerCase())) throw new VideoEngineError('VIDEO_INPUT_INVALID', `unsupported media extension: ${sourcePath}`);
     if (metadata.size > this.maxInputBytes) throw new VideoEngineError('VIDEO_OUTPUT_TOO_LARGE', `source exceeds the configured size limit: ${sourcePath}`);
     return actual;

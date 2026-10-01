@@ -1,10 +1,6 @@
 import { createServer } from 'node:http';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
-import { DashboardState } from '../dist/dashboard.js';
-import { createFuryBetaControlPlaneSnapshot } from '../dist/beta-control-plane.js';
-import { inspectBetaConfigValue } from '../dist/beta-config.js';
-import { collectFuryBetaReadiness } from '../dist/beta-readiness-runtime.js';
 import path from 'node:path';
 
 const HOST = '127.0.0.1';
@@ -23,6 +19,20 @@ async function responseFrom(response, nodeResponse) {
 }
 
 async function startDashboard() {
+  // Load the built dashboard only after the browser has been launched. This
+  // keeps the missing-browser failure deterministic in a clean checkout where
+  // `dist/` has not been produced yet.
+  const [
+    { DashboardState },
+    { createFuryBetaControlPlaneSnapshot },
+    { inspectBetaConfigValue },
+    { collectFuryBetaReadiness },
+  ] = await Promise.all([
+    import('../dist/dashboard.js'),
+    import('../dist/beta-control-plane.js'),
+    import('../dist/beta-config.js'),
+    import('../dist/beta-readiness-runtime.js'),
+  ]);
   const observedAt = Date.now();
   const configText = JSON.stringify({ models: ['keep'] });
   const readiness = collectFuryBetaReadiness({
@@ -102,11 +112,12 @@ async function startDashboard() {
 
 async function main() {
   await mkdir(OUTPUT_DIR, { recursive: true });
-  const dashboard = await startDashboard();
   let browser;
   let page;
+  let dashboard;
   try {
     browser = await chromium.launch({ headless: true });
+    dashboard = await startDashboard();
     page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const consoleErrors = [];
     page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
@@ -256,7 +267,7 @@ async function main() {
   } finally {
     await page?.close().catch(() => undefined);
     await browser?.close().catch(() => undefined);
-    await dashboard.close().catch(() => undefined);
+    await dashboard?.close().catch(() => undefined);
   }
 }
 

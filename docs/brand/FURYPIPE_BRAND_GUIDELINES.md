@@ -1,69 +1,61 @@
-# FuryPipe brand guidelines
+# FuryPipe FLUX brand guidelines
 
-Status: `IMPLEMENTED_LOCAL / REFERENCE_DERIVED`
+Status: `IMPLEMENTED_LOCAL / OWNER_APPROVED_REFERENCE_DERIVED`
 
-The canonical source for this integration is the user-selected
-`Image ChatGPT 27 sept. 2026, 15_27_59-1.png`, supplied on 2026-09-27. It
-shows the official visual direction and variants, but it is a composite
-presentation board, not a clean individual production asset. Studio therefore
-keeps one small inline SVG source in
-`src/studio/studio-brand.ts`; it does not crop a presentation board or claim a
-pixel-exact export that was not supplied.
+Owner selected FLUX board supplied on 2026-10-03. Board is direction, not
+source-asset bundle. FuryPipe reconstructs original flat SVG master. It never
+crops presentation image for product assets.
 
 ## Identity
 
-- Product name: `FuryPipe`
-- Creator: `LégendeUrbaine`
-- Tagline: `BUILD · AUTOMATE · CREATE · BEYOND`
-- Monogram: the forward-flowing `F` mark from the supplied references
-- Wordmark: `Fury` in the light/white text role and `Pipe` in FuryPipe orange
-- Main mood: near-black / graphite surfaces with restrained orange accents
+- Product: `FuryPipe`.
+- Concept: `FLUX`.
+- Meaning: flow, intelligence, continuity and governed execution.
+- Tagline: `Orchestrate. Create. Ship.`
+- Symbol: asymmetric continuous orange ribbon. Not retired angular F, bolt,
+  flame, pipe or generic infinity mark.
+- Wordmark: `Fury` in contextual text color; `Pipe` in Flux Orange.
+- Display: Inter Tight with Inter and system fallbacks.
+- UI body: Inter with system fallbacks.
 
 ## Tokens
 
-| Token | Value | Use |
+| Token | Value | Role |
 | --- | --- | --- |
-| Charcoal | `#050506` | primary dark background and favicon field |
-| Graphite | `#15151a` | elevated surface |
-| FuryPipe orange | `#ff6a1a` | primary mark/accent |
-| Hot orange | `#ff8a3d` | emphasis and focus-adjacent accent |
-| Light ink | `#f4f1ec` | dark-surface wordmark and text |
-| Dark ink | `#1a1714` | light-mode text role |
+| Flux Orange | `#FF7A1A` | brand mark and primary action |
+| Charcoal | `#0B0B0F` | main dark field |
+| Graphite | `#1A1A1F` | surface |
+| Slate | `#2E2E36` | elevated surface |
+| Steel | `#9CA3AF` | muted text |
+| White | `#FFFFFF` | primary text |
+| Electric Blue | `#3B82F6` | contextual information |
+| Success Green | `#22C55E` | successful state |
 
-## Implemented Studio surfaces
+Orange is brand/action color. Never replace error, warning, information or
+success semantics with orange.
 
-| Surface | Variant | Rule |
-| --- | --- | --- |
-| Sidebar | orange monogram + FuryPipe wordmark | primary desktop identity |
-| Responsive topbar | compact orange monogram + wordmark | visible when the drawer hides the sidebar or it is collapsed |
-| New-chat empty state | larger flat orange monogram with restrained glow | no orbital replacement mark; glow belongs to the shell |
-| Browser favicon | F monogram on charcoal | no wordmark at 16/32 px |
-| Light/system mode | accent monogram + dark/light wordmark tokens | no dark raster baked into the UI |
+## Assets
 
-The same `data-brand="furypipe"` and `data-brand="furypipe-monogram"` hooks
-make the integration auditable without relying on visual guesses.
+`assets/branding/flux/master/` holds vector masters. `variants/` holds dark,
+light, monochrome and favicon SVG variants. `icons/` holds generated PNG and a
+real multi-image ICO. Run `node scripts/generate-flux-assets.mjs` after an
+intentional geometry change. Generator uses locked dev dependency
+`@napi-rs/canvas`; it adds no runtime dependency.
 
-## Usage rules
+Use symbol-only variants at 16, 24, 32, 48 and 64 px. Use horizontal wordmark
+only when room exists. Keep clear space at least one ribbon terminal-width. Do
+not add gradient, chrome, bevel, neon, shadow or 3D treatment to mark.
 
-- Use the monogram alone for favicon, app-icon-sized surfaces and compact UI.
-- Use the horizontal lockup when there is enough width for the wordmark.
-- Keep the wordmark spelling and `Fury`/`Pipe` color split intact.
-- Prefer the flat SVG at small sizes; do not bake a heavy glow into the mark.
-- Keep the existing accessible error color separate from the brand orange.
-- Preserve visible focus rings and test dark, light/system, high-DPI and narrow
-  viewport states before calling the visual integration complete.
-- Do not replace the supplied F concept with a generic ring, bolt, cube or
-  unrelated “AI” symbol.
+## Studio and accessibility
 
-## Open asset gate
+- Studio embeds source geometry through `src/studio/studio-brand.ts`.
+- Favicon is inline and same-origin, so CSP needs no external exception.
+- Sidebar, responsive topbar, workspace/chat and support share
+  `data-brand="furypipe"` integration hook.
+- SVGs expose title or accessible label when identity conveys meaning; UI
+  duplicates use `aria-hidden`.
+- Test contrast, keyboard focus, responsive layout, PNG alpha and ICO structure
+  before release.
 
-The supplied boards do not prove clean 1024, 512, 256, 128, 64, 32 and 16 px
-PNG/WebP exports, nor a production-ready transparent/monochrome marketing
-package. Those remain `ASSET_SOURCE_REQUIRED` for desktop packaging, social
-previews and external documentation. Do not generate or publish those exports
-from the composite boards without an approved clean source asset.
-
-Current evidence is local/static plus real-browser QA of the Studio shell.
-Human visual approval, screen-reader sign-off and production packaging are
-separate gates. Nothing is merged, released, tagged, published or deployed by
-this branding change.
+Automation proves only tested boundaries. Human visual approval and publication
+remain separate owner gates.

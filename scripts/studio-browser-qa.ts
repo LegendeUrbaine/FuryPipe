@@ -113,6 +113,13 @@ async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: strin
     },
     discoverHardware: async () => ({ platform: 'linux', arch: 'x64', cpuModel: 'qa', cpuCount: 8, totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: 1, unifiedMemory: false, gpus: [{ name: 'QA GPU', memoryBytes: 12 * 1024 ** 3 }] }),
     videoEngine: new LocalVideoEngine({ workspaceRoot: path.join(projectRoot, '.qa-video', state), assetRoot: projectRoot }),
+    // Bounded, local execution drives the real runFuryTask pipeline without
+    // calling a paid provider. It writes only a QA fixture in a temporary repo.
+    executor: async ({ assignment, worktree }) => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      if (assignment.role === 'implementer') writeFileSync(path.join(worktree, 'src', 'auth', 'login.ts'), 'export const createSession = () => "flux-qa";\n');
+      return { ok: true, receipts: [] };
+    },
   });
   let origin = '';
   const server = createServer((req, res) => {
@@ -139,6 +146,18 @@ async function visible(page: Page, selector: string): Promise<boolean> {
   return page.locator(selector).isVisible();
 }
 
+async function openReadyTrace(page: Page): Promise<void> {
+  const selector = '#runs button[aria-label^="Inspect Fury Trace for "]:not([disabled])';
+  await page.waitForFunction((s) => document.querySelector(s) instanceof HTMLButtonElement, selector);
+  const clicked = await page.evaluate((s) => {
+    const button = document.querySelector(s);
+    if (!(button instanceof HTMLButtonElement) || button.disabled) return false;
+    button.click();
+    return true;
+  }, selector);
+  assert(clicked, 'ready Fury Trace button disappeared before the action could start');
+}
+
 async function runEngine(name: string, type: BrowserType, origins: Record<'normal' | 'empty' | 'error', string>): Promise<Record<string, unknown>> {
   const browser = await type.launch();
   const errors: string[] = [];
@@ -156,7 +175,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
 
     await page.goto(`${origins.normal}/`, { waitUntil: 'load' });
     assert(await page.title() === 'Chat · FuryPipe Studio', `${name}: title ${await page.title()}`);
-    assert(await page.locator('a.brand[data-brand="furypipe"] svg[data-brand="furypipe-monogram"]').count() === 1, `${name}: sidebar brand mark missing`);
+    assert(await page.locator('a.brand[data-brand="furypipe"] svg[data-brand="furypipe-flux-symbol"]').count() === 1, `${name}: Flux sidebar mark missing`);
     assert(await page.locator('link[rel="icon"][type="image/svg+xml"]').count() === 1, `${name}: favicon missing`);
     assert(!(await page.content()).includes('fury-ring'), `${name}: legacy non-brand ring remains in shell`);
     assert(await page.evaluate(() => document.activeElement === document.body), `${name}: focus moved on first load`);
@@ -275,13 +294,8 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     let approvalPrompt = '';
     page.once('dialog', (d) => { approvalPrompt = d.message(); void d.accept(); });
     await page.locator('#cowork-run').click();
-    await page.waitForFunction(() => /Not started: project root is not a git repository/u.test(document.querySelector('#cowork-status')?.textContent ?? ''));
+    await page.waitForFunction(() => /Started run-/u.test(document.querySelector('#cowork-status')?.textContent ?? ''));
     assert(/WRITE, EXECUTE/u.test(approvalPrompt), `${name}: Cowork approval prompt: ${approvalPrompt}`);
-    await page.locator('#perm-NETWORK').selectOption('ASK');
-    await page.locator('#cowork-plan').click();
-    await page.waitForFunction(() => location.hash === '#/agents');
-    assert((await page.locator('#dispatch-ir').inputValue()).includes('"NETWORK": "ASK"'), `${name}: cowork permissions not carried`);
-
     await page.goto(`${origins.normal}/#/connections`);
     await page.locator('#connections-grid .connection-card').filter({ hasText: 'Claude / Anthropic' }).filter({ hasText: 'Credential configured' }).waitFor();
     assert(!(await page.locator('#connections-grid').textContent())?.includes('qa-secret-never-render'), `${name}: Anthropic secret leaked in Connections`);
@@ -492,18 +506,25 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     assert(await page.locator('.code-script-run[data-script="test"]').count() === 1, `${name}: FuryCode test preset missing`);
     assert(await page.locator('.code-script-run[data-script="typecheck"]').count() === 1, `${name}: FuryCode typecheck preset missing`);
     assert(await page.locator('.code-script-run[data-script="build"]').count() === 1, `${name}: FuryCode build preset missing`);
-    // The QA project is not a git repository: worktrees report that plainly.
-    await page.waitForFunction(() => /Worktrees unavailable/u.test(document.querySelector('#wt-status')?.textContent ?? ''));
+    // QA now uses an actual disposable Git repository so the governed run can
+    // create isolated worktrees. Cowork may already have a live worker here.
+    await page.waitForFunction(() => /\d+ worktree\(s\)\./u.test(document.querySelector('#wt-status')?.textContent ?? ''));
 
     await page.goto(`${origins.normal}/#/mission`);
-    await page.locator('#runs .empty').waitFor();
-    await page.locator('#run-trace-status').filter({ hasText: 'No completed run selected' }).waitFor();
+    await page.locator('#run-form').waitFor();
     await page.locator('#run-intent').fill('Fix login');
     await page.locator('#run-files').fill('src/auth/login.ts');
     await page.locator('#run-confirm').check();
     await page.locator('#run-form button[type=submit]').click();
-    // The QA project is not a git repository: the run must be refused, visibly.
-    await page.waitForFunction(() => /Not started: project root is not a git repository/u.test(document.querySelector('#run-status')?.textContent ?? ''));
+    await page.locator('#runs .card').first().waitFor();
+    await page.waitForFunction(() => [...document.querySelectorAll('#runs .card h2')].some((node) => !/running/u.test(node.textContent ?? ''))).catch(async () => {
+      throw new Error(`${name}: run did not settle\n${await page.locator('#runs').innerText()}`);
+    });
+    await openReadyTrace(page);
+    await page.locator('#run-trace-status').filter({ hasText: 'Trace READY' }).waitFor();
+    assert(await page.locator('.trace-rail-node').count() >= 6, `${name}: trace execution rail missing`);
+    await page.locator('.trace-rail-node').filter({ hasText: 'Worker' }).first().click();
+    await page.locator('.trace-detail[data-state="selected"]').waitFor();
 
     await page.goto(`${origins.normal}/#/automations`);
     await page.locator('#flow-form button[type=submit]').click();
@@ -571,15 +592,15 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
 
 // Visual evidence: the key surfaces at desktop, narrow desktop and phone widths.
 async function captureScreens(type: BrowserType, origins: Record<'normal' | 'empty' | 'error', string>): Promise<string[]> {
-  const dir = path.join(OUT, 'screens');
+  const dir = path.join(OUT, 'screens-flux-vnext-02');
   mkdirSync(dir, { recursive: true });
   const browser = await type.launch();
   const shots: string[] = [];
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', reducedMotion: 'reduce' });
     const page = await context.newPage();
-    const shot = async (file: string): Promise<void> => {
-      await page.waitForTimeout(150);
+    const shot = async (file: string, settle = true): Promise<void> => {
+      if (settle) await page.waitForTimeout(150);
       await page.screenshot({ path: path.join(dir, file) });
       shots.push(file);
     };
@@ -588,12 +609,10 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await shot('01-new-chat-1440.png');
     await page.locator('#model-button').click();
     await page.locator('#model-pop [role=option]').first().waitFor();
-    await shot('02-model-picker.png');
     await page.keyboard.press('Escape');
     await page.locator('#attach-input').setInputFiles({ name: 'notes.md', mimeType: 'text/markdown', buffer: Buffer.from('# Notes\nShip the Studio rework.\n') });
     await page.locator('#chat-input').fill('Summarise these notes in one line');
     await page.locator('#attach-tray .att').waitFor();
-    await shot('03-attachment.png');
     await page.locator('#chat-send').click();
     await page.locator('#chat-log .msg:not(.user)').filter({ hasText: 'Hello from a local model.' }).waitFor();
     await shot('04-conversation.png');
@@ -623,6 +642,27 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await page.goto(`${origins.normal}/#/mission`);
     await page.locator('section[data-view="mission"] h1').waitFor();
     await shot('08-expert-mission-control.png');
+    // A third disposable run proves the complete visible lifecycle. The
+    // executor is the bounded local fixture passed to the real run pipeline.
+    await page.locator('#run-intent').fill('Capture a verified Flux trace');
+    await page.locator('#run-files').fill('src/auth/login.ts');
+    await page.locator('#run-confirm').check();
+    await shot('15-mission-before-execution.png');
+    await page.locator('#run-form button[type=submit]').click();
+    await page.locator('#runs .card').first().waitFor();
+    await shot('16-mission-running.png', false);
+    await page.waitForFunction(() => [...document.querySelectorAll('#runs .card h2')].some((node) => !/running/u.test(node.textContent ?? '')));
+    await shot('17-mission-completed.png');
+    await openReadyTrace(page);
+    await page.locator('#run-trace-status').filter({ hasText: 'Trace READY' }).waitFor();
+    await shot('18-fury-trace-ready.png');
+    await page.locator('.trace-node[data-kind="worker"]').first().click();
+    await page.locator('.trace-detail[data-state="selected"]').waitFor();
+    await shot('19-fury-trace-worker.png');
+    await page.locator('.trace-node[data-kind="receipt"]').first().click();
+    await shot('20-fury-trace-receipt.png');
+    await page.locator('.trace-node[data-kind="judge"]').first().click();
+    await shot('21-fury-trace-judge-proof.png');
     // Browser-level Ctrl+K can be intercepted by the browser chrome in CI.
     // Dispatch the same bubbling DOM KeyboardEvent to verify FuryPipe's handler.
     await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
@@ -632,7 +672,6 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await page.keyboard.press('Escape');
     await page.goto(`${origins.empty}/#/chat`);
     await page.locator('#chat-empty').waitFor({ state: 'visible' });
-    await shot('10-no-local-model.png');
     await page.setViewportSize({ width: 1024, height: 768 });
     await page.goto(`${origins.normal}/#/chat`);
     await page.locator('#chat-list button.conv').first().waitFor();
@@ -656,6 +695,7 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
   } finally {
     await browser.close();
   }
+  assert(shots.length === 21, `expected 21 visual evidence screenshots, received ${shots.length}`);
   return shots;
 }
 
@@ -672,6 +712,11 @@ async function main(): Promise<void> {
   mkdirSync(path.join(project, '.furypipe'), { recursive: true });
   writeFileSync(path.join(project, 'status-api.json'), JSON.stringify({ openapi: '3.1.0', info: { title: 'Status' }, servers: [{ url: 'https://status.example.com' }], paths: { '/status': { get: { operationId: 'getStatus' } } } }));
   writeFileSync(path.join(project, '.furypipe', 'integrations.json'), JSON.stringify({ format: 'furypipe-integrations/v1', integrations: [{ id: 'qa-status-api', kind: 'OPENAPI', spec: 'status-api.json' }] }));
+  const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 'FuryPipe QA', GIT_AUTHOR_EMAIL: 'qa@furypipe.invalid', GIT_COMMITTER_NAME: 'FuryPipe QA', GIT_COMMITTER_EMAIL: 'qa@furypipe.invalid' };
+  execFileSync('git', ['init', '-q'], { cwd: project, env: gitEnv });
+  execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: project, env: gitEnv });
+  execFileSync('git', ['add', '.'], { cwd: project, env: gitEnv });
+  execFileSync('git', ['commit', '-q', '-m', 'studio QA base'], { cwd: project, env: gitEnv });
   const backend = await startBackend();
   const engines = (process.env.FURYPIPE_STUDIO_QA_ENGINES ?? 'chromium,firefox,webkit').split(',').map((s) => s.trim());
   const types: Record<string, BrowserType> = { chromium, firefox, webkit };

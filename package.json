@@ -826,6 +826,7 @@
     "validation:clean-room": "node scripts/clean-room-package-smoke.mjs",
     "validation:local-contracts": "node scripts/local-contracts.mjs",
     "validation:accessibility": "node scripts/accessibility-automation.mjs",
+    "validation:flux-assets": "node scripts/validate-flux-assets.mjs",
     "validation:furybench": "node scripts/furybench-baseline-compare.mjs",
     "validation:document-summary": "node --import tsx/esm scripts/document-summary-e2e.ts",
     "validation:provider-live": "tsx scripts/provider-live-validation.ts",

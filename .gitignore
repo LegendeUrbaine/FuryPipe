@@ -61,6 +61,7 @@ artifacts/furybench-studio/
 artifacts/final-validation/
 artifacts/rc-preparation/
 artifacts/external-validation/
+artifacts/flux-recovery-snapshot-*
 
 # eval run artifacts (outputs, not sources)
 eval/verbatim-15/out_*/

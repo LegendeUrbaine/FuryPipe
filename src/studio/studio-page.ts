@@ -127,13 +127,13 @@ const WORDMARK = renderFuryPipeWordmarkHtml();
 
 const CSS = `
 :root{
-  --b0:#050506;--b1:#0a0a0c;--b2:#0f0f12;--b3:#15151a;--b4:#1c1c22;--b5:#25252c;
-  --line:rgba(255,255,255,.065);--line-2:rgba(255,255,255,.11);--line-3:rgba(255,255,255,.18);
-  --ink:#f4f1ec;--ink-2:#c3bdb4;--muted:#8b857c;--faint:#5d5953;
-  --o-core:#ff6a1a;--o-hot:#ff8a3d;--o-deep:#d9480f;--o-soft:rgba(255,106,26,.12);--o-line:rgba(255,122,40,.34);--o-glow:rgba(255,90,0,.32);
-  --ok:#5fd99a;--warn:#f5b547;--bad:#ff6b6b;
+  --b0:#0B0B0F;--b1:#121217;--b2:#1A1A1F;--b3:#22222a;--b4:#2E2E36;--b5:#393943;
+  --line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);--line-3:rgba(255,255,255,.22);
+  --ink:#FFFFFF;--ink-2:#d1d5db;--muted:#9CA3AF;--faint:#6b7280;
+  --o-core:#FF7A1A;--o-hot:#ff934d;--o-deep:#d95e00;--o-soft:rgba(255,122,26,.12);--o-line:rgba(255,122,26,.38);--o-glow:rgba(255,122,26,.22);
+  --ok:#22C55E;--info:#3B82F6;--warn:#f5b547;--bad:#ff6b6b;
   --font:"Inter var",Inter,"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
-  --display:"Inter Display","Inter var",Inter,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --display:"Inter Tight","Inter var",Inter,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
   --mono:"JetBrains Mono","Cascadia Code","SF Mono",ui-monospace,Menlo,Consolas,monospace;
   --ease:cubic-bezier(.2,.8,.2,1);--ease-out:cubic-bezier(.16,1,.3,1);
   --r-sm:8px;--r-md:12px;--r-lg:16px;--r-xl:22px;
@@ -175,10 +175,10 @@ kbd{font:600 11px/1 var(--font);color:var(--muted);border:1px solid var(--line-2
 .app[data-collapsed="true"] .side-resizer{display:none}
 .side-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:16px 12px 10px 16px;position:relative;z-index:1}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;font:650 16.5px/1 var(--display);letter-spacing:-.015em;color:var(--ink);white-space:nowrap}
-.brand .mark{width:28px;height:28px;flex:none;filter:drop-shadow(0 0 10px rgba(255,106,26,.35))}
+.brand .mark{width:32px;height:27px;flex:none}
 .brand-mark[data-tone="accent"]{color:var(--o-hot)}.brand-mark[data-tone="light"]{color:var(--ink)}.brand-mark[data-tone="white"]{color:#fff}.brand-mark[data-tone="dark"]{color:#050506}
 .wordmark{display:inline-flex;align-items:baseline;letter-spacing:-.015em}.wordmark-fury{color:var(--ink)}.wordmark-pipe{font-weight:650;color:var(--o-hot)}
-.top-brand{display:none;align-items:center;gap:8px;color:var(--ink);text-decoration:none;flex:none;font:650 14px/1 var(--display)}.top-brand-mark{width:24px;height:24px;filter:drop-shadow(0 0 8px rgba(255,106,26,.28))}.top-brand .wordmark-pipe{font-weight:650}
+.top-brand{display:none;align-items:center;gap:8px;color:var(--ink);text-decoration:none;flex:none;font:650 14px/1 var(--display)}.top-brand-mark{width:27px;height:23px}.top-brand .wordmark-pipe{font-weight:650}
 .icon-btn{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--muted);cursor:pointer;transition:background .15s,color .15s,transform .12s}
 .icon-btn:hover{background:var(--b4);color:var(--ink)}.icon-btn:active{transform:scale(.94)}
 .new-chat{position:relative;z-index:1;display:flex;align-items:center;gap:10px;margin:6px 12px 6px;height:42px;padding:0 12px;border-radius:13px;border:1px solid var(--o-line);background:linear-gradient(180deg,rgba(255,122,40,.17),rgba(255,106,26,.05));color:var(--ink);font:600 14px/1 var(--font);cursor:pointer;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 10px 30px -18px var(--o-glow);transition:transform .12s var(--ease),border-color .2s,background .2s;white-space:nowrap}
@@ -462,7 +462,8 @@ details.adv>div{padding:0 18px 16px}
 .work-brief,.mission-brief,.agent-contract,.flow-studio{position:relative;overflow:hidden}
 .work-brief::before,.mission-brief::before,.agent-contract::before,.flow-studio::before{content:"";position:absolute;inset:0 auto 0 0;width:2px;background:linear-gradient(180deg,transparent,var(--o-core),transparent);opacity:.65}
 .work-brief>form,.mission-brief>form,.agent-contract>form,.flow-studio>form{position:relative}
-.work-brief textarea#cowork-intent,.mission-brief textarea#run-intent{min-height:126px;font-size:15.5px;background:linear-gradient(180deg,rgba(255,255,255,.018),transparent),var(--b1)}
+.work-brief textarea#cowork-intent{min-height:126px;font-size:15.5px;background:linear-gradient(180deg,rgba(255,255,255,.018),transparent),var(--b1)}
+.mission-brief{padding:18px 20px}.mission-brief textarea#run-intent{min-height:78px;font-size:15px;background:var(--b1)}.mission-brief textarea#run-files{min-height:54px;font-size:13px}.mission-brief .run-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(240px,.72fr);gap:14px}.mission-brief .run-advanced{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.mission-brief .run-advanced>summary{cursor:pointer;color:var(--ink-2);font:600 12px/1.4 var(--font);list-style:none}.mission-brief .run-advanced>summary::-webkit-details-marker{display:none}.mission-brief .run-advanced-body{padding-top:12px}.mission-brief .run-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px}.mission-brief .run-confirmations{display:flex;flex-wrap:wrap;gap:10px 16px}.mission-brief .run-confirmations label{margin:0;font-size:12px}.mission-brief .run-actions button{min-width:142px;font-size:14px}
 .work-brief fieldset{background:rgba(255,255,255,.012);border-color:var(--line-2)}
 .work-brief fieldset>div{min-width:118px}
 .work-brief fieldset select{min-width:112px}
@@ -472,15 +473,15 @@ details.adv>div{padding:0 18px 16px}
 .mission-workspace #runs{display:flex;flex-direction:column;gap:12px}
 .mission-workspace #runs>.card{margin:0;position:relative;overflow:hidden}
 .mission-workspace #runs>.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--o-hot),transparent 75%);opacity:.55}
-.run-trace-panel{margin-top:16px;position:relative;overflow:hidden}
+.run-trace-panel{margin-top:16px;position:relative;overflow:hidden;scroll-margin-top:20px}
 .run-trace-panel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--o-core),transparent 78%);opacity:.7}
 .trace-summary{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}
 .trace-summary span{padding:7px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:12px}
-.trace-graph{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:12px}
+.trace-graph{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:8px;margin-top:12px}.trace-rail{display:flex;align-items:stretch;gap:6px;overflow-x:auto;padding:2px 0 8px;margin-top:12px}.trace-rail::before{content:"";position:absolute;display:none}.trace-rail-node{flex:0 0 146px;min-height:54px;padding:10px!important;border-color:var(--line-2)!important}.trace-rail-node::after{content:"›";float:right;color:var(--o-hot);font-size:18px;line-height:13px}.trace-rail-node:last-child::after{display:none}
 .trace-node{width:100%;text-align:left;min-height:58px;white-space:normal}
 .trace-node[data-kind="receipt"]{border-color:rgba(255,106,26,.42)}
 .trace-node[data-kind="event"]{border-color:rgba(255,255,255,.16)}
-.trace-detail{margin:12px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;color:var(--muted);font:12px/1.5 var(--mono);overflow:auto}
+.trace-detail{margin:12px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;color:var(--muted);font:12px/1.5 var(--mono);overflow:auto}.trace-detail[data-state="selected"]{border-color:var(--o-line);color:var(--ink-2)}.trace-section-title{margin:16px 0 6px;font:700 10px/1.2 var(--font);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .trace-evidence{margin-top:14px}
 .trace-evidence li{margin:5px 0}
 .flow-studio #flow-canvas{padding:10px;border:1px solid var(--line);border-radius:14px;background:radial-gradient(420px 180px at 50% 0,rgba(255,106,26,.045),transparent 75%),#08080a;overflow:auto}
@@ -491,7 +492,7 @@ details.adv>div{padding:0 18px 16px}
 .code-workspace>.grid>.card{display:flex;flex-direction:column}
 .code-workspace #tree,.code-workspace #file-view{flex:1}
 .code-workspace #file-view{border-color:var(--line-2);box-shadow:0 14px 40px -34px #000 inset}
-@media (max-width:720px){.cap-rail{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.cap-rail span{flex:none}.flow-studio svg.flow{min-width:580px}}
+@media (max-width:720px){.cap-rail{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.cap-rail span{flex:none}.mission-brief .run-grid{grid-template-columns:1fr}.mission-brief .run-actions{align-items:stretch;flex-direction:column}.mission-brief .run-actions button{width:100%}.flow-studio svg.flow{min-width:580px}}
 
 /* Models */
 .models-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:16px}
@@ -622,6 +623,25 @@ const SCRIPT = String.raw`
     'Code': 'Code',
     'Agents': 'Agents',
     'Mission Control': 'Centre de contrôle',
+    'Run a planned task with real agents in isolated worktrees and watch every worker. Results are accepted only by FuryJudge with receipts.': 'Exécutez une tâche planifiée avec de vrais agents dans des worktrees isolés et suivez chaque worker. Les résultats sont acceptés uniquement par FuryJudge avec des reçus.',
+    'Mission Control guarantees': 'Garanties du centre de contrôle',
+    'Live workers': 'Workers en direct',
+    'Bounded authority': 'Autorité bornée',
+    'Receipts + FuryJudge': 'Reçus + FuryJudge',
+    'Task': 'Tâche',
+    'Expected files': 'Fichiers attendus',
+    'optional, one per line': 'optionnel, un par ligne',
+    'Advanced execution controls': 'Contrôles d’exécution avancés',
+    'Allow cloud runtimes': 'Autoriser les runtimes cloud',
+    'may incur provider cost': 'peut générer un coût fournisseur',
+    'I confirm starting agents on this repository': 'Je confirme le démarrage d’agents sur ce dépôt',
+    'Start run': 'Démarrer le run',
+    'Fury Trace': 'Fury Trace',
+    'No completed run selected. Trace waits for a real replay and sealed proof bundle.': 'Aucun run terminé sélectionné. La trace attend un replay réel et un bundle de preuve scellé.',
+    'View execution trace': 'Voir la trace d’exécution',
+    'Trace not ready': 'Trace non prête',
+    'Verified nodes': 'Nœuds vérifiés',
+    'Select a node to inspect verified provenance.': 'Sélectionnez un nœud pour examiner sa provenance vérifiée.',
     'Automations': 'Automatisations',
     'Autopilot': 'Autopilot',
     'Media': 'Média',
@@ -2423,16 +2443,32 @@ const SCRIPT = String.raw`
       el('span', { text: 'bundle ' + String(trace.summary.bundleDigest).slice(0, 16) + '…' }),
     );
     graph.append(summary);
-    const detail = el('p', { class: 'trace-detail', text: 'Select a node to inspect its source pointer.' });
+    const detail = el('p', { class: 'trace-detail', text: 'Select a node to inspect verified provenance.' });
+    detail.setAttribute('aria-live', 'polite');
+    const rail = el('div', { class: 'trace-rail', 'aria-label': 'Verified execution sequence' });
+    const orderedKinds = ['run', 'replay', 'event', 'worker', 'receipt', 'judge', 'bundle'];
+    for (const kind of orderedKinds) {
+      const first = trace.nodes.find((node) => node.kind === kind);
+      if (!first) continue;
+      const railNode = el('button', { type: 'button', class: 'secondary trace-rail-node', text: first.label });
+      railNode.setAttribute('data-kind', kind);
+      railNode.setAttribute('aria-label', 'Inspect ' + first.label);
+      railNode.addEventListener('click', () => document.querySelector('[data-trace-id="' + first.id + '"]')?.dispatchEvent(new Event('click')));
+      rail.append(railNode);
+    }
+    graph.append(rail);
+    graph.append(el('h3', { class: 'trace-section-title', text: 'Verified nodes' }));
     const nodes = el('div', { class: 'trace-graph' });
     for (const node of trace.nodes) {
       const button = el('button', { type: 'button', class: 'secondary trace-node', text: node.label });
       button.setAttribute('data-kind', node.kind);
+      button.setAttribute('data-trace-id', node.id);
       button.setAttribute('aria-label', 'Inspect ' + node.label);
       button.addEventListener('click', () => {
         const links = trace.edges.filter((edge) => edge.from === node.id || edge.to === node.id).map((edge) => edge.kind + ':' + (edge.from === node.id ? edge.to : edge.from));
         const source = Object.entries(node.source || {}).map(([key, value]) => key + '=' + value).join(' · ') || 'source=derived';
-        detail.textContent = node.label + ' · ' + node.state + ' · ' + source + (links.length ? ' · links=' + links.join(', ') : '');
+        detail.dataset.state = 'selected';
+        detail.textContent = node.label + ' · ' + node.state + ' · ' + source + (links.length ? ' · linked=' + links.join(', ') : '');
       });
       nodes.append(button);
     }
@@ -2444,16 +2480,17 @@ const SCRIPT = String.raw`
       evidence.append(list);
     } else evidence.append(el('p', { class: 'muted', text: 'No receipt linked to this completed run. The graph stays inspectable; acceptance remains governed by FuryJudge.' }));
   }
+  let runsRefreshTimer = null;
   async function loadRuns() {
     try { const r = await getJson('/api/studio/runs.json'); const box = $('#runs'); box.replaceChildren();
       if (!r.runs.length) { box.append(el('p', { class: 'empty', text: 'No run yet. Start one above; only local runtimes are used unless you allow cloud runtimes.' })); return; }
       for (const run of r.runs) {
         const card = el('div', { class: 'card' }); card.append(el('h2', { text: run.runId + ' — ' + run.status + (run.verdict ? ' · FuryJudge ' + run.verdict : '') }), el('p', { class: 'muted', text: run.intent }));
         if (run.error) card.append(el('p', { class: 'bad', text: run.error }));
-        const traceButton = el('button', { type: 'button', class: 'secondary', text: run.traceStatus === 'READY' ? 'Inspect Fury Trace' : 'Trace not ready' });
+        const traceButton = el('button', { type: 'button', class: 'secondary', text: run.traceStatus === 'READY' ? 'View execution trace' : 'Trace not ready' });
         traceButton.disabled = run.traceStatus !== 'READY';
         traceButton.setAttribute('aria-label', 'Inspect Fury Trace for ' + run.runId);
-        traceButton.addEventListener('click', async () => { try { renderRunTrace(await getJson('/api/studio/runs/trace.json?runId=' + encodeURIComponent(run.runId))); $('#run-trace-panel').scrollIntoView({ block: 'nearest' }); } catch (e) { $('#run-trace-status').textContent = 'Trace unavailable: ' + e.message; } });
+        traceButton.addEventListener('click', async () => { try { renderRunTrace(await getJson('/api/studio/runs/trace.json?runId=' + encodeURIComponent(run.runId))); $('#run-trace-panel').scrollIntoView({ block: 'start', behavior: 'smooth' }); $('#h-run-trace').focus({ preventScroll: true }); } catch (e) { $('#run-trace-status').textContent = 'Trace unavailable: ' + e.message; } });
         card.append(traceButton);
         const t = el('table'); t.append(el('thead', {}, el('tr', {}, ...['Worker','Role','Runtime','Model','Locality','State','Tokens','Receipts',''].map(h => el('th', { scope: 'col', text: h })))));
         const tb = el('tbody');
@@ -2466,6 +2503,9 @@ const SCRIPT = String.raw`
         if (run.requirements) { const ul = el('ul', { class: 'reasons' }); for (const q of run.requirements) ul.append(el('li', { text: q.id + ': ' + q.status })); card.append(ul); }
         box.append(card);
       }
+      const hasActiveRun = r.runs.some((run) => ['queued', 'running', 'paused', 'awaiting-approval'].includes(String(run.status).toLowerCase()));
+      if (runsRefreshTimer !== null) { clearTimeout(runsRefreshTimer); runsRefreshTimer = null; }
+      if (hasActiveRun) runsRefreshTimer = window.setTimeout(() => { runsRefreshTimer = null; void loadRuns(); }, 400);
     } catch (e) { $('#run-status').textContent = 'Runs unavailable: ' + e.message; }
   }
   $('#run-form').addEventListener('submit', async (ev) => {
@@ -3434,14 +3474,14 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div class="cap-rail" aria-label="Mission Control guarantees">
     <span>${icon('agents')}Live workers</span><span>${icon('shield')}Bounded authority</span><span>${icon('check')}Receipts + FuryJudge</span>
   </div>
-  <div class="card mission-brief"><form id="run-form"><label for="run-intent">Task</label><textarea id="run-intent" required placeholder="e.g. Fix the login bug and add a test"></textarea>
-  <label for="run-files">Files expected to change (one per line)</label><textarea id="run-files" placeholder="src/auth/login.ts"></textarea>
-  <div class="row"><label for="run-cloud"><input id="run-cloud" type="checkbox"> Allow cloud runtimes (may incur provider cost)</label>
-  <label for="run-confirm"><input id="run-confirm" type="checkbox" required> I confirm starting agents on this repository</label><button type="submit">Start run</button></div></form>
+  <div class="card mission-brief"><form id="run-form"><div class="run-grid"><div><label for="run-intent">Task</label><textarea id="run-intent" required placeholder="e.g. Fix the login bug and add a test"></textarea></div>
+  <div><label for="run-files">Expected files <span class="muted">optional, one per line</span></label><textarea id="run-files" placeholder="src/auth/login.ts"></textarea></div></div>
+  <details class="run-advanced"><summary>Advanced execution controls</summary><div class="run-advanced-body"><label for="run-cloud"><input id="run-cloud" type="checkbox"> Allow cloud runtimes <span class="muted">may incur provider cost</span></label></div></details>
+  <div class="run-actions"><div class="run-confirmations"><label for="run-confirm"><input id="run-confirm" type="checkbox" required> I confirm starting agents on this repository</label></div><button type="submit">Start run</button></div></form>
   <p id="run-status" class="status" role="status"></p></div>
   <div id="runs" aria-live="polite"></div>
   <div class="card run-trace-panel" id="run-trace-panel" aria-labelledby="h-run-trace">
-    <h2 id="h-run-trace">Fury Trace</h2>
+    <h2 id="h-run-trace" tabindex="-1">Fury Trace</h2>
     <p id="run-trace-status" class="status muted" role="status">No completed run selected. Trace waits for a real replay and sealed proof bundle.</p>
     <div id="run-trace-graph" class="trace-graph"></div>
     <div id="run-trace-evidence" class="trace-evidence"></div>

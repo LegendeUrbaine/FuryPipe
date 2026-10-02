@@ -221,31 +221,61 @@ async function startHarness(
     now,
     ...(modelEnabled
       ? {
-          fetchImpl: async () => new Response(JSON.stringify({
-            id: 'resp_browser_qa',
-            output: [{
-              type: 'message',
-              role: 'assistant',
-              content: [{
-                type: 'output_text',
-                text: 'Governed browser QA model response.',
+          fetchImpl: async (_input, init) => {
+            let streaming = false;
+            if (typeof init?.body === 'string') {
+              try {
+                streaming = (JSON.parse(init.body) as { stream?: unknown }).stream === true;
+              } catch {
+                streaming = false;
+              }
+            }
+            if (streaming) {
+              const sse = [
+                'event: response.output_text.delta',
+                'data: {"type":"response.output_text.delta","delta":"Governed "}',
+                '',
+                'event: response.output_text.delta',
+                'data: {"type":"response.output_text.delta","delta":"browser QA model response."}',
+                '',
+                'event: response.completed',
+                'data: {"type":"response.completed","response":{"usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens":6}}}',
+                '',
+              ].join('\n');
+              return new Response(sse, {
+                status: 200,
+                headers: {
+                  'content-type': 'text/event-stream',
+                  'x-request-id': 'browser-qa-stream-request',
+                },
+              });
+            }
+            return new Response(JSON.stringify({
+              id: 'resp_browser_qa',
+              output: [{
+                type: 'message',
+                role: 'assistant',
+                content: [{
+                  type: 'output_text',
+                  text: 'Governed browser QA model response.',
+                }],
               }],
-            }],
-            usage: {
-              input_tokens: 12,
-              input_tokens_details: {
-                cached_tokens: 0,
-                cache_write_tokens: 0,
+              usage: {
+                input_tokens: 12,
+                input_tokens_details: {
+                  cached_tokens: 0,
+                  cache_write_tokens: 0,
+                },
+                output_tokens: 6,
               },
-              output_tokens: 6,
-            },
-          }), {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              'x-request-id': 'browser-qa-request',
-            },
-          }),
+            }), {
+              status: 200,
+              headers: {
+                'content-type': 'application/json',
+                'x-request-id': 'browser-qa-request',
+              },
+            });
+          },
         }
       : {}),
   });
@@ -450,9 +480,12 @@ async function startHarness(
               && modelRuntime.bridge
             ) {
               return modelRuntime.bridge.executeTurn(
-                command.input as {
-                  readonly conversationId: string;
-                  readonly turnId: string;
+                {
+                  ...(command.input as {
+                    readonly conversationId: string;
+                    readonly turnId: string;
+                  }),
+                  onEvent: command.emit,
                 },
               );
             }
@@ -579,9 +612,10 @@ async function runCase(
   const name = `${engine}-${viewport.id}`;
   try {
     const response = await page.goto(harness.origin + FURY_GATEWAY_WEBCHAT_PATH, {
-      waitUntil: 'load',
+      waitUntil: 'domcontentloaded',
     });
     assert(response?.status() === 200, `${name}: WebChat HTTP status was not 200`);
+    await page.locator('#bootstrap-form').waitFor({ state: 'visible', timeout: 15_000 });
     const headers = response.headers();
     const csp = headers['content-security-policy'] ?? '';
     assert(csp.includes("default-src 'none'"), `${name}: CSP default-src is not deny-by-default`);
@@ -688,11 +722,23 @@ async function runCase(
     }
 
     await page.locator('#logout').click();
-    await page.waitForFunction(() =>
-      (document.getElementById('bootstrap-panel') as HTMLElement | null)?.hidden === false
-      && (document.getElementById('chat-panel') as HTMLElement | null)?.hidden === true
-      && document.getElementById('connection-label')?.textContent === 'Not connected',
-    undefined, { timeout: 8_000 });
+    try {
+      await page.waitForFunction(() =>
+        (document.getElementById('bootstrap-panel') as HTMLElement | null)?.hidden === false
+        && (document.getElementById('chat-panel') as HTMLElement | null)?.hidden === true
+        && document.getElementById('connection-label')?.textContent === 'Not connected',
+      undefined, { timeout: 8_000 });
+    } catch (error) {
+      const logoutState = await page.evaluate(() => ({
+        bootstrapHidden: (document.getElementById('bootstrap-panel') as HTMLElement | null)?.hidden,
+        chatHidden: (document.getElementById('chat-panel') as HTMLElement | null)?.hidden,
+        connectionLabel: document.getElementById('connection-label')?.textContent ?? null,
+        bootstrapStatus: document.getElementById('bootstrap-status')?.textContent ?? null,
+        readyState: document.readyState,
+      }));
+      console.error(`${name}: logout state before timeout ${JSON.stringify(logoutState)}`);
+      throw error;
+    }
     const loggedOut = await page.locator('#bootstrap-panel').isVisible();
     assert(loggedOut, `${name}: logout did not restore bootstrap UI`);
 
@@ -770,9 +816,10 @@ async function runModelEnabledCase(
   try {
     const response = await page.goto(
       harness.origin + FURY_GATEWAY_WEBCHAT_PATH,
-      { waitUntil: 'load' },
+      { waitUntil: 'domcontentloaded' },
     );
     assert(response?.status() === 200, `${name}: WebChat HTTP status was not 200`);
+    await page.locator('#bootstrap-form').waitFor({ state: 'visible', timeout: 15_000 });
 
     const config = await page.evaluate(async () => {
       const response = await fetch('/gateway/webchat/config.json', {
@@ -881,9 +928,10 @@ async function runToolEnabledCase(
   try {
     const response = await page.goto(
       harness.origin + FURY_GATEWAY_WEBCHAT_PATH,
-      { waitUntil: 'load' },
+      { waitUntil: 'domcontentloaded' },
     );
     assert(response?.status() === 200, `${name}: WebChat HTTP status was not 200`);
+    await page.locator('#bootstrap-form').waitFor({ state: 'visible', timeout: 15_000 });
 
     const config = await page.evaluate(async () => {
       const response = await fetch('/gateway/webchat/config.json', {
@@ -1033,9 +1081,10 @@ async function runMemoryEnabledCase(
   try {
     const response = await page.goto(
       harness.origin + FURY_GATEWAY_WEBCHAT_PATH,
-      { waitUntil: 'load' },
+      { waitUntil: 'domcontentloaded' },
     );
     assert(response?.status() === 200, `${name}: WebChat HTTP status was not 200`);
+    await page.locator('#bootstrap-form').waitFor({ state: 'visible', timeout: 15_000 });
 
     const config = await page.evaluate(async () => {
       const response = await fetch('/gateway/webchat/config.json', {
@@ -1155,24 +1204,33 @@ async function runMemoryEnabledCase(
   }
 }
 
+/** Name the engine and case in any failure, so CI logs say which browser and scenario broke. */
+async function labelled<T>(label: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`[${label}] ${message}`, { cause: error });
+  }
+}
+
 async function main(): Promise<void> {
   await mkdir(REPORT_DIR, { recursive: true });
   const harness = await startHarness();
   const modelHarness = await startHarness(true);
   const toolHarness = await startHarness(false, true);
-  const memoryHarness = await startHarness(true, false, true);
   try {
     const observations: QaObservation[] = [];
-    observations.push(...await runEngine('chromium', chromium, harness));
-    observations.push(...await runEngine('firefox', firefox, harness));
-    observations.push(...await runEngine('webkit', webkit, harness));
+    observations.push(...await labelled('chromium lifecycle', () => runEngine('chromium', chromium, harness)));
+    observations.push(...await labelled('firefox lifecycle', () => runEngine('firefox', firefox, harness)));
+    observations.push(...await labelled('webkit lifecycle', () => runEngine('webkit', webkit, harness)));
     assert(observations.length === 6, `expected 6 WebChat browser cases, got ${observations.length}`);
     assert(observations.every((item) => item.resynchronized && item.loggedOut), 'WebChat lifecycle evidence is incomplete');
 
     const modelCases: ModelQaObservation[] = [];
-    modelCases.push(await runModelEnabledCase('chromium', chromium, modelHarness));
-    modelCases.push(await runModelEnabledCase('firefox', firefox, modelHarness));
-    modelCases.push(await runModelEnabledCase('webkit', webkit, modelHarness));
+    modelCases.push(await labelled('chromium model-enabled', () => runModelEnabledCase('chromium', chromium, modelHarness)));
+    modelCases.push(await labelled('firefox model-enabled', () => runModelEnabledCase('firefox', firefox, modelHarness)));
+    modelCases.push(await labelled('webkit model-enabled', () => runModelEnabledCase('webkit', webkit, modelHarness)));
     assert(
       modelCases.every((item) =>
         item.assistantRendered
@@ -1185,9 +1243,9 @@ async function main(): Promise<void> {
     );
 
     const toolCases: ToolQaObservation[] = [];
-    toolCases.push(await runToolEnabledCase('chromium', chromium, toolHarness));
-    toolCases.push(await runToolEnabledCase('firefox', firefox, toolHarness));
-    toolCases.push(await runToolEnabledCase('webkit', webkit, toolHarness));
+    toolCases.push(await labelled('chromium tool-enabled', () => runToolEnabledCase('chromium', chromium, toolHarness)));
+    toolCases.push(await labelled('firefox tool-enabled', () => runToolEnabledCase('firefox', firefox, toolHarness)));
+    toolCases.push(await labelled('webkit tool-enabled', () => runToolEnabledCase('webkit', webkit, toolHarness)));
     assert(
       toolCases.every((item) =>
         item.proposalRequiredApproval
@@ -1202,10 +1260,18 @@ async function main(): Promise<void> {
       'WebChat governed tool browser evidence is incomplete',
     );
 
+    const runIsolatedMemoryCase = async (engine: EngineName, browserType: BrowserType): Promise<MemoryQaObservation> => {
+      const memoryHarness = await startHarness(true, false, true);
+      try {
+        return await labelled(`${engine} memory-enabled`, () => runMemoryEnabledCase(engine, browserType, memoryHarness));
+      } finally {
+        await memoryHarness.close();
+      }
+    };
     const memoryCases: MemoryQaObservation[] = [];
-    memoryCases.push(await runMemoryEnabledCase('chromium', chromium, memoryHarness));
-    memoryCases.push(await runMemoryEnabledCase('firefox', firefox, memoryHarness));
-    memoryCases.push(await runMemoryEnabledCase('webkit', webkit, memoryHarness));
+    memoryCases.push(await runIsolatedMemoryCase('chromium', chromium));
+    memoryCases.push(await runIsolatedMemoryCase('firefox', firefox));
+    memoryCases.push(await runIsolatedMemoryCase('webkit', webkit));
     assert(
       memoryCases.every((item) =>
         item.configRedacted
@@ -1247,7 +1313,6 @@ async function main(): Promise<void> {
     );
     console.log('Gateway WebChat browser QA passed: 15/15 real browser cases');
   } finally {
-    await memoryHarness.close();
     await toolHarness.close();
     await modelHarness.close();
     await harness.close();

@@ -66,8 +66,12 @@ function safeHeaderValue(value: string | null, maximum: number): string | undefi
 
 function emptyEvents(): AsyncIterable<unknown> {
   return Object.freeze({
-    async *[Symbol.asyncIterator](): AsyncGenerator<unknown> {
-      return;
+    [Symbol.asyncIterator](): AsyncIterator<unknown> {
+      return {
+        async next(): Promise<IteratorResult<unknown>> {
+          return { done: true, value: undefined };
+        },
+      };
     },
   });
 }

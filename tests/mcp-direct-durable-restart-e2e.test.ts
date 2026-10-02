@@ -42,10 +42,9 @@ async function runCrashWorker(
   const worker = fileURLToPath(
     new URL('./fixtures/mcp-direct-durable-armed-crash-worker.ts', import.meta.url),
   );
-  const tsx = join(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
   const child = spawn(
     process.execPath,
-    [tsx, worker, JSON.stringify({ root, counterPath })],
+    ['--import', 'tsx/esm', worker, JSON.stringify({ root, counterPath })],
     { stdio: ['ignore', 'pipe', 'pipe'] },
   );
   let stdout = '';
@@ -66,10 +65,9 @@ async function runReservationRaceWorker(root: string): Promise<{ readonly ok: bo
   const worker = fileURLToPath(
     new URL('./fixtures/mcp-direct-durable-reservation-race-worker.ts', import.meta.url),
   );
-  const tsx = join(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
   const child = spawn(
     process.execPath,
-    [tsx, worker, JSON.stringify({ root })],
+    ['--import', 'tsx/esm', worker, JSON.stringify({ root })],
     { stdio: ['ignore', 'pipe', 'pipe'] },
   );
   let stdout = '';

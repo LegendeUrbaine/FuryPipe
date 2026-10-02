@@ -13,8 +13,7 @@ const roots: string[] = [];
 
 async function runRecoveryWorker(request: Record<string, unknown>): Promise<{ code: number; stdout: string; stderr: string }> {
   const worker = fileURLToPath(new URL('./fixtures/recovery-worker.ts', import.meta.url));
-  const tsx = join(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
-  const child = spawn(process.execPath, [tsx, worker, JSON.stringify(request)], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['--import', 'tsx/esm', worker, JSON.stringify(request)], { stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
   let timedOut = false;

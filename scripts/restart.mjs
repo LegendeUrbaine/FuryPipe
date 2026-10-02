@@ -47,6 +47,7 @@
 //   FURYPIPE_PORT=48799 pnpm run restart
 
 import { spawn, spawnSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
@@ -191,7 +192,26 @@ export function listProcesses() {
     return fallback === null ? [] : parseWindowsProcessJson(fallback);
   }
   const res = spawnSync('ps', ['-A', '-o', 'pid=,args='], { encoding: 'utf8' });
-  if (res.error || res.status !== 0) return [];
+  if (res.error || res.status !== 0) {
+    // Some hardened containers allow `ps` from an interactive shell but deny
+    // its procfs self-lookup when launched as a child. Keep discovery useful
+    // without shelling out again by reading bounded /proc command lines.
+    try {
+      return readdirSync('/proc', { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && /^\d+$/u.test(entry.name))
+        .map((entry) => {
+          try {
+            const command = readFileSync(`/proc/${entry.name}/cmdline`, 'utf8').replaceAll('\0', ' ').trim();
+            return { pid: Number(entry.name), command };
+          } catch {
+            return undefined;
+          }
+        })
+        .filter((row) => row !== undefined && row.command.length > 0);
+    } catch {
+      return [];
+    }
+  }
   return parsePsOutput(res.stdout ?? '');
 }
 

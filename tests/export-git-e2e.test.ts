@@ -10,9 +10,6 @@ import { fileURLToPath } from 'node:url';
 // Runs the actual CLI via tsx against a throwaway git repo and asserts the
 // untracked-file filtering. Kept in its own file because it spawns a subprocess.
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-// tsx's JS entry, run via process.execPath: the .bin/tsx shim is a .cmd on
-// Windows, which spawnSync can't execute without a shell.
-const tsxCli = path.join(repoRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 const PROCESS_HOOK_TIMEOUT_MS = process.platform === 'win32' ? 30_000 : 15_000;
 
 function git(cwd: string, args: string[]): void {
@@ -47,7 +44,7 @@ describe('furypipe export --git (end-to-end)', () => {
   it('applies --include, the size cap, and the binary sniff to untracked files', () => {
     const run = spawnSync(
       process.execPath,
-      [tsxCli, 'src/node.ts', 'export', '--git', repo, '--include', '*.ts', '--out', outDir, '--json'],
+      ['--import', 'tsx/esm', 'src/node.ts', 'export', '--git', repo, '--include', '*.ts', '--out', outDir, '--json'],
       { cwd: repoRoot, encoding: 'utf8', timeout: 120_000 },
     );
     expect(run.status, `stderr:\n${run.stderr}`).toBe(0);

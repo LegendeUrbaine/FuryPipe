@@ -53,6 +53,14 @@ bench/runs/
 artifacts/cross-browser-qa/
 artifacts/dashboard-browser-qa/
 artifacts/gateway-webchat-browser-qa/
+artifacts/web-studio-browser-qa/
+artifacts/studio-browser-qa/
+artifacts/furybench-studio/
+# Graphify output for this repository: generated locally (graph.html, GRAPH_REPORT.md, graph.json, manifest.json); only the small test fixture is committed
+/graphify-out/
+artifacts/final-validation/
+artifacts/rc-preparation/
+artifacts/external-validation/
 
 # eval run artifacts (outputs, not sources)
 eval/verbatim-15/out_*/

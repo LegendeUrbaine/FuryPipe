@@ -13,6 +13,7 @@ import {
   type CodingRepository,
   type GitWorktreeProvider,
 } from '../src/coding-runtime.js';
+import { createRecoveryStore } from '../src/core/recovery-store.js';
 import {
   createPatchEngine,
   discoverPatchRepository,
@@ -132,6 +133,54 @@ describe('Phase 6 coding runtime', () => {
       expect(output.receipt.errorCode).toBe('output-limit');
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('persists coding outcome-unknown, blocks replay, and reconciles after restart', async () => {
+    const { root } = await fixture();
+    const recoveryRoot = await mkdtemp(join(tmpdir(), 'furypipe-coding-effects-'));
+    try {
+      const sandbox = await createCodingSandbox({
+        policyId: 'sandbox-recovery',
+        rootPath: root,
+        readRoots: ['.'],
+        writeRoots: ['.'],
+        allowedCommands: ['node'],
+        maxOutputBytes: 1024,
+        maxTimeoutMs: 2000,
+      });
+      const request = {
+        command: 'node',
+        args: ['-e', 'setTimeout(() => {}, 1000)'],
+        cwd: '.',
+        timeoutMs: 20,
+      } as const;
+      const first = createCodingProcessRuntime({
+        sandbox,
+        recovery: createRecoveryStore(recoveryRoot, { namespace: 'coding_effects' }),
+      });
+      const firstResult = await first.execute(await first.authorize(request));
+      const operationId = firstResult.receipt.recoveryOperationId;
+      expect(firstResult.receipt).toMatchObject({ outcome: 'outcome-unknown', errorCode: 'timeout' });
+      expect(operationId).toBeDefined();
+
+      const restarted = createCodingProcessRuntime({
+        sandbox,
+        recovery: createRecoveryStore(recoveryRoot, { namespace: 'coding_effects' }),
+      });
+      expect(await restarted.inspectOutcomeUnknown(operationId!)).toMatchObject({ state: 'outcome-unknown', operationId });
+      const replayPermit = await restarted.authorize(request);
+      await expect(restarted.execute(replayPermit)).rejects.toMatchObject({ code: 'recovery-required' });
+      const settled = await restarted.reconcileOutcomeUnknown(operationId!, {
+        outcome: 'failed',
+        evidenceSha256: 'c'.repeat(64),
+        confirmation: 'operator-confirmed',
+      });
+      expect(settled).toMatchObject({ state: 'terminal', outcome: 'failed', operationId });
+      expect(await restarted.listOutcomeUnknown()).toEqual([]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(recoveryRoot, { recursive: true, force: true });
     }
   });
 

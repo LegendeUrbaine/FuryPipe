@@ -80,6 +80,44 @@ The setup command is explicit by design: installing an npm package must not unex
 
 The default deployment is loopback-oriented. Non-loopback exposure requires an explicit operator security boundary; see [../SECURITY.md](../SECURITY.md).
 
+### Optional Media Studio provider runtime
+
+Media Studio is `NOT_CONFIGURED` by default. FuryPipe does not download a
+provider, install a plugin, or use the deterministic test adapter in the
+production host.
+
+To opt in to a real provider adapter, set the host module path before launch:
+
+```powershell
+$env:FURYPIPE_MEDIA_ADAPTER_MODULE = 'C:\absolute\path\to\furypipe-media-provider.mjs'
+furypipe start
+```
+
+The module must export either a default object or a
+`createFuryMediaGenerationHostModule(context)` factory returning
+`furypipe-media-host-module/v1` with a validated provider-neutral bundle input
+and one or more `FuryMediaGenerationAdapter` implementations. The provider
+module owns credentials and live health observation. FuryPipe verifies the
+bundle, registered profile, fresh healthy state, declared permissions and
+adapter capability before attaching the existing coordinator and durable job
+engine to Studio.
+
+Example module shape (metadata only; the adapter implementation stays in the
+provider package):
+
+```js
+export default {
+  format: 'furypipe-media-host-module/v1',
+  bundle: providerBundleInput,
+  adapters: [providerAdapter],
+};
+```
+
+If the variable is absent, invalid, unhealthy, or missing a declared secret,
+Studio remains preview-only and reports `NOT_CONFIGURED`. `confirm: true` is
+still required for live submission. Qwen/Ollama text inference does not count
+as an image, audio, or video generation provider.
+
 ## Gateway and local WebChat
 
 `furypipe gateway start` starts the dedicated VNext local Gateway. It is separate from the historical FuryPipe proxy listener and remains loopback-only in this phase.
@@ -406,14 +444,17 @@ If the selected listener port is already occupied, `furypipe start` fails closed
 
 ## Distribution and release status
 
-Current public package: the version published under the npm `latest` dist-tag.
+The latest public GitHub release in the canonical repository is v0.15.0.
+The 0.16.0 candidate is under validation in PR #238 and is not published.
+The npm registry state must be checked independently before installing a
+registry release; a green CI run is not publication evidence.
 
-Current GitHub release: the latest non-draft release in `Mistermode45/FuryPipe`.
+Current GitHub release:
+https://github.com/LegendeUrbaine/FuryPipe/releases/latest
 
-Do not infer either state from source metadata alone; publication and release status require registry/GitHub evidence.
-
-Package publication, GitHub release and production deployment are distinct lifecycle states.
-
-The release pipeline includes CI/security/supply-chain/provenance gates, but a green gate must not be used as evidence for an unrelated capability or external integration.
+Package publication, GitHub release and production deployment are distinct
+lifecycle states. The release pipeline includes CI, security, supply-chain and
+provenance gates, but a green gate must not be used as evidence for an
+unrelated capability or external integration.
 
 See [RELEASE_SECURITY.md](RELEASE_SECURITY.md).

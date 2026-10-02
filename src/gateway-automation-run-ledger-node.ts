@@ -109,6 +109,18 @@ export interface FuryGatewayAutomationTerminalEvidence {
   readonly now?: number;
 }
 
+/**
+ * Operator-supplied terminal evidence for a durable outcome-unknown run.
+ * Reconciliation is deliberately limited to known side-effect outcomes and
+ * never reclaims or replays the original execution identity.
+ */
+export interface FuryGatewayAutomationOutcomeReconciliationInput {
+  readonly outcome: 'succeeded' | 'failed';
+  readonly evidenceSha256: string;
+  readonly now?: number;
+  readonly confirmation: 'operator-confirmed';
+}
+
 export type FuryGatewayAutomationRunStatus =
   | {
       readonly format: typeof FURY_GATEWAY_AUTOMATION_RUN_STATUS_FORMAT;
@@ -211,6 +223,10 @@ export interface FuryGatewayAutomationRunLedger {
   settleArmed(
     armed: FuryGatewayAutomationArmedEvidence,
     terminal: FuryGatewayAutomationTerminalEvidence,
+  ): Promise<FuryGatewayAutomationRunStatus>;
+  reconcileOutcomeUnknown(
+    runIdSha256: string,
+    input: FuryGatewayAutomationOutcomeReconciliationInput,
   ): Promise<FuryGatewayAutomationRunStatus>;
   settleWithoutSideEffect(
     claim: FuryGatewayAutomationClaimEvidence,
@@ -1709,6 +1725,90 @@ export function createFuryGatewayAutomationRunLedger(
           'run-state-corrupt',
           armed.runIdSha256,
         );
+      }
+      return status;
+    },
+
+    async reconcileOutcomeUnknown(
+      runIdSha256: string,
+      input: FuryGatewayAutomationOutcomeReconciliationInput,
+    ): Promise<FuryGatewayAutomationRunStatus> {
+      assertSha(runIdSha256);
+      exactDataRecord(
+        input,
+        ['outcome', 'evidenceSha256', 'now', 'confirmation'],
+        ['outcome', 'evidenceSha256', 'confirmation'],
+      );
+      if (
+        input.confirmation !== 'operator-confirmed'
+        || (input.outcome !== 'succeeded' && input.outcome !== 'failed')
+      ) {
+        throw new FuryGatewayAutomationRunLedgerError('invalid-input');
+      }
+      assertSha(input.evidenceSha256);
+      const at = input.now === undefined ? nowValue(now) : safeTimestamp(input.now);
+      const loaded = await loadStatus(runIdSha256, at);
+      if (!loaded.classified || !loaded.status) {
+        throw new FuryGatewayAutomationRunLedgerError('run-not-found', runIdSha256);
+      }
+      if (loaded.status.state !== 'outcome-unknown') {
+        throw new FuryGatewayAutomationRunLedgerError('run-conflict', runIdSha256);
+      }
+      const latest = loaded.classified.claims.at(-1);
+      if (!latest) {
+        throw new FuryGatewayAutomationRunLedgerError('run-state-corrupt', runIdSha256);
+      }
+      const armed = loaded.classified.armedByGeneration.get(latest.record.generation);
+      if (!armed) {
+        throw new FuryGatewayAutomationRunLedgerError('run-state-corrupt', runIdSha256);
+      }
+      if (at < armed.record.armedAt) {
+        throw new FuryGatewayAutomationRunLedgerError('invalid-input');
+      }
+
+      const record: TerminalRecord = Object.freeze({
+        format: FURY_GATEWAY_AUTOMATION_TERMINAL_RECORD_FORMAT,
+        runIdSha256,
+        triggerIdSha256: latest.record.triggerIdSha256,
+        generation: latest.record.generation,
+        claimIdSha256: latest.record.claimIdSha256,
+        claimRecordSha256: latest.handle.digest,
+        armedRecordSha256: armed.handle.digest,
+        executionIdentitySha256: latest.record.executionIdentitySha256,
+        terminalAt: at,
+        outcome: input.outcome,
+        evidenceSha256: input.evidenceSha256,
+      });
+      try {
+        await store.putBounded(
+          canonicalBytes(record),
+          recordMetadata(record),
+          {
+            metadata: { system: SYSTEM },
+            maxMatches: maxRecords,
+            additionalBounds: [{
+              metadata: slotMetadata(runIdSha256, 'terminal', latest.record.generation),
+              maxMatches: 1,
+            }],
+            matchConstraints: [
+              {
+                metadata: exactRecordMetadata(armed.record),
+                minMatches: 1,
+                maxMatches: 1,
+              },
+              {
+                metadata: slotMetadata(runIdSha256, 'claim', latest.record.generation + 1),
+                maxMatches: 0,
+              },
+            ],
+          },
+        );
+      } catch {
+        throw new FuryGatewayAutomationRunLedgerError('run-conflict', runIdSha256);
+      }
+      const status = await api.inspect(runIdSha256, at);
+      if (!status) {
+        throw new FuryGatewayAutomationRunLedgerError('run-state-corrupt', runIdSha256);
       }
       return status;
     },

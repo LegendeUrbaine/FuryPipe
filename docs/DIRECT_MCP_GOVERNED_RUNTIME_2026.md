@@ -2,9 +2,16 @@
 
 ## Status
 
-Foundation track only. This document does **not** claim that FuryPipe currently
-connects to or executes third-party MCP tools. The passive runtime merged in PR
-#184 remains observation-only.
+This file is the **historical M0 design baseline**, not the current runtime
+status. The later Direct MCP tracks are documented separately:
+
+- M1 transport and bounded inventory: `DIRECT_MCP_CLIENT_TRANSPORT_2026.md`;
+- M3 governed single-call execution: `DIRECT_MCP_GOVERNED_EXECUTION_2026.md`;
+- M4/M5 replay and durable recovery: the corresponding `DIRECT_MCP_*` documents.
+
+The M0 statements below remain useful as invariants, but claims such as “no
+MCP client SDK” and “cannot call a tool” describe the M0 snapshot only. They
+must not be used as a current product-status statement.
 
 ## Lifecycle contract
 
@@ -40,7 +47,7 @@ MCP 2026-07-28 revision.
 - connection alone is therefore not health evidence;
 - successful bounded `listTools()` may provide liveness evidence.
 
-## M0 — this PR
+## M0 — historical baseline
 
 This track adds only a process-local governance state machine:
 

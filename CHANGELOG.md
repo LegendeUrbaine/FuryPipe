@@ -4,10 +4,8 @@ All notable changes to FuryPipe are documented here. This project follows
 [Semantic Versioning](https://semver.org/) (pre-1.0: minor = features /
 behavioral changes, patch = fixes).
 
-> Historical entries inherited from the pre-FuryPipe pxpipe codebase intentionally
-> retain legacy names such as `pxpipe` and `PXPIPE_*` when they describe the
-> behavior or interface that existed at that point in history. New public
-> interfaces use `furypipe` and `FURYPIPE_*`.
+> Historical entries below preserve technical chronology. New public interfaces use
+> FuryPipe terminology and the active configuration namespace.
 
 ## Unreleased
 
@@ -31,6 +29,31 @@ behavioral changes, patch = fixes).
   The child now starts through an explicit hardened `cmd.exe` boundary instead
   of Node's deprecated implicit `shell: true` mode.
 - Preserved public TLS trust in FuryLink child processes on Windows by falling back to Node's built-in public root certificates when the OS exposes no PEM bundle; replacement trust variables no longer receive a FuryLink-CA-only bundle.
+
+## 0.16.0 — Release candidate — 2026-09-24
+
+### Changed
+
+- Prepared the next FuryPipe package line with a real 0.15.0 → 0.16.0
+  tarball upgrade contract and a controlled package/config rollback to
+  0.15.0.
+- Added guarded provider, OIDC and remote-MCP validation entry points. They
+  remain authorization-gated and perform no external request by default.
+- Added release-acceptance checklists for screen-reader, visual and final
+  maintainer review.
+
+### Fixed
+
+- Installed package: `furypipe gateway start` no longer crashes with
+  `Dynamic require of "child_process" is not supported`; the CommonJS MCP
+  stdio and WebSocket runtimes stay external to the ESM bundle and load
+  lazily from declared dependencies. The package smoke now drives the
+  installed Gateway through an authenticated `tools.source.inspect.stdio`
+  against a real MCP stdio child.
+- The npm tarball is identical in content on Linux, macOS and Windows
+  (LF checkouts, mode 644 files, CI-enforced content digest).
+- Automation definition reasons reject control characters through an escaped
+  character class.
 
 ## 0.15.0 — 2026-09-16
 
@@ -79,8 +102,8 @@ behavioral changes, patch = fixes).
 
 ### FuryPipe public release
 - First public npm publication of `furypipe@0.13.2` and GitHub Release `v0.13.2`.
-- FuryPipe is the public package/CLI identity; the `pxpipe` binary and selected
-  `PXPIPE_*` variables remain only as legacy compatibility fallbacks.
+- FuryPipe is the public package/CLI identity; the `FuryPipe` binary and selected
+  `FURYPIPE_*` variables remain only as legacy compatibility fallbacks.
 - V5 release hardening combines source-bound CI/security evidence, release
   readiness, governed provider execution, modern MCP surfaces, agent/context
   orchestration, Continuous Memory, Control Room and Web Studio.
@@ -96,7 +119,7 @@ behavioral changes, patch = fixes).
 - **Rendered-page cache, now documented.** It landed in #158 and shipped in
   0.13.0 with no changelog entry, so this backfills it: identical render inputs
   return the identical pages instead of being re-rasterized, bounded by total
-  retained bytes via `PXPIPE_RENDER_CACHE_BYTES`. Frozen history chunks are
+  retained bytes via `FURYPIPE_RENDER_CACHE_BYTES`. Frozen history chunks are
   byte-identical across turns by design, so a long session was paying full
   render cost for pages that provably did not change.
 - Live `render_cache` counters on `/proxy-stats`: `entries`, `bytes`,
@@ -105,7 +128,7 @@ behavioral changes, patch = fixes).
   larger than the entire budget, which are never stored — the failure mode a
   too-small budget produces, and one that otherwise looks identical to a
   permanently cold cache (#210).
-- `PXPIPE_RENDER_CACHE_BYTES` is now readable on Workers. Bindings are not
+- `FURYPIPE_RENDER_CACHE_BYTES` is now readable on Workers. Bindings are not
   visible to core at module-init time, so the Worker entrypoint applies the
   budget per request through the new `setRenderCacheMaxBytes()`.
 
@@ -124,11 +147,11 @@ behavioral changes, patch = fixes).
   ceiling.
 
 ### Fixed
-- `pxpipe warp` pointed `SSL_CERT_FILE`, `CURL_CA_BUNDLE` and
-  `REQUESTS_CA_BUNDLE` at the pxpipe CA alone. Those variables replace the
+- `the old warp command` pointed `SSL_CERT_FILE`, `CURL_CA_BUNDLE` and
+  `REQUESTS_CA_BUNDLE` at the FuryPipe CA alone. Those variables replace the
   trust store, so every other HTTPS client in the warped session (gcloud,
   pip, gws) lost the public roots and failed verification. They now get
-  `warp-ca-bundle.pem` = pxpipe CA + system roots; `NODE_EXTRA_CA_CERTS`
+  `warp-ca-bundle.pem` = FuryPipe CA + system roots; `NODE_EXTRA_CA_CERTS`
   keeps the CA-only file since Node appends (#245, #247).
 - Gemini history collapse is capped at 32 images (was 72) to prevent
   vision-side TTFT stalls on long sessions.
@@ -163,7 +186,7 @@ behavioral changes, patch = fixes).
 ## 0.13.0 — 2026-08-09
 
 ### Added
-- `pxpipe stats [--json] [--file <p>]` — offline summary of the events log with
+- `furypipe stats [--json] [--file <p>]` — offline summary of the events log with
   no proxy server running (restores after-the-fact analysis the dashboard only
   offers while live). Adds a measured-savings headline (`count_tokens` baseline
   vs real usage over probe-OK rows only); the same fields are exposed on
@@ -204,7 +227,7 @@ behavioral changes, patch = fixes).
 - OpenAI-route credentials are decided by an explicit policy instead of
   header sniffing (#200).
 - `restart` only stops the proxy serving this checkout's port, not every
-  pxpipe on the machine (#205).
+  the runtime on the machine (#205).
 
 ### Changed
 - Docs state the model default the runtime actually applies (#203).
@@ -329,7 +352,7 @@ behavioral changes, patch = fixes).
   new regression guard enforces d≥2 across letters and digits only.
 - A production-faithful Gemini positional-retrieval sweep used the actual
   transformer and 6, 18, and 30 history images (within the 32-image cap).
-  Pxpipe/raw row localization was 18/30 versus 17/30, semantic recognition was
+  FuryPipe/raw row localization was 18/30 versus 17/30, semantic recognition was
   11/30 versus 13/30, and exact retrieval tied at 3/30. This is directional
   evidence, not a broad Lost-in-the-Middle win or loss; see
   `eval/gemini-profile/QUALITY_RESULTS.md`.
@@ -385,8 +408,8 @@ behavioral changes, patch = fixes).
 
 ### Security
 - Worker: deploying with an `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` override now
-  requires `PXPIPE_WORKER_SECRET`; callers authenticate via the
-  `x-pxpipe-secret` header. Without the secret the Worker returns 503 instead
+  requires `FURYPIPE_WORKER_SECRET`; callers authenticate via the
+  `x-furypipe-secret` header. Without the secret the Worker returns 503 instead
   of proxying on your key.
 - Node: dashboard binds to loopback (127.0.0.1) by default; set `HOST` to opt
   into all interfaces.
@@ -394,7 +417,7 @@ behavioral changes, patch = fixes).
 
 ### Fixed
 - History imaging no longer teaches the model to skip `Read` calls.
-- Fixed the pxpipe-vs-plain-Claude demo image link.
+- Fixed the FuryPipe-vs-plain-Claude demo image link.
 
 ### Docs
 - README cut to 217 lines — caveats deduped, benchmark prose moved to eval/
@@ -419,12 +442,12 @@ behavioral changes, patch = fixes).
 
 ### Fixed
 - **Relocated env block is now wrapped in `<system-reminder>` tags.** The
-  volatile `# Environment` text that pxpipe moves out of the cached system
+  volatile `# Environment` text that FuryPipe moves out of the cached system
   prefix used to be appended to the last user message as bare prose — on an
   empty or short user turn it could read as the user's entire message, and
   models would mis-attribute it ("your message consisted of environment
   metadata"). The block now carries an explicit provenance header
-  ("Context relocated by pxpipe from the system prompt … not written by the
+  ("Context relocated by the runtime from the system prompt … not written by the
   user"), fixing attribution. No cache impact: the wrapper rides the volatile
   tail behind all cache breakpoints (~60 chars/request).
 
@@ -436,7 +459,7 @@ behavioral changes, patch = fixes).
   instead of anecdotal.
 - **Headless bench:** multi-turn `claude -p` driver + `events.jsonl` scorer for
   fast, non-interactive A/B runs; plus a constant-cost render-style eval harness.
-- **`PXPIPE_DUMP_DIR`** persists rendered PNGs per request for demo/debug
+- **`FURYPIPE_DUMP_DIR`** persists rendered PNGs per request for demo/debug
   inspection of exactly what the model saw.
 - **Dashboard/factsheet:** one-time cache-create losses tagged in the recent
   table; factsheet carries occurrence counts with ticket-style codes.
@@ -462,7 +485,7 @@ behavioral changes, patch = fixes).
 ### Docs
 - **Fable 5 side-by-side demo** in the README with verified numbers from the
   recording — same two tasks, same answers: plain $42.21 / 96% context vs
-  pxpipe $4.51 — plus the honest caveat (compressed arm needed one nudge for
+  FuryPipe $4.51 — plus the honest caveat (compressed arm needed one nudge for
   single-reply format) and the full attempt log in
   `demo/effective-context/ATTEMPTS.md`.
 - Node transform hook documented as kill-switch only.
@@ -533,7 +556,7 @@ behavioral changes, patch = fixes).
   the model the image is prior context, not the current request — reinforcing the
   turn-index so a stale opening turn doesn't read as live. (`openai.ts`)
 - **Honest cache math.** Savings are priced warm whenever a cache read was actually
-  observed (`cache_read > 0`), even when pxpipe has no in-memory warmth prior (after a
+  observed (`cache_read > 0`), even when FuryPipe has no in-memory warmth prior (after a
   restart/eviction or on the first tracked turn). Pricing those turns cold billed the
   text counterfactual a 1.25× create on a prefix we know was cached — fabricating
   inflated "saved" rows. Applied across the live dashboard, its replay path, and the
@@ -570,14 +593,14 @@ it were the live request).
   colored via a parallel "slot string" carried from serialize time, replacing the
   parse-back that miscolored a body quoting a literal tag. (`render.ts`)
 - **Per-model GPT profiles (`gpt-model-profiles.ts`).** Vision-cost regime, strip
-  width, and max image height per model id, retunable via `PXPIPE_GPT_PROFILES` (a
+  width, and max image height per model id, retunable via `FURYPIPE_GPT_PROFILES` (a
   JSON model-id-prefix map) without a code change. Built-ins are behavior-identical
   to the prior hardcoded values.
 
 ### Changed
 - **↵-packing for sentinel-bearing content.** A pre-existing ↵ (U+21B5) in content
   is swapped to ⏎ (U+23CE) in render-prep so `reflow` packs newlines instead of
-  bailing to a raw, unpacked render — common when the content is about pxpipe
+  bailing to a raw, unpacked render — common when the content is about FuryPipe
   itself (rendered dumps, OCR). Render-only; originals are preserved.
 
 ### Fixed
@@ -638,14 +661,14 @@ New library surface for harness authors, opt-in GPT-5.x / Responses API support,
 and a round of dashboard-honesty and cache-correctness fixes.
 
 ### Added
-- **Library API (`pxpipe/transform`):** `transformAnthropicMessages` now accepts
+- **Library API (`FuryPipe transform API`):** `transformAnthropicMessages` now accepts
   `keepSharp` (pin specific blocks as text so the caller controls what stays
   legible) and `emitRecoverable` (a provenance-recovery channel surfaced on
   `info.recoverable`). New exported types `KeepSharpBlock`, `RecoverableBlock`.
 - **Edge / Workers-safe packaging.** `process.env` access is `typeof`-guarded;
   `@napi-rs/canvas` moved to `devDependencies` (the atlas is baked at build time),
   so the runtime is pure-JS and runs on Node and Cloudflare Workers unchanged.
-- **GPT-5.x family + Responses API (opt-in, off by default).** `isPxpipeSupportedGptModel`
+- **GPT-5.x family + Responses API (opt-in, off by default).** `the GPT model capability gate`
   gates the `gpt-5`/`5.5`/`5.6`/`-mini`/`-nano` family; a 768 px portrait-strip
   render profile avoids OpenAI's mandatory shortest-side-768 downscale; an OpenAI
   vision-token cost model replaces the Anthropic 750 px/token math for the GPT
@@ -658,7 +681,7 @@ and a round of dashboard-honesty and cache-correctness fixes.
   so slab + history cache as one stable prefix — created once, then read at 0.1×.
   Previously the ~141k-token history image re-created at the 1.25× rate on warm
   turns, turning a real compression win into a net loss. Marker count is
-  unchanged: pxpipe still never *adds* a breakpoint, only relocates the caller's.
+  unchanged: FuryPipe still never *adds* a breakpoint, only relocates the caller's.
 - **Dashboard honesty.** The Details headline and the session hero now use
   cache-weighted tokens (matching the Saved column) instead of dividing the raw
   `count_tokens` baseline by sent tokens — which over-claimed "fewer tokens" even
@@ -694,7 +717,7 @@ multi-agent code review with five confirmed fixes. Reviewed at extra-high recall
 ### Changed
 - **Render page ceiling raised to ~1932×1932.** Fable 5 / Opus 4.8 accept images
   up to 2576 px long edge / 4784 visual tokens, but a request with >20 images
-  (pxpipe always sends many) is held to the stricter ≤2000 px/side rule — so the
+  (the runtime sends many) is held to the stricter ≤2000 px/side rule — so the
   real ceiling is ~1932×1932 (1928×1928 = 69×69 = 4761 tokens). `MAX_HEIGHT_PX`
   1568→1932; dense tool/history pages now `DENSE_CONTENT_COLS=384` /
   `DENSE_CONTENT_CHARS_PER_IMAGE=92160` (1928×1928 full page) — fewer image
@@ -705,7 +728,7 @@ multi-agent code review with five confirmed fixes. Reviewed at extra-high recall
   been independently re-eval'd (revert = the four render constants).
 - **Opus is OFF by default.** Production scope defaults to **Fable-5 only**;
   Opus 4.8/4.7 are opt-in (they read imaged content at a measurable tax — see
-  FINDINGS.md). Opt in via `PXPIPE_MODELS` or the dashboard chips.
+  FINDINGS.md). Opt in via `FURYPIPE_MODELS` or the dashboard chips.
 - **Honest savings accounting.** Per-turn/session savings are the real
   `baseline_eff − actual_eff` with **no ≥0 floor** — a net-losing turn (e.g. a
   cache_create-heavy image rewrite) now reports the real loss instead of a
@@ -717,7 +740,7 @@ multi-agent code review with five confirmed fixes. Reviewed at extra-high recall
   of every rendered page, reached via a **"view"** link on each recent-requests
   row.
 - **Flexible "compress models" chips** — the toggle set is the union of a model
-  catalog (Fable 5, Opus 4.8/4.7, Sonnet 4.6, Haiku 4.5), the `PXPIPE_MODELS`
+  catalog (Fable 5, Opus 4.8/4.7, Sonnet 4.6, Haiku 4.5), the `FURYPIPE_MODELS`
   env scope, and the currently-active scope, so any env-enabled model stays
   toggleable (off ↔ on). Runtime-only override of the compress scope.
 - **Demos** — `demo/cost-ab/` (cost A/B on a real coding task) and

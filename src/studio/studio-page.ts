@@ -75,6 +75,7 @@ const ICONS: Readonly<Record<string, string>> = Object.freeze({
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   compose: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/>',
+  workspace: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18M8 4v5M16 4v5M8 14h.01M12 14h.01M16 14h.01"/>',
   video: '<rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3z"/>',
   cowork: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/>',
   code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
@@ -400,6 +401,8 @@ html[data-theme="system"] .palette{background:var(--b2)}
 @media (hover:hover) and (pointer:fine){main>section:not(.chat) .card:hover{border-color:rgba(255,122,40,.15);box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 28px 58px -42px rgba(0,0,0,.98),0 0 36px -28px rgba(255,90,0,.35);transform:translateY(-1px)}}
 .card h2{font:650 15px/1.3 var(--display);margin:0 0 14px;letter-spacing:-.01em}
 .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))}
+.workspace-view .workspace-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;border-color:rgba(255,122,40,.22);background:radial-gradient(600px 180px at 5% 0,rgba(255,106,26,.13),transparent 70%),linear-gradient(180deg,var(--b2),var(--b1))}.workspace-view .workspace-hero h2{font-size:20px;margin-bottom:7px}.workspace-view .workspace-hero p{margin:0;max-width:68ch}.workspace-view .workspace-kicker{color:var(--o-hot);font:750 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}.workspace-view .workspace-counts{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.workspace-view .workspace-counts span{border:1px solid var(--line-2);border-radius:999px;padding:5px 9px;color:var(--muted);font:600 11px/1 var(--mono)}.workspace-view .workspace-counts b{color:var(--ink)}.workspace-view .workspace-flow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.workspace-view .workspace-step{border:1px solid var(--line);border-radius:12px;padding:14px;background:rgba(255,255,255,.018)}.workspace-view .workspace-step strong{display:block;color:var(--ink);font-size:13px;margin-bottom:6px}.workspace-view .workspace-step small{display:block;color:var(--muted);line-height:1.45}.workspace-view .workspace-step[data-state="done"]{border-color:rgba(95,217,154,.32)}.workspace-view .workspace-step[data-state="active"]{border-color:var(--o-line);box-shadow:0 0 24px -20px var(--o-glow)}.workspace-view .workspace-task-list,.workspace-view .workspace-artifact-list{display:flex;flex-direction:column;gap:9px}.workspace-view .workspace-record{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:11px;padding:11px 12px;background:var(--b1)}.workspace-view .workspace-record h3{font:650 13px/1.3 var(--display);margin:0 0 4px;overflow-wrap:anywhere}.workspace-view .workspace-record p{margin:0;color:var(--muted);font-size:12px}.workspace-view .workspace-record .badge{flex:none}.workspace-view .workspace-advanced{margin-top:12px}.workspace-view .workspace-evidence{white-space:pre-wrap;overflow-wrap:anywhere}
+@media (max-width:700px){.workspace-view .workspace-hero{display:block}.workspace-view .workspace-flow{grid-template-columns:1fr}.workspace-view .workspace-record{display:block}.workspace-view .workspace-record .badge{display:inline-flex;margin-top:8px}}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th,td{text-align:left;padding:10px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 th{color:var(--muted);font:600 11px/1.2 var(--font);letter-spacing:.07em;text-transform:uppercase}
@@ -586,11 +589,11 @@ const SCRIPT = String.raw`
   const tpl = document.createElement('template');
   function ic(name, cls) { tpl.innerHTML = '<svg class="' + (cls || 'i') + '" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || '') + '</svg>'; return tpl.content.firstChild; }
   const store = { get(k, d) { try { const v = localStorage.getItem('furypipe.studio.' + k); return v === null ? d : v; } catch { return d; } }, set(k, v) { try { localStorage.setItem('furypipe.studio.' + k, v); } catch {} } };
-  const views = ['chat','video','media','observability','marketplace','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
-  const VIEW_TITLES = { chat: 'Chat', video: 'Video Studio', media: 'Media Studio', observability: 'Observability / Cost', marketplace: 'Marketplace', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
+  const views = ['workspace','chat','video','media','observability','marketplace','autopilot','cowork','code','agents','mission','automations','models','connections','runtimes','skills','mcp','extensions','artifacts','knowledge','web','memory','integrations','support','settings'];
+  const VIEW_TITLES = { workspace: 'Workspace', chat: 'Chat', video: 'Video Studio', media: 'Media Studio', observability: 'Observability / Cost', marketplace: 'Marketplace', autopilot: 'Fury Autopilot', cowork: 'Cowork', code: 'Code', agents: 'Agents', mission: 'Mission Control', automations: 'Automations', models: 'Models', connections: 'Connections', runtimes: 'Runtimes', skills: 'Skills', mcp: 'MCP servers', extensions: 'Extensions', artifacts: 'Artifacts', knowledge: 'Knowledge', web: 'Web', memory: 'Memory', integrations: 'Integrations', support: 'Support FuryPipe', settings: 'Settings' };
   const PROVIDER = { ollama: 'Ollama', lmstudio: 'LM Studio', llamacpp: 'llama.cpp', vllm: 'vLLM', sglang: 'SGLang', localai: 'LocalAI', jan: 'Jan', 'openai-compatible': 'OpenAI-compatible', 'anthropic-compatible': 'Anthropic-compatible' };
   const SETUP = { ollama: 'https://ollama.com/download', lmstudio: 'https://lmstudio.ai', llamacpp: 'https://github.com/ggml-org/llama.cpp', vllm: 'https://docs.vllm.ai', sglang: 'https://docs.sglang.ai', localai: 'https://localai.io', jan: 'https://jan.ai' };
-  const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, media: null, video: null, observability: null, marketplace: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
+  const state = { local: null, hw: null, modelHub: null, harnesses: null, connections: null, media: null, video: null, observability: null, marketplace: null, workspace: null, conv: null, pick: 'auto', lastRoute: null, autopilot: null, autopilotMessages: [], files: [], pastes: [], web: false, kb: false, busy: null, activity: new Map() };
   /* ---------- Locale / i18n ---------- */
   const SUPPORTED_LANGUAGES = Object.freeze(['en', 'fr']);
   const FR = Object.freeze({
@@ -1111,6 +1114,7 @@ const SCRIPT = String.raw`
     }
     firstRoute = false;
     if (name === 'chat' || name === 'models') loadLocal();
+    if (name === 'workspace') loadWorkspace();
     if (name === 'media') loadMedia();
     if (name === 'video') loadVideo();
     if (name === 'observability') loadObservability();
@@ -1141,6 +1145,60 @@ const SCRIPT = String.raw`
     }
   }
   addEventListener('hashchange', route);
+
+  /* ---------- VNext-01 unified workspace ---------- */
+  function workspaceBadgeClass(status) { return status === 'SUCCEEDED' ? 'ok' : status === 'CONFIRMED' ? 'warn' : status === 'BLOCKED' ? 'bad' : 'muted'; }
+  function renderWorkspace(data) {
+    const workspace = data.workspace || data;
+    state.workspace = workspace;
+    $('#workspace-title').textContent = workspace.title;
+    $('#workspace-name').value = workspace.title;
+    $('#workspace-summary').textContent = workspace.conversationIds.length + ' conversation(s) · ' + workspace.tasks.length + ' task(s) · ' + workspace.artifactIds.length + ' artifact(s) · revision ' + workspace.revision;
+    const counts = $('#workspace-counts'); counts.replaceChildren(
+      el('span', {}, el('b', { text: String(workspace.conversationIds.length) }), ' conversation'),
+      el('span', {}, el('b', { text: String(workspace.tasks.length) }), ' task'),
+      el('span', {}, el('b', { text: String(workspace.artifactIds.length) }), ' artifact'),
+    );
+    const hasConversation = workspace.conversationIds.length > 0;
+    const hasTask = workspace.tasks.length > 0;
+    const hasArtifact = workspace.artifactIds.length > 0;
+    const steps = $$('#workspace-flow .workspace-step');
+    if (steps[0]) steps[0].dataset.state = hasConversation ? 'done' : 'active';
+    if (steps[1]) steps[1].dataset.state = hasTask ? (workspace.tasks.some((task) => task.status === 'CONFIRMED' || task.status === 'SUCCEEDED') ? 'done' : 'active') : hasConversation ? 'active' : '';
+    if (steps[2]) steps[2].dataset.state = hasArtifact ? 'done' : hasTask ? 'active' : '';
+    const list = $('#workspace-task-list'); list.replaceChildren();
+    if (!workspace.tasks.length) list.append(el('p', { class: 'muted', text: 'No task yet. Plan one from this project.' }));
+    for (const task of workspace.tasks.slice().reverse()) {
+      const record = el('div', { class: 'workspace-record' });
+      const copy = el('div'); copy.append(el('h3', { text: task.objective }), el('p', { text: task.dispatch.status + ' · ' + task.dispatch.mode + ' · ' + task.planDigest.slice(0, 12) }));
+      const actions = el('div'); actions.append(badge(task.status, workspaceBadgeClass(task.status)));
+      if (task.status === 'PLANNED') {
+        const confirmButton = el('button', { type: 'button', class: 'secondary', text: 'Confirm task' });
+        confirmButton.addEventListener('click', () => confirmWorkspaceTask(task.id)); actions.append(confirmButton);
+      }
+      record.append(copy, actions); list.append(record);
+    }
+    const select = $('#workspace-artifact-task');
+    const previous = select.value;
+    select.replaceChildren(el('option', { value: '', text: workspace.tasks.some((task) => task.status === 'CONFIRMED') ? 'Choose a confirmed task' : 'Plan and confirm a task first' }));
+    for (const task of workspace.tasks.filter((candidate) => candidate.status === 'CONFIRMED')) select.append(el('option', { value: task.id, text: task.id + ' · ' + task.objective.slice(0, 70) }));
+    if ([...select.options].some((option) => option.value === previous)) select.value = previous;
+    $('#workspace-evidence').textContent = JSON.stringify({ format: workspace.format, workspaceId: workspace.workspaceId, revision: workspace.revision, conversationIds: workspace.conversationIds, tasks: workspace.tasks.map((task) => ({ id: task.id, status: task.status, dispatch: task.dispatch, execution: task.execution, artifactId: task.artifactId || null, artifactContentSha256: task.artifactContentSha256 || null, verification: task.verification || null })), artifactIds: workspace.artifactIds, executionAuthority: false }, null, 2);
+  }
+  async function loadWorkspace() {
+    try { renderWorkspace(await getJson('/api/studio/workspace.json')); }
+    catch (e) { $('#workspace-summary').textContent = 'Workspace unavailable: ' + e.message; }
+  }
+  async function confirmWorkspaceTask(taskId) {
+    if (!confirm('Confirm this governed task? No agent starts; this unlocks the explicit artifact write.')) return;
+    const status = $('#workspace-task-status');
+    try { const result = await post('/api/studio/workspace/task/confirm', { taskId, confirm: true }); renderWorkspace(result); status.textContent = 'Task confirmed. Agent execution remains NOT_EXECUTED.'; }
+    catch (e) { status.textContent = 'Task not confirmed: ' + e.message; }
+  }
+  $('#workspace-name-form').addEventListener('submit', async (event) => { event.preventDefault(); try { renderWorkspace(await post('/api/studio/workspace/rename', { title: $('#workspace-name').value.trim() })); } catch (e) { $('#workspace-summary').textContent = 'Rename failed: ' + e.message; } });
+  $('#workspace-conversation-form').addEventListener('submit', async (event) => { event.preventDefault(); const status = $('#workspace-conversation-status'); try { const result = await post('/api/studio/workspace/conversation', { title: $('#workspace-conversation-title').value.trim(), content: $('#workspace-conversation-content').value }); renderWorkspace(result); status.textContent = 'Conversation attached to this workspace.'; $('#workspace-conversation-content').value = ''; } catch (e) { status.textContent = 'Conversation not created: ' + e.message; } });
+  $('#workspace-task-form').addEventListener('submit', async (event) => { event.preventDefault(); const status = $('#workspace-task-status'); const files = $('#workspace-task-files').value.split(/\n/).map((value) => value.trim()).filter(Boolean); try { const result = await post('/api/studio/workspace/task/plan', { objective: $('#workspace-task-objective').value, plannedFiles: files, allowCloud: $('#workspace-task-cloud').checked }); renderWorkspace(result); status.textContent = 'Task planned · ' + result.task.dispatch.status + ' · no agent executed.'; } catch (e) { status.textContent = 'Task not planned: ' + e.message; } });
+  $('#workspace-artifact-form').addEventListener('submit', async (event) => { event.preventDefault(); const status = $('#workspace-artifact-status'); try { const result = await post('/api/studio/workspace/artifact/commit', { taskId: $('#workspace-artifact-task').value, title: $('#workspace-artifact-title').value, kind: 'markdown', content: $('#workspace-artifact-content').value, confirm: $('#workspace-artifact-confirm').checked }); renderWorkspace(result); status.textContent = 'Artifact persisted and SHA-256 verified: ' + result.verification.contentSha256.slice(0, 16) + '…'; $('#workspace-artifact-confirm').checked = false; } catch (e) { status.textContent = 'Artifact not committed: ' + e.message; } });
 
   /* ---------- Local models + Fury Auto ---------- */
   function candidates() {
@@ -3232,6 +3290,15 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
     </div>
   </div></div>
 </section>
+<section data-view="workspace" class="workspace-view" aria-labelledby="h-workspace" hidden><h1 id="h-workspace">Workspace</h1><p class="lead">One project context for conversation, governed tasks and verified artifacts. Advanced runtime details stay available without taking over the main path.</p>
+  <div class="card workspace-hero" id="workspace-hero"><div><div class="workspace-kicker">FuryPipe VNext-01 · local-first</div><h2 id="workspace-title">Loading workspace…</h2><p id="workspace-summary" class="muted">Conversation, task and artifact state stay linked to this project.</p><div id="workspace-counts" class="workspace-counts" aria-label="Workspace counts"></div></div><form id="workspace-name-form"><label class="sr-only" for="workspace-name">Workspace title</label><input id="workspace-name" maxlength="256" placeholder="Workspace title"><button type="submit" class="secondary">Rename</button></form></div>
+  <div class="card"><h2>One governed path</h2><div id="workspace-flow" class="workspace-flow"><div class="workspace-step" data-state="active"><strong>1 · Conversation</strong><small>Keep the request in this project context.</small></div><div class="workspace-step"><strong>2 · Task</strong><small>Plan and confirm before any governed write.</small></div><div class="workspace-step"><strong>3 · Artifact</strong><small>Persist, reread and verify the content digest.</small></div></div></div>
+  <div class="grid"><div class="card"><h2>Add conversation context</h2><form id="workspace-conversation-form"><label for="workspace-conversation-title">Title</label><input id="workspace-conversation-title" maxlength="80" placeholder="Design review"><label for="workspace-conversation-content">Opening message</label><textarea id="workspace-conversation-content" required maxlength="65536" placeholder="What should stay attached to this project?"></textarea><button type="submit">Create conversation</button></form><p id="workspace-conversation-status" class="status muted" role="status"></p></div>
+  <div class="card"><h2>Plan a governed task</h2><form id="workspace-task-form"><label for="workspace-task-objective">Objective</label><textarea id="workspace-task-objective" required maxlength="32768" placeholder="Create a release note and verify its artifact digest"></textarea><label for="workspace-task-files">Planned files <span class="muted">optional, one per line</span></label><textarea id="workspace-task-files" placeholder="docs/release-note.md"></textarea><div class="row"><label><input id="workspace-task-cloud" type="checkbox"> Allow cloud runtimes</label><button type="submit">Plan task</button></div></form><p id="workspace-task-status" class="status muted" role="status"></p></div></div>
+  <div class="grid"><div class="card"><h2>Tasks</h2><div id="workspace-task-list" class="workspace-task-list"><p class="muted">Loading tasks…</p></div></div>
+  <div class="card"><h2>Commit verified artifact</h2><form id="workspace-artifact-form"><label for="workspace-artifact-task">Confirmed task</label><select id="workspace-artifact-task" required><option value="">Plan and confirm a task first</option></select><label for="workspace-artifact-title">Title</label><input id="workspace-artifact-title" maxlength="256" required placeholder="Acceptance note"><label for="workspace-artifact-content">Content</label><textarea id="workspace-artifact-content" maxlength="4194304" required placeholder="# Verified output"></textarea><label><input id="workspace-artifact-confirm" type="checkbox" required> I confirm this local artifact write</label><button type="submit">Commit and verify</button></form><p id="workspace-artifact-status" class="status muted" role="status"></p></div></div>
+  <details class="workspace-advanced"><summary>Advanced evidence</summary><pre id="workspace-evidence" class="code-view workspace-evidence" tabindex="0" aria-label="Workspace evidence">Loading workspace evidence…</pre></details>
+</section>
 <section data-view="autopilot" aria-labelledby="h-autopilot" hidden><h1 id="h-autopilot">Fury Autopilot</h1><p class="lead">One request in; FuryPipe chooses the instruction profile, reasoning effort, trusted skills, MCP candidates, context mode and verification path — then shows you why before anything risky can run.</p>
   <div class="grid autopilot-grid">
     <div class="card"><h2>Preview a request</h2><form id="autopilot-form"><label for="autopilot-objective">Task</label><textarea id="autopilot-objective" required placeholder="e.g. Research the latest MCP security guidance, update the implementation and verify the tests"></textarea>
@@ -3421,7 +3488,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
     <div class="card set-group" id="set-general"><h2>General</h2>
       <div class="set-row"><div class="t"><b>Language</b><span>Automatically follows your browser language. You can override it here.</span></div>${seg('language', [['auto', 'Auto'], ['en', 'English'], ['fr', 'French']])}</div>
       <div class="set-row"><div class="t"><b>Workspace mode</b><span>How much of FuryPipe's control plane you see. Power features are always one switch away.</span></div>${seg('mode', [['simple', 'Simple'], ['power', 'Power'], ['engineer', 'Engineer'], ['expert', 'Expert']])}</div>
-      <div class="set-row set-row-stack"><div class="t"><b>Custom instructions</b><span>Your own turn-level preferences, applied after Fury Autopilot's safety boundary. They cannot grant tools or permissions.</span></div><div><textarea id="custom-instructions" maxlength="4000" placeholder="e.g. Prefer concise French answers; use Gradle only for Java projects."></textarea><button type="button" id="custom-instructions-save">Save instructions</button><p id="custom-instructions-status" class="status muted" role="status"></p></div></div></div>
+      <div class="set-row set-row-stack"><div class="t"><b>Custom instructions</b><span>Your own turn-level preferences, applied after Fury Autopilot's safety boundary. They cannot grant tools or permissions.</span></div><div><label class="sr-only" for="custom-instructions">Custom instructions</label><textarea id="custom-instructions" maxlength="4000" placeholder="e.g. Prefer concise French answers; use Gradle only for Java projects."></textarea><button type="button" id="custom-instructions-save">Save instructions</button><p id="custom-instructions-status" class="status muted" role="status"></p></div></div></div>
     <div class="card set-group" id="set-appearance"><h2>Appearance</h2>
       <div class="set-row"><div class="t"><b>Theme</b><span>Dark is the signature FuryPipe look. System follows your OS.</span></div>${seg('theme', [['dark', 'Dark'], ['system', 'System']])}</div>
       <div class="set-row"><div class="t"><b>Motion</b><span>Reduce animation everywhere.</span></div>${seg('motion', [['system', 'System'], ['reduced', 'Reduced']])}</div>

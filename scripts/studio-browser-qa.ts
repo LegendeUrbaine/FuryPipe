@@ -101,6 +101,7 @@ async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: strin
     knowledgeDir: path.join(projectRoot, '.qa-knowledge', state),
     chatsDir: path.join(projectRoot, '.qa-chats', state),
     artifactsDir: path.join(projectRoot, '.qa-artifacts', state),
+    workspaceDir: path.join(projectRoot, '.qa-workspaces', state),
     memory: mode === 'empty' ? { enabled: false, reason: 'Memory is off. Set FURYPIPE_WEBCHAT_MEMORY_CONFIG to an encrypted memory config to turn it on.' } : { enabled: true, store: createMemoryVNextStore({ recovery: createRecoveryStore(path.join(projectRoot, '.qa-memory', state), { namespace: 'studio-qa' }), authorize: () => true }) },
     mcpHub: createFuryMcpHub({ projectRoot, homeDir: path.join(projectRoot, '.qa-home'), stateDir: path.join(projectRoot, '.qa-mcp-hub', state) }),
     skillHub: createFurySkillHub({ projectRoot, homeDir: path.join(projectRoot, '.qa-home'), stateDir: path.join(projectRoot, '.qa-skill-hub', state), projectTrustedForInstructions: true }),
@@ -216,6 +217,35 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await page.locator('#chat-list button.conv').filter({ hasText: `QA ${name} branch` }).waitFor();
     await page.locator('#model-button').click();
     await page.locator('#model-pop [role=option]').filter({ hasText: 'Fury Auto' }).click();
+
+    // VNext-01: one project context links a conversation, a governed task and
+    // a verified artifact. Dispatch can be planned from installed local
+    // bindings, but no agent runs until a separate execution boundary exists.
+    await page.locator('.side-nav a[data-view="workspace"]').click();
+    await page.waitForFunction(() => document.querySelector('#workspace-title')?.textContent !== 'Loading workspace…');
+    await page.locator('#workspace-name').fill(`QA ${name} workspace`);
+    await page.locator('#workspace-name-form button[type="submit"]').click();
+    await page.locator('#workspace-title').filter({ hasText: `QA ${name} workspace` }).waitFor();
+    await page.locator('#workspace-conversation-title').fill('Browser context');
+    await page.locator('#workspace-conversation-content').fill('Keep this request attached to one project.');
+    await page.locator('#workspace-conversation-form button[type="submit"]').click();
+    await page.locator('#workspace-conversation-status').filter({ hasText: 'attached' }).waitFor();
+    await page.locator('#workspace-task-objective').fill('Prepare a verified browser acceptance note');
+    await page.locator('#workspace-task-files').fill('docs/evidence/browser-acceptance.md');
+    await page.locator('#workspace-task-form button[type="submit"]').click();
+    await page.locator('#workspace-task-status').filter({ hasText: 'no agent executed' }).waitFor();
+    assert(/(?:BLOCKED|PLANNED|NO_DISPATCH)/u.test(await page.locator('#workspace-task-status').textContent() ?? ''), `${name}: workspace dispatch status missing`);
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.locator('#workspace-task-list button').filter({ hasText: 'Confirm task' }).click();
+    await page.locator('#workspace-task-status').filter({ hasText: 'NOT_EXECUTED' }).waitFor();
+    await page.locator('#workspace-artifact-task').selectOption({ index: 1 });
+    await page.locator('#workspace-artifact-title').fill('Browser acceptance note');
+    await page.locator('#workspace-artifact-content').fill('# Browser verified\n\nThis artifact was persisted and reread.');
+    await page.locator('#workspace-artifact-confirm').check();
+    await page.locator('#workspace-artifact-form button[type="submit"]').click();
+    await page.locator('#workspace-artifact-status').filter({ hasText: 'SHA-256 verified' }).waitFor();
+    assert((await page.locator('#workspace-summary').textContent())?.includes('1 artifact(s)'), `${name}: workspace artifact count missing`);
+    assert((await page.locator('#workspace-evidence').textContent())?.includes('"executionAuthority": false'), `${name}: workspace execution authority was not explicit`);
 
     // Progressive UX: Simple hides engineer/expert surfaces; Expert shows all.
     assert(await page.evaluate(() => document.body.dataset.mode) === 'simple', `${name}: default mode is not Simple`);
@@ -500,7 +530,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     await setMode(page, 'expert');
     for (const width of [1280, 1024, 768, 390]) {
       await page.setViewportSize({ width, height: 844 });
-      for (const view of ['chat', 'video', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'observability', 'marketplace', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
+      for (const view of ['workspace', 'chat', 'video', 'media', 'cowork', 'code', 'agents', 'mission', 'knowledge', 'web', 'memory', 'artifacts', 'automations', 'models', 'connections', 'runtimes', 'observability', 'marketplace', 'skills', 'mcp', 'integrations', 'support', 'settings']) {
         await page.goto(`${origins.normal}/#/${view}`);
         await page.locator(`section[data-view="${view}"] h1`).waitFor();
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -566,6 +596,13 @@ async function captureScreens(type: BrowserType, origins: Record<'normal' | 'emp
     await page.locator('#chat-send').click();
     await page.locator('#chat-log .msg:not(.user)').filter({ hasText: 'Hello from a local model.' }).waitFor();
     await shot('04-conversation.png');
+    await page.goto(`${origins.normal}/#/workspace`);
+    await page.locator('#workspace-title').filter({ hasText: 'QA chromium workspace' }).waitFor();
+    await page.locator('#workspace-summary').filter({ hasText: '1 artifact(s)' }).waitFor();
+    await page.locator('#workspace-task-list .badge').filter({ hasText: 'SUCCEEDED' }).waitFor();
+    await shot('05b-workspace-vnext-01.png');
+    await page.goto(`${origins.normal}/#/chat`);
+    await page.locator('#route-chip').filter({ hasText: 'llama3.2:3b' }).waitFor();
     await page.locator('#route-chip').click();
     await page.locator('#route-pop').waitFor();
     await shot('05-why-this-route.png');

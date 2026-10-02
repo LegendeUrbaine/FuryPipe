@@ -56,6 +56,7 @@ import { buildFuryWorkspaceGraph } from '../fury-workspace-graph.js';
 import { evaluateFuryDataset, type FuryEvalDataset } from '../fury-eval.js';
 import { createFuryArtifactRepository, type FuryArtifactRepository } from '../fury-artifact-repository-node.js';
 import type { FuryArtifact, FuryArtifactKind, FuryArtifactRestorePlan } from '../fury-artifacts.js';
+import { createFuryWorkspaceRepository, type FuryWorkspaceRepository, type FuryWorkspaceTask } from '../fury-workspace.js';
 import { CodingRuntimeError } from '../coding-runtime.js';
 import {
   createFuryCodeAdvanced,
@@ -82,6 +83,7 @@ import { createVideoHookVariants, createVideoRecipe, createVideoStoryboard, FURY
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
 const CACHE_MS = 10_000;
+const WORKSPACE_TASK_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/u;
 
 export type StudioRoute =
   | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'eval-history' | 'eval-compare' | 'headless' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
@@ -96,6 +98,7 @@ export type StudioRoute =
   | 'marketplace'
   | 'memory-time-machine' | 'memory-time-machine-diff' | 'memory-time-machine-restore' | 'memory-time-machine-action' | 'memory-time-machine-export'
   | 'artifacts' | 'artifact-get' | 'artifact-create' | 'artifact-version' | 'artifact-search' | 'artifact-restore-plan' | 'artifact-restore' | 'artifact-export'
+  | 'workspace' | 'workspace-rename' | 'workspace-conversation' | 'workspace-task-plan' | 'workspace-task-confirm' | 'workspace-artifact-commit'
   | 'chats' | 'chat-get' | 'chat-save' | 'chat-branch' | 'chat-delete'
   | 'code-tree' | 'code-file' | 'code-worktrees' | 'code-diff'
   | 'code-edit-plan' | 'code-edit-apply' | 'code-script-plan' | 'code-script-run';
@@ -155,6 +158,12 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/artifacts/restore/plan': { route: 'artifact-restore-plan', method: 'POST' },
   '/api/studio/artifacts/restore': { route: 'artifact-restore', method: 'POST' },
   '/api/studio/artifacts/export': { route: 'artifact-export', method: 'GET' },
+  '/api/studio/workspace.json': { route: 'workspace', method: 'GET' },
+  '/api/studio/workspace/rename': { route: 'workspace-rename', method: 'POST' },
+  '/api/studio/workspace/conversation': { route: 'workspace-conversation', method: 'POST' },
+  '/api/studio/workspace/task/plan': { route: 'workspace-task-plan', method: 'POST' },
+  '/api/studio/workspace/task/confirm': { route: 'workspace-task-confirm', method: 'POST' },
+  '/api/studio/workspace/artifact/commit': { route: 'workspace-artifact-commit', method: 'POST' },
   '/api/studio/chat': { route: 'chat', method: 'POST' },
   '/api/studio/flow-preview': { route: 'flow-preview', method: 'POST' },
   '/api/studio/flow-automation-preview': { route: 'flow-automation-preview', method: 'POST' },
@@ -277,6 +286,10 @@ export interface StudioApiOptions {
   readonly artifactRepository?: FuryArtifactRepository;
   /** Artifact RecoveryStore root (default ~/.furypipe/studio/artifacts/<project>). */
   readonly artifactsDir?: string;
+  /** Persistent VNext-01 workspace projection root (default ~/.furypipe/studio/workspaces/<project>). */
+  readonly workspaceDir?: string;
+  /** Injected workspace repository for tests/custom hosts. */
+  readonly workspaceRepository?: FuryWorkspaceRepository;
   /** Durable FuryEval history repository; defaults to a local RecoveryStore. */
   readonly evalHistory?: FuryEvalHistoryRepository;
   /** Root for default durable FuryEval history. */
@@ -432,6 +445,12 @@ export function createStudioApi(options: StudioApiOptions) {
   const artifacts = options.artifactRepository ?? createFuryArtifactRepository({
     root: options.artifactsDir ?? path.join(os.homedir(), '.furypipe', 'studio', 'artifacts', projectKey),
     projectId: projectKey,
+  });
+  const workspace: FuryWorkspaceRepository = options.workspaceRepository ?? createFuryWorkspaceRepository({
+    root: options.workspaceDir ?? path.join(os.homedir(), '.furypipe', 'studio', 'workspaces', projectKey),
+    projectId: projectKey,
+    title: path.basename(path.resolve(options.projectRoot)) || 'FuryPipe workspace',
+    now,
   });
   const evalHistory = options.evalHistory ?? createFuryEvalHistoryRepository({
     store: createRecoveryStore(
@@ -1060,6 +1079,89 @@ export function createStudioApi(options: StudioApiOptions) {
             const action = { action: body.action, memoryId: body.memoryId, scope: studioMemoryScopes(options.projectRoot)[scope], ...(body.version === undefined ? {} : { version: body.version as number }), ...(body.confirm === undefined ? {} : { confirm: body.confirm as boolean }), now: now() } as const;
             if (body.execute === true) return json(await memoryTimeMachine().executeAction(action), 201);
             return json(memoryTimeMachine().planAction(action));
+          }
+          case 'workspace':
+            return json({ workspace: await workspace.get(), authority: 'persistent-vnext-workspace' });
+          case 'workspace-rename': {
+            const body = await readJson(request) as { title?: unknown };
+            if (typeof body.title !== 'string' || !body.title.trim() || body.title.length > 256) return problem(400, 'invalid-input', 'workspace title is required (max 256 characters)');
+            return json({ workspace: await workspace.rename(body.title.trim()), authority: 'persistent-vnext-workspace' });
+          }
+          case 'workspace-conversation': {
+            const body = await readJson(request) as { title?: unknown; content?: unknown };
+            if (typeof body.content !== 'string' || !body.content.trim() || body.content.length > 64 * 1024) return problem(400, 'invalid-input', 'conversation content is required (max 64 KiB)');
+            if (body.title !== undefined && (typeof body.title !== 'string' || body.title.length > 80)) return problem(400, 'invalid-input', 'conversation title must be at most 80 characters');
+            const conversation = await chats.save({
+              ...(typeof body.title === 'string' ? { title: body.title } : {}),
+              messages: [{ role: 'user', content: body.content, at: now() }],
+            });
+            const current = await workspace.get();
+            const updated = current.conversationIds.includes(conversation.id) ? current : await workspace.attachConversation(conversation.id);
+            return json({ workspace: updated, conversation, writePerformed: true, executionAuthorized: false }, 201);
+          }
+          case 'workspace-task-plan': {
+            const body = await readJson(request) as { objective?: unknown; plannedFiles?: unknown; allowCloud?: unknown; mode?: unknown };
+            if (typeof body.objective !== 'string' || !body.objective.trim() || body.objective.length > 32_768 || body.objective.includes('\0')) return problem(400, 'invalid-input', 'objective is required (max 32768 characters)');
+            const plannedFiles = body.plannedFiles === undefined ? [] : body.plannedFiles;
+            if (!Array.isArray(plannedFiles) || plannedFiles.length > 200 || !plannedFiles.every((file) => typeof file === 'string')) return problem(400, 'invalid-input', 'plannedFiles must be an array of at most 200 paths');
+            const mode = typeof body.mode === 'string' && (FURY_DISPATCH_MODES as readonly string[]).includes(body.mode) ? body.mode as FuryDispatchMode : 'AUTO';
+            const taskId = `task-${randomUUID().replaceAll('-', '')}`;
+            const plan = planFuryTask({ runId: taskId, intent: body.objective.trim(), plannedFiles: plannedFiles as string[] });
+            const [h, l] = await Promise.all([harnesses(), local()]);
+            const all = studioBindings(h, l.backends);
+            const candidates = body.allowCloud === true ? all : all.filter((candidate) => candidate.locality === 'local');
+            const dispatch = planFuryDispatch({ ir: plan.ir, candidates, mode });
+            const timestamp = new Date(now()).toISOString();
+            const plannedTask: Omit<FuryWorkspaceTask, 'status' | 'createdAt' | 'updatedAt' | 'execution'> = {
+              id: taskId,
+              objective: body.objective.trim(),
+              plannedFiles: [...new Set((plannedFiles as string[]).map((file) => file.replaceAll('\\', '/')))].sort(),
+              planDigest: plan.ir.digest,
+              dispatch: {
+                status: dispatch.status,
+                mode: dispatch.mode,
+                reasons: dispatch.reasons,
+                agents: dispatch.agents,
+                estimatedCostUsd: dispatch.estimatedCostUsd,
+              },
+            };
+            const updated = await workspace.planTask({ task: plannedTask, now: timestamp });
+            const task = updated.tasks.find((candidate) => candidate.id === taskId);
+            return json({ workspace: updated, task, plan: { irDigest: plan.ir.digest, workstreams: plan.workstreams, notes: plan.notes }, execution: 'NOT_EXECUTED: plan only' }, 201);
+          }
+          case 'workspace-task-confirm': {
+            const body = await readJson(request) as { taskId?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'confirming a workspace task requires confirm: true');
+            if (typeof body.taskId !== 'string' || !WORKSPACE_TASK_ID.test(body.taskId)) return problem(400, 'invalid-input', 'taskId is invalid');
+            const updated = await workspace.confirmTask(body.taskId, new Date(now()).toISOString());
+            return json({ workspace: updated, task: updated.tasks.find((task) => task.id === body.taskId), execution: 'NOT_EXECUTED: confirmation only' });
+          }
+          case 'workspace-artifact-commit': {
+            const body = await readJson(request) as { taskId?: unknown; title?: unknown; kind?: unknown; content?: unknown; mediaType?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'committing a workspace artifact requires confirm: true');
+            if (typeof body.taskId !== 'string' || !WORKSPACE_TASK_ID.test(body.taskId) || typeof body.title !== 'string' || !body.title.trim() || typeof body.content !== 'string') return problem(400, 'invalid-input', 'taskId, title and content are required');
+            if (body.content.length > 4 * 1024 * 1024) return problem(413, 'input-too-large', 'artifact content exceeds 4 MiB');
+            if (body.mediaType !== undefined && typeof body.mediaType !== 'string') return problem(400, 'invalid-input', 'artifact mediaType must be text');
+            const current = await workspace.get();
+            const task = current.tasks.find((candidate) => candidate.id === body.taskId);
+            if (!task) return problem(404, 'task-not-found', 'workspace task not found');
+            if (task.status !== 'CONFIRMED') return problem(409, 'task-confirmation-required', 'confirm the workspace task before committing an artifact');
+            const artifactId = `workspace-${randomUUID().replaceAll('-', '')}`;
+            const artifact = await artifacts.create({
+              id: artifactId,
+              kind: artifactKind(body.kind ?? 'markdown'),
+              title: body.title.trim(),
+              content: body.content,
+              ...(typeof body.mediaType === 'string' ? { mediaType: body.mediaType } : {}),
+              metadata: { workspaceId: current.workspaceId, taskId: task.id, provenance: 'workspace-operator-input' },
+              now: new Date(now()).toISOString(),
+            });
+            const latest = artifact.versions.at(-1);
+            const persisted = await artifacts.get(artifact.id);
+            const persistedLatest = persisted?.versions.at(-1);
+            if (!latest || !persistedLatest || latest.contentSha256 !== persistedLatest.contentSha256) return problem(502, 'artifact-verification-failed', 'persisted artifact digest could not be verified');
+            const updated = await workspace.commitArtifact({ taskId: task.id, artifactId: artifact.id, contentSha256: persistedLatest.contentSha256, now: new Date(now()).toISOString() });
+            return json({ workspace: updated, task: updated.tasks.find((candidate) => candidate.id === task.id), artifact, verification: { level: 'PERSISTED_ARTIFACT', contentSha256: persistedLatest.contentSha256, verified: true }, writePerformed: true, executionAuthorized: false }, 201);
           }
           case 'artifacts':
             return json({ artifacts: (await artifacts.list()).map(artifactSummary), authority: 'persistent-artifact-store' });

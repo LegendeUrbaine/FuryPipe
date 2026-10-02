@@ -399,7 +399,7 @@ Baseline d'intégration : `v5-production-hardening` / `bc92bef794df25b2a7c541846
 
 | Vérification | Résultat | Mesure / preuve |
 |---|---|---|
-| Worktree / parent exact | PASS local | worktree isolé `C:\Users\loicd\.codex\worktrees\furypipe-production-finalization\FuryPipe`, branche `codex/furypipe-production-finalization-2026`, parent `191f29c2010d5fce77095525576ec61186e8f135`; modifications non commitées avant livraison |
+| Worktree / parent exact | PASS local | worktree isolé `C:\Users\loicd\.codex\worktrees\furypipe-production-finalization\FuryPipe`, branche `codex/furypipe-production-finalization-2026`, commit livré `8f5a7bcd2b7378d45e79116612adaf1fad9fb13f`, parent `191f29c2010d5fce77095525576ec61186e8f135` |
 | External effect ledger | PASS local borné | `src/fury-external-effect-ledger.ts`, RecoveryStore durable, digest-only, replay automatique refusé, reconciliation après restart avec preuve SHA-256 + `operator-confirmed`; tests ciblés inclus dans la suite complète |
 | Browser/coding reconciliation | PASS local borné | `browser-runtime.ts` et `coding-runtime.ts` exposent list/inspect/reconcile quand un store est injecté ; un effet non résolu bloque une seconde exécution identique |
 | Studio media execution boundary | PASS local borné | route `/api/studio/media/generate`, confirmation obligatoire, `NOT_CONFIGURED` sans runtime injecté, runtime réel uniquement par injection, `executionAuthority=false` |
@@ -411,7 +411,8 @@ Baseline d'intégration : `v5-production-hardening` / `bc92bef794df25b2a7c541846
 | Typecheck / lint / build | PASS local | typecheck principal + hosted MCP ; ESLint `--max-warnings 0` ; dist Node/MCP + déclarations ; version `0.16.0` |
 | Audit production | PASS local | `pnpm audit --prod --audit-level high`, aucune vulnérabilité connue |
 | Browser Studio / WebChat / host | PASS automatisé local | Studio 3 moteurs ; WebChat `15/15` ; host `12/12` |
-| Cross-browser full source QA | À RELANCER après commit | premier lancement sans `FURYPIPE_SOURCE_COMMIT` exact ; aucune preuve PASS déduite de cet échec de précondition |
+| Cross-browser full source QA | PASS exact local | `FURYPIPE_SOURCE_COMMIT=8f5a7bcd2b7378d45e79116612adaf1fad9fb13f`, Dashboard `117/117`, Web Studio `120/120`, Chromium/Firefox/WebKit ; premier essai non retenu car la chaîne fournie n’était pas le SHA Git réel |
+| CI exact-head PR #238 | PASS hébergé | base `ebaa8e41fd2a5820fbd33fbfc04aecf8dbb4ca57`, head `8f5a7bcd2b7378d45e79116612adaf1fad9fb13f`, `31 SUCCESS`; timeout Firefox loopback sur le premier Cross-Browser run résolu par rerun ciblé du même head |
 | Paquet installé | PASS local | `package:smoke`, Gateway loopback/clean shutdown, MCP stdio, phases et exports ; tarball SHA-256 `4038f2d166b4c09efa08aba55faaadff17e8479cfb7942854cb377f7e7ae3058` |
 | `git diff --check` | PASS local | aucune erreur |
 | Provider / OAuth / hosted / client / humain / production | NOT VERIFIED | aucune exécution externe réelle ni validation humaine/client |

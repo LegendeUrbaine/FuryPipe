@@ -657,6 +657,10 @@
       "types": "./dist/media-generation-job-engine.d.ts",
       "import": "./dist/media-generation-job-engine.js"
     },
+    "./media-generation-host-runtime-node": {
+      "types": "./dist/media-generation-host-runtime-node.d.ts",
+      "import": "./dist/media-generation-host-runtime-node.js"
+    },
     "./media-generation-deterministic-adapter": {
       "types": "./dist/media-generation-deterministic-adapter.d.ts",
       "import": "./dist/media-generation-deterministic-adapter.js"

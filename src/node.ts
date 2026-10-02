@@ -66,6 +66,7 @@ import { getFuryPipeModelScope } from './core/applicability.js';
 import type { FuryPipeVisualPolicy } from './core/applicability.js';
 import { discoverAgentSkillsNode } from './agent-skills-node.js';
 import { createStudioApi, studioApiRoute } from './studio/studio-api.js';
+import { loadFuryMediaGenerationHostRuntime } from './media-generation-host-runtime-node.js';
 import { studioHtmlResponse } from './studio/studio-page.js';
 import { parseAcceptLanguage, resolveSupportedLocale } from './i18n/runtime.js';
 import { selectAgentSkillsForTask } from './agent-skill-selector.js';
@@ -2025,7 +2026,29 @@ async function main(): Promise<void> {
     },
   };
   const handle = createProxy(config);
-  const studioApi = createStudioApi({ projectRoot: process.cwd() });
+  let mediaRuntime: Awaited<ReturnType<typeof loadFuryMediaGenerationHostRuntime>>;
+  try {
+    mediaRuntime = await loadFuryMediaGenerationHostRuntime({ projectRoot: process.cwd() });
+    if (mediaRuntime) {
+      console.log(`[furypipe] media runtime configured (${mediaRuntime.adapters.length} adapter(s)); execution still requires Studio confirmation`);
+    }
+  } catch {
+    // A provider module is explicit opt-in. A rejected or unavailable module
+    // must not make the proxy unavailable, and must never downgrade into a
+    // fake provider. Studio remains NOT_CONFIGURED until a real module passes
+    // the host/runtime gates.
+    console.warn('[furypipe] media runtime unavailable; Studio remains NOT_CONFIGURED');
+    mediaRuntime = undefined;
+  }
+  const studioApi = createStudioApi({
+    projectRoot: process.cwd(),
+    ...(mediaRuntime === undefined ? {} : {
+      mediaAdapters: mediaRuntime.adapters,
+      mediaJobEngine: mediaRuntime.mediaJobEngine,
+      mediaExecution: mediaRuntime.mediaExecution,
+      artifactRepository: mediaRuntime.artifactRepository,
+    }),
+  });
 
   const server = createServer((req, res) => {
     Promise.resolve()

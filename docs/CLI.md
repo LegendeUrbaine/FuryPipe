@@ -80,6 +80,44 @@ The setup command is explicit by design: installing an npm package must not unex
 
 The default deployment is loopback-oriented. Non-loopback exposure requires an explicit operator security boundary; see [../SECURITY.md](../SECURITY.md).
 
+### Optional Media Studio provider runtime
+
+Media Studio is `NOT_CONFIGURED` by default. FuryPipe does not download a
+provider, install a plugin, or use the deterministic test adapter in the
+production host.
+
+To opt in to a real provider adapter, set the host module path before launch:
+
+```powershell
+$env:FURYPIPE_MEDIA_ADAPTER_MODULE = 'C:\absolute\path\to\furypipe-media-provider.mjs'
+furypipe start
+```
+
+The module must export either a default object or a
+`createFuryMediaGenerationHostModule(context)` factory returning
+`furypipe-media-host-module/v1` with a validated provider-neutral bundle input
+and one or more `FuryMediaGenerationAdapter` implementations. The provider
+module owns credentials and live health observation. FuryPipe verifies the
+bundle, registered profile, fresh healthy state, declared permissions and
+adapter capability before attaching the existing coordinator and durable job
+engine to Studio.
+
+Example module shape (metadata only; the adapter implementation stays in the
+provider package):
+
+```js
+export default {
+  format: 'furypipe-media-host-module/v1',
+  bundle: providerBundleInput,
+  adapters: [providerAdapter],
+};
+```
+
+If the variable is absent, invalid, unhealthy, or missing a declared secret,
+Studio remains preview-only and reports `NOT_CONFIGURED`. `confirm: true` is
+still required for live submission. Qwen/Ollama text inference does not count
+as an image, audio, or video generation provider.
+
 ## Gateway and local WebChat
 
 `furypipe gateway start` starts the dedicated VNext local Gateway. It is separate from the historical FuryPipe proxy listener and remains loopback-only in this phase.

@@ -3161,7 +3161,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
     ${navSection('Workspace', STUDIO_PRIMARY_NAVIGATION)}
     <details class="nav-more" id="nav-more"><summary>${icon('more')}<span class="label">Explore workspace</span>${icon('chevron','i more-chevron')}</summary><div class="nav-more-body">${STUDIO_NAVIGATION_SECTIONS.map(({ label, items }) => navSection(label, items)).join('')}</div></details>
   </nav>
-  <div class="recent" aria-labelledby="recent-h"><h2 id="recent-h">Recent</h2><ul id="chat-list" aria-labelledby="recent-h"></ul></div>
+  <div class="recent" role="region" aria-labelledby="recent-h" tabindex="0"><h2 id="recent-h">Recent</h2><ul id="chat-list" aria-labelledby="recent-h"></ul></div>
   <div class="side-foot">
     <button type="button" id="mode-button" class="mode-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="mode-menu" title="Workspace mode"><span class="mode-dot" aria-hidden="true"></span><span class="label" id="mode-label">Simple</span><small class="label">mode</small>${icon('chevron')}</button>
     <a class="icon-btn" href="#/settings" aria-label="Settings" title="Settings">${icon('settings')}</a>

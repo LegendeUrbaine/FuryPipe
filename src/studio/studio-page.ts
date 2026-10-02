@@ -472,6 +472,17 @@ details.adv>div{padding:0 18px 16px}
 .mission-workspace #runs{display:flex;flex-direction:column;gap:12px}
 .mission-workspace #runs>.card{margin:0;position:relative;overflow:hidden}
 .mission-workspace #runs>.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--o-hot),transparent 75%);opacity:.55}
+.run-trace-panel{margin-top:16px;position:relative;overflow:hidden}
+.run-trace-panel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--o-core),transparent 78%);opacity:.7}
+.trace-summary{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}
+.trace-summary span{padding:7px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:12px}
+.trace-graph{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:12px}
+.trace-node{width:100%;text-align:left;min-height:58px;white-space:normal}
+.trace-node[data-kind="receipt"]{border-color:rgba(255,106,26,.42)}
+.trace-node[data-kind="event"]{border-color:rgba(255,255,255,.16)}
+.trace-detail{margin:12px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;color:var(--muted);font:12px/1.5 var(--mono);overflow:auto}
+.trace-evidence{margin-top:14px}
+.trace-evidence li{margin:5px 0}
 .flow-studio #flow-canvas{padding:10px;border:1px solid var(--line);border-radius:14px;background:radial-gradient(420px 180px at 50% 0,rgba(255,106,26,.045),transparent 75%),#08080a;overflow:auto}
 .flow-studio svg.flow{border:0;background:transparent;min-width:640px}
 .flow-studio svg.flow .node.agentic rect{filter:drop-shadow(0 0 5px rgba(255,106,26,.24))}
@@ -2394,12 +2405,56 @@ const SCRIPT = String.raw`
     ir.intent = $('#cowork-intent').value.trim() || ir.intent;
     $('#dispatch-ir').value = JSON.stringify(ir, null, 2); location.hash = '#/agents';
   });
+  function renderRunTrace(trace) {
+    const status = $('#run-trace-status'); const graph = $('#run-trace-graph'); const evidence = $('#run-trace-evidence');
+    graph.replaceChildren(); evidence.replaceChildren();
+    if (trace.status !== 'READY') {
+      status.className = 'status warn';
+      status.textContent = 'Trace ' + trace.status + ' · ' + (trace.reason || 'source-backed replay not available yet') + ' · execution authority false';
+      return;
+    }
+    status.className = 'status ok';
+    status.textContent = 'Trace READY · replay integrity ' + trace.replayIntegrity.status + ' · execution authority false';
+    const summary = el('div', { class: 'trace-summary' },
+      el('span', { text: trace.summary.replayEntries + ' replay events' }),
+      el('span', { text: trace.summary.workers + ' worker(s)' }),
+      el('span', { text: trace.summary.receipts + ' linked receipt(s)' }),
+      el('span', { text: 'FuryJudge ' + trace.summary.verdict }),
+      el('span', { text: 'bundle ' + String(trace.summary.bundleDigest).slice(0, 16) + '…' }),
+    );
+    graph.append(summary);
+    const detail = el('p', { class: 'trace-detail', text: 'Select a node to inspect its source pointer.' });
+    const nodes = el('div', { class: 'trace-graph' });
+    for (const node of trace.nodes) {
+      const button = el('button', { type: 'button', class: 'secondary trace-node', text: node.label });
+      button.setAttribute('data-kind', node.kind);
+      button.setAttribute('aria-label', 'Inspect ' + node.label);
+      button.addEventListener('click', () => {
+        const links = trace.edges.filter((edge) => edge.from === node.id || edge.to === node.id).map((edge) => edge.kind + ':' + (edge.from === node.id ? edge.to : edge.from));
+        const source = Object.entries(node.source || {}).map(([key, value]) => key + '=' + value).join(' · ') || 'source=derived';
+        detail.textContent = node.label + ' · ' + node.state + ' · ' + source + (links.length ? ' · links=' + links.join(', ') : '');
+      });
+      nodes.append(button);
+    }
+    graph.append(nodes, detail);
+    if (trace.evidence.length) {
+      evidence.append(el('h3', { text: 'Linked evidence' }));
+      const list = el('ul', { class: 'reasons' });
+      for (const item of trace.evidence) list.append(el('li', { text: item.kind + ' · ' + item.subject + ' · ' + item.outcome + ' · ' + item.receiptId + ' · replay #' + (item.replaySeqs.length ? item.replaySeqs.join(', #') : 'not directly emitted') }));
+      evidence.append(list);
+    } else evidence.append(el('p', { class: 'muted', text: 'No receipt linked to this completed run. The graph stays inspectable; acceptance remains governed by FuryJudge.' }));
+  }
   async function loadRuns() {
     try { const r = await getJson('/api/studio/runs.json'); const box = $('#runs'); box.replaceChildren();
       if (!r.runs.length) { box.append(el('p', { class: 'empty', text: 'No run yet. Start one above; only local runtimes are used unless you allow cloud runtimes.' })); return; }
       for (const run of r.runs) {
         const card = el('div', { class: 'card' }); card.append(el('h2', { text: run.runId + ' — ' + run.status + (run.verdict ? ' · FuryJudge ' + run.verdict : '') }), el('p', { class: 'muted', text: run.intent }));
         if (run.error) card.append(el('p', { class: 'bad', text: run.error }));
+        const traceButton = el('button', { type: 'button', class: 'secondary', text: run.traceStatus === 'READY' ? 'Inspect Fury Trace' : 'Trace not ready' });
+        traceButton.disabled = run.traceStatus !== 'READY';
+        traceButton.setAttribute('aria-label', 'Inspect Fury Trace for ' + run.runId);
+        traceButton.addEventListener('click', async () => { try { renderRunTrace(await getJson('/api/studio/runs/trace.json?runId=' + encodeURIComponent(run.runId))); $('#run-trace-panel').scrollIntoView({ block: 'nearest' }); } catch (e) { $('#run-trace-status').textContent = 'Trace unavailable: ' + e.message; } });
+        card.append(traceButton);
         const t = el('table'); t.append(el('thead', {}, el('tr', {}, ...['Worker','Role','Runtime','Model','Locality','State','Tokens','Receipts',''].map(h => el('th', { scope: 'col', text: h })))));
         const tb = el('tbody');
         for (const w of run.workers) { const stop = el('button', { type: 'button', class: 'secondary', text: 'Stop' }); stop.disabled = !['queued','running','paused','awaiting-approval'].includes(w.state);
@@ -3384,7 +3439,13 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div class="row"><label for="run-cloud"><input id="run-cloud" type="checkbox"> Allow cloud runtimes (may incur provider cost)</label>
   <label for="run-confirm"><input id="run-confirm" type="checkbox" required> I confirm starting agents on this repository</label><button type="submit">Start run</button></div></form>
   <p id="run-status" class="status" role="status"></p></div>
-  <div id="runs" aria-live="polite"></div></section>
+  <div id="runs" aria-live="polite"></div>
+  <div class="card run-trace-panel" id="run-trace-panel" aria-labelledby="h-run-trace">
+    <h2 id="h-run-trace">Fury Trace</h2>
+    <p id="run-trace-status" class="status muted" role="status">No completed run selected. Trace waits for a real replay and sealed proof bundle.</p>
+    <div id="run-trace-graph" class="trace-graph"></div>
+    <div id="run-trace-evidence" class="trace-evidence"></div>
+  </div></section>
 <section data-view="automations" class="flow-workspace" aria-labelledby="h-automations" hidden><h1 id="h-automations">Automations</h1><p class="lead">FuryFlow: build a workflow and see where non-determinism lives. Validation and dry-run only here; scheduled runs use the Gateway automation scheduler.</p>
   <div class="card flow-studio"><form id="flow-form"><label for="flow-json">Flow (FuryFlow JSON)</label><textarea id="flow-json" class="code" spellcheck="false">${escapeHtml(JSON.stringify(STUDIO_EXAMPLE_FLOW, null, 2))}</textarea>
   <div class="row"><button type="submit">Validate &amp; draw</button><button id="flow-dry" type="button" class="secondary">Dry-run (refund branch)</button></div></form>

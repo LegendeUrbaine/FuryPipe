@@ -4,6 +4,7 @@
 
 - `EXISTE` : chemin présent avant VNext-01.
 - `VNEXT-01` : livré dans le slice courant.
+- `VNEXT-02` : trace source-backed livrée dans le slice courant.
 - `SUIVANT` : dépendance planifiée, non revendiquée comme livrée.
 - `GATE` : preuve externe ou humaine obligatoire.
 
@@ -16,7 +17,7 @@
 | Confirmation | Action card | Studio API gate | `VNEXT-01` | refus sans `confirm:true`, état `CONFIRMED` |
 | Artifact commit | Artifact card | `FuryArtifactRepository` | `VNEXT-01` | relire artifact, SHA-256 identique, liaison persistée |
 | Agent run | Mission Control | `runFuryTask` / ledger / worktrees | `EXISTE` | receipts, judge, runtime/serveur selon tâche |
-| Trace | Observability | registry/receipts existants | `SUIVANT` | trace réellement observée, aucun coût inventé |
+| Trace | Mission Control / Fury Trace | `FuryReplay` + `FuryProofBundle` + `FuryJudge` | `VNEXT-02` | hash-chain PASS, événements liés aux workers/receipts, digest du bundle |
 | Capability Composer | Composer avancé | FuryIR + Dispatcher | `SUIVANT` | compilation + rejection tests |
 | Context OS | Context panel | context fabric, graph, memory | `SUIVANT` | provenance et budget de contexte |
 | Artifact Workspace | Canvas/versioning | Artifact Repository | `SUIVANT` | last-good + repair receipt + source |

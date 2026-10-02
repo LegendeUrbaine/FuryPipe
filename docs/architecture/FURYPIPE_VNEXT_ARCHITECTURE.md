@@ -79,10 +79,23 @@ Surface avancée :
 
 Le Studio existant reste la shell. Aucun deuxième routeur, aucun deuxième système de plugins, aucun nouveau backend de session.
 
+## VNEXT-02 — Fury Trace
+
+Format : furypipe-trace/v1. Fury Trace est une projection bornée, reconstruite à la demande depuis les sources existantes :
+
+- FuryReplay fournit les événements, la séquence et la hash-chain ;
+- FuryRunResult.replayHead détecte une troncature après la fin du run ;
+- FuryProofBundle fournit les receipts, leurs digests d’évidence et le bundleDigest ;
+- FuryMissionControl fournit les workers courants quand le run est encore observable en mémoire.
+
+Le graphe lie run → replay → event → worker → receipt → FuryJudge → proof bundle. Les événements exposent un type, un numéro, un hash et un digest de données ; le graphe ne recopie pas les commandes ni le contenu brut dans l’interface. Une trace sans résultat final est NOT_READY. Une hash-chain ou un bundle incompatibles donnent INVALID. Seule une projection issue d’un replay valide et d’un bundle final est READY.
+
+GET /api/studio/runs/trace.json?runId=... est une lecture locale. Elle ne démarre aucun agent et retourne toujours executionAuthority=false. READY décrit l’intégrité de la projection, pas l’acceptation du travail : le verdict FuryJudge, les receipts et les gates restent visibles séparément.
+
 ## Suite architecturale
 
-1. VNEXT-01 : manifeste workspace et artifact commit vérifié.
-2. VNEXT-02 : Trace UI branchée aux receipts réels, sans nouveau store opaque.
+1. VNEXT-01 : manifeste workspace et artifact commit vérifié — livré localement.
+2. VNEXT-02 : Trace UI branchée aux receipts réels, sans nouveau store opaque — implémenté, validation client d’un run réel encore séparée.
 3. VNEXT-03 : Capability Composer compilé vers FuryIR/Dispatcher.
 4. VNEXT-04 : Context OS basé sur context fabric, graph et memory existants.
 5. VNEXT-05 : Artifact Workspace last-good, versioning et provenance enrichie.

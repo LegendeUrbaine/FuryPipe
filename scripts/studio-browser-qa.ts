@@ -497,6 +497,7 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
 
     await page.goto(`${origins.normal}/#/mission`);
     await page.locator('#runs .empty').waitFor();
+    await page.locator('#run-trace-status').filter({ hasText: 'No completed run selected' }).waitFor();
     await page.locator('#run-intent').fill('Fix login');
     await page.locator('#run-files').fill('src/auth/login.ts');
     await page.locator('#run-confirm').check();

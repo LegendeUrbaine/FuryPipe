@@ -72,6 +72,7 @@ import { createRecoveryStore } from '../core/recovery-store.js';
 import { createFuryEvalHistoryRepository, type FuryEvalHistoryRepository } from '../fury-eval-history.js';
 import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } from '../fury-video-timeline.js';
 import { createFuryObservabilityNotConfiguredSnapshot, type FuryObservabilityRegistry } from '../fury-observability.js';
+import { buildFuryRunTrace } from '../fury-trace.js';
 import { createFuryMemoryTimeMachine, type FuryMemorySnapshot } from '../fury-memory-time-machine.js';
 import { createFuryMarketplaceCatalog, type FuryMarketplaceCatalog } from '../fury-marketplace.js';
 import { executeFuryHeadless, FuryHeadlessError } from '../fury-headless.js';
@@ -87,7 +88,7 @@ const WORKSPACE_TASK_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/u;
 
 export type StudioRoute =
   | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'eval-history' | 'eval-compare' | 'headless' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
-  | 'runs' | 'run-start' | 'run-act' | 'skills' | 'skill-act' | 'skill-select' | 'skill-install' | 'skill-create' | 'skill-compare'
+  | 'runs' | 'run-start' | 'run-act' | 'run-trace' | 'skills' | 'skill-act' | 'skill-select' | 'skill-install' | 'skill-create' | 'skill-compare'
   | 'mcp' | 'mcp-add' | 'mcp-act' | 'mcp-probe' | 'mcp-decide'
   | 'knowledge' | 'knowledge-ingest' | 'knowledge-search'
   | 'web' | 'visual-render'
@@ -170,6 +171,7 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/runs.json': { route: 'runs', method: 'GET' },
   '/api/studio/runs': { route: 'run-start', method: 'POST' },
   '/api/studio/runs/act': { route: 'run-act', method: 'POST' },
+  '/api/studio/runs/trace.json': { route: 'run-trace', method: 'GET' },
   '/api/studio/skills.json': { route: 'skills', method: 'GET' },
   '/api/studio/skills/act': { route: 'skill-act', method: 'POST' },
   '/api/studio/skills/select': { route: 'skill-select', method: 'POST' },
@@ -548,6 +550,7 @@ export function createStudioApi(options: StudioApiOptions) {
     totals: r.mission?.totals() ?? null,
     replayEntries: r.mission?.replay().entries.length ?? 0,
     ...(r.result ? { verdict: r.result.judgement.verdict, pendingGates: r.result.pendingGates, bundleDigest: r.result.bundle.bundleDigest, requirements: r.result.judgement.requirements.map((q) => ({ id: q.id, status: q.status })) } : {}),
+    traceStatus: r.result ? 'READY' : 'NOT_READY',
   });
 
   return Object.freeze({
@@ -1276,6 +1279,18 @@ export function createStudioApi(options: StudioApiOptions) {
             if (body.action !== 'STOP') return problem(400, 'invalid-input', 'only STOP is available on a live run');
             run.mission.act(String(body.workerId), 'STOP', { reason: 'stopped by operator' });
             return json(runSnapshot(run));
+          }
+          case 'run-trace': {
+            const runId = new URL(request.url).searchParams.get('runId');
+            if (!runId || runId.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(runId)) return problem(400, 'invalid-input', 'runId must be a bounded run identifier');
+            const run = runs.get(runId);
+            if (!run) return problem(404, 'unknown-run', 'run not found');
+            return json(buildFuryRunTrace({
+              runId: run.runId,
+              runStatus: run.status,
+              ...(run.result ? { result: run.result } : {}),
+              ...(run.mission ? { workers: run.mission.workers().map((w) => ({ workerId: w.workerId, taskId: w.taskId, role: w.role, state: w.state, receiptIds: w.receiptIds })) } : {}),
+            }));
           }
           case 'run-start': {
             const body = await readJson(request) as { intent?: unknown; plannedFiles?: unknown; mode?: unknown; profile?: unknown; allowCloud?: unknown; confirm?: unknown; capabilities?: unknown; approvedCapabilities?: unknown };

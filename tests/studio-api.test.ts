@@ -73,6 +73,7 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/local.json')).toEqual({ route: 'local', method: 'GET' });
     expect(studioApiRoute('/api/studio/models.json')).toEqual({ route: 'models', method: 'GET' });
     expect(studioApiRoute('/api/studio/chat')).toEqual({ route: 'chat', method: 'POST' });
+    expect(studioApiRoute('/api/studio/runs/trace.json')).toEqual({ route: 'run-trace', method: 'GET' });
     expect(studioApiRoute('/api/studio/setup/runtime')).toEqual({ route: 'runtime-setup', method: 'POST' });
     expect(studioApiRoute('/api/studio/setup/runtime/status')).toEqual({ route: 'runtime-setup-status', method: 'GET' });
     expect(studioApiRoute('/api/studio/autopilot/preview')).toEqual({ route: 'autopilot-preview', method: 'POST' });
@@ -644,6 +645,13 @@ describe('Studio runs (Mission Control)', () => {
       expect(snapshot?.status).toBe('COMPLETED');
       // No test/review receipt was produced by the fake executor: never ACCEPT.
       expect(snapshot?.verdict).toBe('UNPROVEN');
+      expect((snapshot as { traceStatus?: string } | undefined)?.traceStatus).toBe('READY');
+      const traceResponse = await studio.handle('run-trace', new Request(`http://127.0.0.1/api/studio/runs/trace.json?runId=${encodeURIComponent(runId)}`));
+      expect(traceResponse.status).toBe(200);
+      const trace = await traceResponse.json() as { status: string; executionAuthority: boolean; replayIntegrity: { status: string }; nodes: { kind: string }[] };
+      expect(trace).toMatchObject({ status: 'READY', executionAuthority: false, replayIntegrity: { status: 'PASS' } });
+      expect(trace.nodes.some((node) => node.kind === 'event')).toBe(true);
+      expect((await studio.handle('run-trace', new Request('http://127.0.0.1/api/studio/runs/trace.json?runId=unknown'))).status).toBe(404);
       expect(seen.every((s) => s.endsWith('@local'))).toBe(true);
       expect(snapshot?.workers.every((w) => w.locality === 'local')).toBe(true);
       expect((await studio.handle('run-act', post({ runId, workerId: 'x', action: 'DELETE' }))).status).toBe(400);

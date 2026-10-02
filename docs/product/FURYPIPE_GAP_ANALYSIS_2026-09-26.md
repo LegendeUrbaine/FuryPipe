@@ -368,6 +368,49 @@ Status: `IMPLEMENTED_PENDING_EXACT_HEAD`.
 
 No merge, tag, release, npm publish or deploy performed.
 
+## Real-world acceptance overlay — 2026-10-02
+
+This section is an acceptance overlay, not a rewrite of the historical
+2026-09-26 matrix above. Historical repository names, totals and checkpoint
+statuses remain historical evidence and must not be read as the current PR
+head.
+
+Current local acceptance evidence:
+
+- **Local model/runtime:** existing Ollama `0.32.15` was discovered and used
+  without downloading a model. `qwen3.5:latest` passed a real temporary
+  Markdown fact-summary path through native `/api/chat`; `qwen3-coder:30b`
+  passed the installed Studio SSE chat path through `/v1/chat/completions`.
+  Both models remain conservatively classified `MAY_BE_SLOW` by local
+  discovery.
+- **Persistence:** the generated summary conversation was saved and reopened
+  through a fresh `createStudioChats` instance; Studio chat metadata recorded
+  local Ollama provenance and `executionAuthority:false`.
+- **Agent path:** a real local model action token drove the bounded
+  request → intent → MCP discovery → skill → planning → inference → host
+  gate → `lookup` → `expand` → continuation → verification → RecoveryStore
+  path. The `expand` input came from the prior `lookup` result; the chain was
+  not a fabricated fixture-only assertion.
+- **Recovery:** subprocess kill, interrupted durable writes, process restart,
+  `outcome-unknown`, replay denial, bounded wake, duplicate prevention and
+  gateway stale-origin rejection passed in local smoke tests. These are local
+  runtime boundaries, not production-host or third-party-provider acceptance.
+- **Installed artifact:** the clean-room package smoke passed for `0.16.0`
+  with tarball SHA-256
+  `4038f2d166b4c09efa08aba55faaadff17e8479cfb7942854cb377f7e7ae3058`.
+- **Media P1:** normal host construction does not inject a media provider or
+  coordinator. The honest status remains `NOT_CONFIGURED`; preview is
+  preview-only and confirmed generation returns `409 NOT_CONFIGURED`. No
+  speculative provider wiring was added.
+- **Release split:** the local-first package/runtime evidence is ready for
+  review, while public release remains blocked by PR approval/merge,
+  provenance attestation, npm ownership/metadata confirmation, external
+  provider/OAuth/MCP/OpenClaw/Figma validation and human/client acceptance.
+
+Current source-of-truth tracking is PR #238 in `LegendeUrbaine/FuryPipe`,
+with the exact head revalidated separately after the documentation update.
+No merge, tag, release, npm publish or deploy is implied by this overlay.
+
 ## Graphify explicit refresh receipt checkpoint — 2026-09-28
 
 The lifecycle boundary is now extended without granting silent execution:

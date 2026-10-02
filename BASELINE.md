@@ -417,3 +417,21 @@ Baseline d'intégration : `v5-production-hardening` / `bc92bef794df25b2a7c541846
 | `git diff --check` | PASS local | aucune erreur |
 | Provider / OAuth / hosted / client / humain / production | NOT VERIFIED | aucune exécution externe réelle ni validation humaine/client |
 | Publication / mutation externe | NOT EXECUTED | aucun npm publish, release, merge, deploy ou claim `500x` |
+
+## FuryPipe Final Real-World Acceptance & Release Closure — 2026-10-02 — local-first, gates externes séparés
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Ollama installé / modèle local | PASS local réel | Ollama `0.32.15`; `qwen3.5:latest` et `qwen3-coder:30b` déjà présents; aucun téléchargement; Fury discovery classe les deux `MAY_BE_SLOW` |
+| Résumé Markdown par modèle réel | PASS local réel | `/api/chat`, `qwen3.5:latest`, phrase factuelle unique, Atlas/14:17/Nora/journal signé; `3 092 ms`; fixture SHA-256 `3722ac64…`; conversation sauvegardée puis rouverte |
+| Studio chat SSE réel | PASS local réel | `createStudioApi.handle(chat)`, `/v1/chat/completions`, `qwen3-coder:30b`, HTTP 200, `text/event-stream`, `29 823 ms`, persistance et provenance `local`, `executionAuthority=false` |
+| Agent request → intent → skill → MCP → model → tool → continuation | PASS local borné | action réelle `CHAIN_LOOKUP`; `lookup` → `expand`; RecoveryStore rouvert avec 5 records; artefact SHA-256 `9835f404…`; aucune autorité implicite |
+| Crash/restart/recovery | PASS local borné | recovery resilience PASS `15 502 ms`; gateway restart PASS `878 ms`; kill, writes interrompus, old-valid-or-new-valid, deduplication, replay denial et stale origin refusé |
+| Tests de frontières Kernel/Recovery/effects | PASS local | 4 fichiers / 47 tests ciblés |
+| Tests média | PASS local | 11 fichiers / 130 tests ciblés; aucune exécution provider réelle prétendue |
+| Paquet installé clean-room | PASS local | `furypipe@0.16.0`, setup/doctor/start/stop/restart/persistence/rollback/reinstall; tarball SHA-256 `4038f2d1…` |
+| Hôte média normal | NOT_CONFIGURED explicite | `src/node.ts` n’injecte aucun runtime/adapters média; `/media-preview` preview-only; `/media-generate` confirmé `409 NOT_CONFIGURED`; aucun faux provider |
+| Release split | LOCAL_FIRST_PACKAGE_READY | preuve locale installée acquise; publication externe bloquée par PR Draft, ownership/metadata npm, provenance signée, intégrations externes et validations client/humaine |
+| Service Ollama temporaire | PASS nettoyage | démarré uniquement pour l’acceptation locale puis arrêté; `127.0.0.1:11434` inaccessible après clôture |
+| Worktree concurrent | PRÉSERVÉ / ORIGINE_INCONNUE | changements `validation-command`, `corepack.cmd` et rapport Playwright non touchés et non commités |
+| Publication / mutation externe | NOT EXECUTED | aucun merge, tag, GitHub Release, npm publish, deploy, provider payant ou appel API payant |

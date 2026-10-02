@@ -67,6 +67,8 @@ import {
 import { createFuryMediaStudioGallery, createFuryMediaStudioPreview, createFuryMediaStudioSnapshot, type FuryMediaStudioPreviewOptions } from '../media-studio.js';
 import type { FuryMediaGenerationAdapter, FuryMediaGenerationMode } from '../media-generation-runtime.js';
 import type { FuryMediaGenerationJobEngine } from '../media-generation-job-engine.js';
+import { createRecoveryStore } from '../core/recovery-store.js';
+import { createFuryEvalHistoryRepository, type FuryEvalHistoryRepository } from '../fury-eval-history.js';
 import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } from '../fury-video-timeline.js';
 import { createFuryObservabilityNotConfiguredSnapshot, type FuryObservabilityRegistry } from '../fury-observability.js';
 import { createFuryMemoryTimeMachine, type FuryMemorySnapshot } from '../fury-memory-time-machine.js';
@@ -82,14 +84,14 @@ const MAX_POST_BYTES = 256 * 1024;
 const CACHE_MS = 10_000;
 
 export type StudioRoute =
-  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'headless' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
+  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'eval-history' | 'eval-compare' | 'headless' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
   | 'runs' | 'run-start' | 'run-act' | 'skills' | 'skill-act' | 'skill-select' | 'skill-install' | 'skill-create' | 'skill-compare'
   | 'mcp' | 'mcp-add' | 'mcp-act' | 'mcp-probe' | 'mcp-decide'
   | 'knowledge' | 'knowledge-ingest' | 'knowledge-search'
   | 'web' | 'visual-render'
   | 'memory' | 'memory-remember' | 'memory-search' | 'memory-act'
   | 'integrations' | 'connections' | 'connection-login' | 'support'
-  | 'media' | 'media-preview' | 'media-jobs' | 'media-timeline-preview' | 'observability'
+  | 'media' | 'media-preview' | 'media-generate' | 'media-jobs' | 'media-job-inspect' | 'media-job-cleanup-plan' | 'media-job-output' | 'media-timeline-preview' | 'observability'
   | 'video-doctor' | 'video-providers' | 'video-project' | 'video-ingest' | 'video-analyze' | 'video-storyboard' | 'video-render' | 'video-qc' | 'video-artifacts' | 'video-file'
   | 'marketplace'
   | 'memory-time-machine' | 'memory-time-machine-diff' | 'memory-time-machine-restore' | 'memory-time-machine-action' | 'memory-time-machine-export'
@@ -115,12 +117,18 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/dispatch-preview': { route: 'dispatch-preview', method: 'POST' },
   '/api/studio/autopilot/preview': { route: 'autopilot-preview', method: 'POST' },
   '/api/studio/eval': { route: 'eval', method: 'POST' },
+  '/api/studio/eval/history.json': { route: 'eval-history', method: 'GET' },
+  '/api/studio/eval/compare': { route: 'eval-compare', method: 'POST' },
   '/api/studio/headless': { route: 'headless', method: 'POST' },
   '/api/studio/extensions.json': { route: 'extensions', method: 'GET' },
   '/api/studio/support.json': { route: 'support', method: 'GET' },
   '/api/studio/media.json': { route: 'media', method: 'GET' },
   '/api/studio/media/preview': { route: 'media-preview', method: 'POST' },
+  '/api/studio/media/generate': { route: 'media-generate', method: 'POST' },
   '/api/studio/media/jobs.json': { route: 'media-jobs', method: 'GET' },
+  '/api/studio/media/jobs/inspect': { route: 'media-job-inspect', method: 'POST' },
+  '/api/studio/media/jobs/cleanup-plan': { route: 'media-job-cleanup-plan', method: 'POST' },
+  '/api/studio/media/jobs/output': { route: 'media-job-output', method: 'GET' },
   '/api/studio/media/timeline/preview': { route: 'media-timeline-preview', method: 'POST' },
   '/api/studio/video/doctor.json': { route: 'video-doctor', method: 'GET' },
   '/api/studio/video/providers.json': { route: 'video-providers', method: 'GET' },
@@ -195,6 +203,37 @@ export function studioApiRoute(pathname: string): { route: StudioRoute; method: 
   return ROUTES[pathname] ?? null;
 }
 
+export interface StudioMediaExecutionInput {
+  readonly surface: 'image' | 'video' | 'audio';
+  readonly operation: FuryMediaGenerationMode;
+  readonly prompt: string;
+  readonly outputMimeType: string;
+  readonly options?: unknown;
+}
+
+export interface StudioMediaExecutionResult {
+  readonly jobId: string;
+  readonly status: string;
+  readonly family?: string;
+  readonly operation?: string;
+  readonly outputReferences?: readonly Readonly<{
+    readonly artifactId: string;
+    readonly version: number;
+    readonly mediaSha256: string;
+    readonly mimeType: string;
+    readonly byteLength: number;
+  }>[];
+  readonly failure?: Readonly<{
+    readonly classification: string;
+    readonly messageDigestSha256: string;
+  }>;
+}
+
+/** Explicit host boundary for the real media coordinator/job engine. */
+export interface StudioMediaExecution {
+  submit(input: StudioMediaExecutionInput): Promise<StudioMediaExecutionResult>;
+}
+
 export interface StudioApiOptions {
   /** Project root for FuryGraph (the runtime working directory). */
   readonly projectRoot: string;
@@ -238,10 +277,16 @@ export interface StudioApiOptions {
   readonly artifactRepository?: FuryArtifactRepository;
   /** Artifact RecoveryStore root (default ~/.furypipe/studio/artifacts/<project>). */
   readonly artifactsDir?: string;
+  /** Durable FuryEval history repository; defaults to a local RecoveryStore. */
+  readonly evalHistory?: FuryEvalHistoryRepository;
+  /** Root for default durable FuryEval history. */
+  readonly evalHistoryDir?: string;
   /** Provider-neutral media adapters observed by Studio; observation never grants execution authority. */
   readonly mediaAdapters?: readonly FuryMediaGenerationAdapter[];
   /** Optional durable media job projection; Studio only reads jobs and never submits from this route. */
-  readonly mediaJobEngine?: Pick<FuryMediaGenerationJobEngine, 'list'>;
+  readonly mediaJobEngine?: Pick<FuryMediaGenerationJobEngine, 'list' | 'inspectOutputs' | 'planOutputCleanup' | 'readOutput'>;
+  /** Optional real media execution boundary. Missing configuration is exposed as NOT_CONFIGURED. */
+  readonly mediaExecution?: StudioMediaExecution;
   /** Optional evidence registry; Studio only reads its immutable snapshot. */
   readonly observability?: Pick<FuryObservabilityRegistry, 'snapshot'>;
   /** Optional signed marketplace metadata catalog; Studio only reads its immutable snapshot. */
@@ -387,6 +432,14 @@ export function createStudioApi(options: StudioApiOptions) {
   const artifacts = options.artifactRepository ?? createFuryArtifactRepository({
     root: options.artifactsDir ?? path.join(os.homedir(), '.furypipe', 'studio', 'artifacts', projectKey),
     projectId: projectKey,
+  });
+  const evalHistory = options.evalHistory ?? createFuryEvalHistoryRepository({
+    store: createRecoveryStore(
+      options.evalHistoryDir ?? path.join(os.homedir(), '.furypipe', 'studio', 'eval-history', projectKey),
+      { namespace: 'eval-history', maxObjectBytes: 2 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 },
+    ),
+    projectId: projectKey,
+    now,
   });
   const artifactSummary = (artifact: FuryArtifact) => {
     const latest = artifact.versions.at(-1)!;
@@ -699,13 +752,50 @@ export function createStudioApi(options: StudioApiOptions) {
             }
             try {
               const report = evaluateFuryDataset(body.dataset as FuryEvalDataset);
+              const historyRecord = await evalHistory.append(report);
               return json({
                 ...report,
+                historyRunId: historyRecord.runId,
+                historyRecordedAt: historyRecord.recordedAt,
                 authority: 'evaluation-only',
                 execution: 'NOT_EXECUTED: FuryEval evaluates supplied observations only',
               });
             } catch (error) {
               return problem(422, 'eval-rejected', (error as Error).message);
+            }
+          }
+          case 'eval-history': {
+            const limitText = new URL(request.url).searchParams.get('limit');
+            const limit = limitText === null ? undefined : Number(limitText);
+            if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 10_000)) {
+              return problem(400, 'invalid-input', 'limit must be an integer between 1 and 10000');
+            }
+            return json({
+              format: 'furypipe-eval-history/v1',
+              runs: await evalHistory.list(limit),
+              authority: 'evaluation-history',
+              executionAuthorized: false,
+            });
+          }
+          case 'eval-compare': {
+            const body = await readJson(request) as { baselineRunId?: unknown; candidateReport?: unknown; dataset?: unknown; tolerance?: unknown };
+            if (typeof body.baselineRunId !== 'string') return problem(400, 'invalid-input', 'baselineRunId is required');
+            let candidate: ReturnType<typeof evaluateFuryDataset>;
+            try {
+              if (body.candidateReport !== undefined) {
+                candidate = body.candidateReport as ReturnType<typeof evaluateFuryDataset>;
+              } else if (body.dataset !== undefined) {
+                candidate = evaluateFuryDataset(body.dataset as FuryEvalDataset);
+              } else {
+                return problem(400, 'invalid-input', 'candidateReport or dataset is required');
+              }
+              const tolerance = body.tolerance === undefined ? undefined : Number(body.tolerance);
+              if (tolerance !== undefined && (!Number.isFinite(tolerance) || tolerance < 0 || tolerance > 1)) {
+                return problem(400, 'invalid-input', 'tolerance must be a finite number between 0 and 1');
+              }
+              return json(await evalHistory.compare(body.baselineRunId, candidate, tolerance === undefined ? {} : { tolerance }));
+            } catch (error) {
+              return problem(422, 'eval-comparison-rejected', (error as Error).message);
             }
           }
           case 'headless':
@@ -726,10 +816,17 @@ export function createStudioApi(options: StudioApiOptions) {
             });
           }
           case 'media':
-            return json(createFuryMediaStudioSnapshot({
+            return json({
+              ...createFuryMediaStudioSnapshot({
               ...(options.mediaAdapters === undefined ? {} : { adapters: options.mediaAdapters }),
               now,
-            }));
+              }),
+              execution: Object.freeze({
+                state: options.mediaExecution === undefined ? 'NOT_CONFIGURED' : 'CONFIGURED',
+                executionAuthority: false,
+                confirmationRequired: true,
+              }),
+            });
           case 'media-jobs':
             if (options.mediaJobEngine === undefined) return json({
               format: 'furypipe-media-studio-gallery/v1',
@@ -738,6 +835,55 @@ export function createStudioApi(options: StudioApiOptions) {
               jobs: [],
             });
             return json(createFuryMediaStudioGallery(await options.mediaJobEngine.list({ limit: 1_000 })));
+          case 'media-job-inspect': {
+            if (options.mediaJobEngine === undefined) return problem(409, 'media-jobs-not-configured', 'media job history is not configured');
+            const body = await readJson(request) as { jobId?: unknown };
+            if (typeof body.jobId !== 'string' || !body.jobId.trim()) return problem(400, 'invalid-input', 'jobId is required');
+            const inspection = await options.mediaJobEngine.inspectOutputs(body.jobId);
+            return json({
+              ...inspection,
+              outputReferences: inspection.outputReferences.map((output) => ({
+                ...output,
+                previewUrl: `/api/studio/media/jobs/output?jobId=${encodeURIComponent(inspection.jobId)}&artifactId=${encodeURIComponent(output.artifactId)}&version=${output.version}`,
+                exportUrl: `/api/studio/media/jobs/output?jobId=${encodeURIComponent(inspection.jobId)}&artifactId=${encodeURIComponent(output.artifactId)}&version=${output.version}&download=1`,
+              })),
+              retrieval: 'durable-job-reference-validated',
+              preview: 'GET output route returns bytes only after integrity verification',
+              export: 'GET output route with download=1 returns the same verified bytes as an attachment',
+            });
+          }
+          case 'media-job-cleanup-plan': {
+            if (options.mediaJobEngine === undefined) return problem(409, 'media-jobs-not-configured', 'media job history is not configured');
+            const body = await readJson(request) as { jobId?: unknown };
+            if (typeof body.jobId !== 'string' || !body.jobId.trim()) return problem(400, 'invalid-input', 'jobId is required');
+            return json(await options.mediaJobEngine.planOutputCleanup(body.jobId));
+          }
+          case 'media-job-output': {
+            if (options.mediaJobEngine === undefined) return problem(409, 'media-jobs-not-configured', 'media job history is not configured');
+            const params = new URL(request.url).searchParams;
+            const jobId = params.get('jobId');
+            const artifactId = params.get('artifactId');
+            const versionText = params.get('version');
+            if (!jobId || !artifactId || jobId.length > 128 || artifactId.length > 128) return problem(400, 'invalid-input', 'jobId and artifactId are required');
+            const version = versionText === null ? undefined : Number(versionText);
+            if (version !== undefined && (!Number.isSafeInteger(version) || version < 1 || version > 256)) return problem(400, 'invalid-input', 'version must be a positive integer');
+            const output = await options.mediaJobEngine.readOutput(jobId, artifactId, version);
+            const disposition = params.get('download') === '1' ? 'attachment' : 'inline';
+            const responseBytes = new ArrayBuffer(output.bytes.byteLength);
+            new Uint8Array(responseBytes).set(output.bytes);
+            return new Response(responseBytes, {
+              status: 200,
+              headers: {
+                'content-type': output.mimeType,
+                'content-length': String(output.byteLength),
+                'content-disposition': `${disposition}; filename="${output.artifactId}-v${output.version}"`,
+                'cache-control': 'no-store',
+                'x-content-type-options': 'nosniff',
+                'x-furypipe-media-sha256': output.mediaSha256,
+                'x-furypipe-execution-authorized': 'false',
+              },
+            });
+          }
           case 'media-preview': {
             const body = await readJson(request) as { surface?: unknown; operation?: unknown; prompt?: unknown; outputMimeType?: unknown; options?: unknown };
             if (body?.surface !== 'image' && body?.surface !== 'video' && body?.surface !== 'audio') return problem(400, 'invalid-input', 'media surface must be image, video or audio');
@@ -753,6 +899,44 @@ export function createStudioApi(options: StudioApiOptions) {
               }));
             } catch (error) {
               return problem(422, 'media-preview-rejected', (error as Error).message.slice(0, 300));
+            }
+          }
+          case 'media-generate': {
+            const body = await readJson(request) as { surface?: unknown; operation?: unknown; prompt?: unknown; outputMimeType?: unknown; options?: unknown; confirm?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'media provider execution requires confirm: true');
+            if (options.mediaExecution === undefined) return json({
+              format: 'furypipe-studio-media-submission/v1',
+              state: 'NOT_CONFIGURED',
+              executionAuthority: false,
+              next: 'Configure a supported provider and inject the real media coordinator/job engine boundary.',
+            }, 409);
+            if (body.surface !== 'image' && body.surface !== 'video' && body.surface !== 'audio') return problem(400, 'invalid-input', 'media surface must be image, video or audio');
+            if (typeof body.operation !== 'string' || typeof body.prompt !== 'string' || typeof body.outputMimeType !== 'string') return problem(400, 'invalid-input', 'media operation, prompt and outputMimeType are required');
+            if (body.prompt.length === 0 || body.prompt.length > 100_000 || body.prompt.includes('\0')) return problem(400, 'invalid-input', 'media prompt is invalid');
+            try {
+              const result = await options.mediaExecution.submit({
+                surface: body.surface,
+                operation: body.operation as FuryMediaGenerationMode,
+                prompt: body.prompt,
+                outputMimeType: body.outputMimeType,
+                ...(body.options === undefined ? {} : { options: body.options }),
+              });
+              if (!result || typeof result.jobId !== 'string' || !result.jobId || typeof result.status !== 'string' || result.status.length > 32) {
+                return problem(502, 'media-execution-invalid-result', 'configured media runtime returned an invalid job projection');
+              }
+              return json({
+                format: 'furypipe-studio-media-submission/v1',
+                jobId: result.jobId,
+                status: result.status,
+                ...(result.family === undefined ? {} : { family: result.family }),
+                ...(result.operation === undefined ? {} : { operation: result.operation }),
+                ...(result.outputReferences === undefined ? {} : { outputReferences: result.outputReferences }),
+                ...(result.failure === undefined ? {} : { failure: result.failure }),
+                executionAuthority: false,
+                confirmation: 'operator-confirmed',
+              }, 202);
+            } catch (error) {
+              return problem(502, 'media-execution-failed', (error as Error).message.slice(0, 300));
             }
           }
           case 'media-timeline-preview': {

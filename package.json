@@ -445,6 +445,14 @@
       "types": "./dist/fury-eval.d.ts",
       "import": "./dist/fury-eval.js"
     },
+    "./fury-eval-history": {
+      "types": "./dist/fury-eval-history.d.ts",
+      "import": "./dist/fury-eval-history.js"
+    },
+    "./fury-external-effect-ledger": {
+      "types": "./dist/fury-external-effect-ledger.d.ts",
+      "import": "./dist/fury-external-effect-ledger.js"
+    },
     "./fury-plugin-sdk": {
       "types": "./dist/fury-plugin-sdk.d.ts",
       "import": "./dist/fury-plugin-sdk.js"
@@ -815,6 +823,7 @@
     "validation:local-contracts": "node scripts/local-contracts.mjs",
     "validation:accessibility": "node scripts/accessibility-automation.mjs",
     "validation:furybench": "node scripts/furybench-baseline-compare.mjs",
+    "validation:document-summary": "node --import tsx/esm scripts/document-summary-e2e.ts",
     "validation:provider-live": "tsx scripts/provider-live-validation.ts",
     "validation:oidc-live": "node scripts/oidc-live-validation.mjs",
     "validation:mcp-remote": "node scripts/mcp-remote-validation.mjs",

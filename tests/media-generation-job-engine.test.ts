@@ -129,6 +129,34 @@ describe('FuryPipe durable media generation job engine', () => {
       expect(done.status).toBe('SUCCEEDED');
       expect(done.outputReferences).toHaveLength(1);
       expect(done.outputReferences[0]?.storageHandle).toMatch(/^furypipe-recovery\/v1\/sha256\/[0-9a-f]{64}$/u);
+      const verified = await h.engine.inspectOutputs(done.jobId);
+      expect(verified).toMatchObject({
+        format: 'furypipe-media-generation-output-inspection/v1',
+        status: 'VERIFIED',
+        executionAuthorized: false,
+      });
+      expect(verified.outputReferences[0]).toMatchObject({
+        status: 'VERIFIED',
+        artifact: { status: 'VERIFIED', projectId: 'job-engine-test' },
+        provenance: { requestDigestSha256: done.requestDigestSha256, planDigestSha256: done.planDigestSha256 },
+      });
+      const output = await h.engine.readOutput(done.jobId, done.outputReferences[0]!.artifactId, done.outputReferences[0]!.version);
+      expect(output).toMatchObject({
+        mimeType: 'image/png',
+        mediaSha256: done.outputReferences[0]!.mediaSha256,
+        byteLength: done.outputReferences[0]!.byteLength,
+      });
+      expect(output.bytes).toEqual(png());
+      const restartedEngine = createFuryMediaGenerationJobEngine({ recoveryStore: h.store, adapters: h.registry, mediaCoordinator: h.media, artifactStore: h.artifacts, projectId: 'job-engine-test', now: () => NOW });
+      expect((await restartedEngine.inspectOutputs(done.jobId)).status).toBe('VERIFIED');
+      const cleanup = await restartedEngine.planOutputCleanup(done.jobId);
+      expect(cleanup).toMatchObject({ deletionPerformed: false, cleanupAuthorized: false, executionAuthorized: false, candidates: [] });
+      await h.store.delete(done.outputReferences[0]!.storageHandle);
+      const missing = await restartedEngine.inspectOutputs(done.jobId);
+      expect(missing.status).toBe('MISSING');
+      expect(missing.outputReferences[0]?.status).toBe('MISSING');
+      expect((await restartedEngine.planOutputCleanup(done.jobId)).candidates[0]).toMatchObject({ status: 'MISSING', action: 'REPAIR_REFERENCE_OR_RECONCILE' });
+      await expect(restartedEngine.readOutput(done.jobId, done.outputReferences[0]!.artifactId)).rejects.toMatchObject({ status: 409 });
       expect(h.state.submitCount).toBe(1);
       const manifests = await h.store.list!({ metadata: { type: 'media-generation-job' } });
       const durable = await h.store.get(manifests[0]!);

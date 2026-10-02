@@ -98,6 +98,64 @@ export interface FuryMediaGenerationJob {
   readonly receiptReferences: readonly string[];
 }
 
+export type FuryMediaGenerationOutputIntegrityStatus = 'VERIFIED' | 'MISSING' | 'CORRUPT';
+
+export interface FuryMediaGenerationJobOutputInspection {
+  readonly format: 'furypipe-media-generation-output-inspection/v1';
+  readonly jobId: string;
+  readonly status: FuryMediaGenerationOutputIntegrityStatus | 'NO_OUTPUTS';
+  readonly outputReferences: readonly {
+    readonly artifactId: string;
+    readonly version: number;
+    readonly storageHandle: string;
+    readonly mediaSha256: string;
+    readonly mimeType: string;
+    readonly byteLength: number;
+    readonly status: FuryMediaGenerationOutputIntegrityStatus;
+    readonly storage: Readonly<{
+      readonly exists: boolean;
+      readonly digestMatches: boolean;
+      readonly bytes: number;
+      readonly reason?: string;
+    }>;
+    readonly artifact: Readonly<{
+      readonly status: 'VERIFIED' | 'MISSING' | 'MISMATCH';
+      readonly projectId?: string;
+      readonly contentSha256?: string;
+    }>;
+    readonly provenance: Readonly<{
+      readonly requestDigestSha256: string;
+      readonly planDigestSha256: string;
+    }>;
+  }[];
+  readonly executionAuthorized: false;
+}
+
+export interface FuryMediaGenerationJobOutputCleanupPlan {
+  readonly format: 'furypipe-media-generation-output-cleanup-plan/v1';
+  readonly jobId: string;
+  readonly candidates: readonly {
+    readonly artifactId: string;
+    readonly version: number;
+    readonly storageHandle: string;
+    readonly status: FuryMediaGenerationOutputIntegrityStatus;
+    readonly action: 'REPAIR_REFERENCE_OR_RECONCILE';
+  }[];
+  readonly deletionPerformed: false;
+  readonly cleanupAuthorized: false;
+  readonly executionAuthorized: false;
+  readonly reason: 'IMMUTABLE_REFERENCES_MUST_BE_REPAIRED_OR_RECONCILED_BEFORE_DELETION';
+}
+
+export interface FuryMediaGenerationJobOutputBytes {
+  readonly bytes: Uint8Array;
+  readonly mimeType: string;
+  readonly mediaSha256: string;
+  readonly byteLength: number;
+  readonly artifactId: string;
+  readonly version: number;
+}
+
 export interface FuryMediaGenerationJobEngineOptions {
   readonly recoveryStore: RecoveryStore;
   readonly adapters: FuryMediaGenerationAdapterRegistry;
@@ -132,6 +190,9 @@ export interface FuryMediaGenerationJobEngine {
   reconcile(jobId: string): Promise<FuryMediaGenerationJob>;
   cancel(jobId: string): Promise<FuryMediaGenerationJob>;
   recover(): Promise<readonly FuryMediaGenerationJob[]>;
+  inspectOutputs(jobId: string): Promise<FuryMediaGenerationJobOutputInspection>;
+  planOutputCleanup(jobId: string): Promise<FuryMediaGenerationJobOutputCleanupPlan>;
+  readOutput(jobId: string, artifactId: string, version?: number): Promise<FuryMediaGenerationJobOutputBytes>;
 }
 
 export type FuryMediaGenerationJobEngineResult = FuryMediaGenerationJob;
@@ -954,6 +1015,138 @@ export function createFuryMediaGenerationJobEngine(options: FuryMediaGenerationJ
     return Object.freeze(recovered);
   };
 
+  const inspectOutputs = async (jobId: string): Promise<FuryMediaGenerationJobOutputInspection> => {
+    const job = (await readStored(jobId)).job;
+    const outputReferences = await Promise.all(job.outputReferences.map(async (reference) => {
+      let storage: FuryMediaGenerationJobOutputInspection['outputReferences'][number]['storage'];
+      try {
+        const verification = await store.verify(reference.storageHandle);
+        storage = Object.freeze({
+          exists: verification.exists,
+          digestMatches: verification.digestMatches && verification.bytes === reference.byteLength,
+          bytes: verification.bytes,
+          ...(verification.reason === undefined ? {} : { reason: verification.reason }),
+        });
+      } catch (error) {
+        storage = Object.freeze({
+          exists: false,
+          digestMatches: false,
+          bytes: 0,
+          reason: error instanceof Error ? error.message.slice(0, 256) : 'storage verification failed',
+        });
+      }
+      const artifact = options.artifactStore.get(reference.artifactId);
+      const version = artifact?.versions.find((candidate) => candidate.version === reference.version);
+      const expectedContent = `recovery://${reference.storageHandle}`;
+      const metadata = version?.metadata;
+      const artifactVerified = Boolean(
+        artifact
+        && version
+        && artifact.projectId === options.projectId
+        && version.content === expectedContent
+        && version.mediaType === 'application/vnd.furypipe.media-reference'
+        && metadata?.storageHandle === reference.storageHandle
+        && metadata.mediaSha256 === reference.mediaSha256
+        && metadata.mimeType === reference.mimeType
+        && metadata.byteCount === String(reference.byteLength),
+      );
+      const artifactStatus: 'VERIFIED' | 'MISSING' | 'MISMATCH' = !artifact || !version
+        ? 'MISSING'
+        : artifactVerified ? 'VERIFIED' : 'MISMATCH';
+      const storageStatus: FuryMediaGenerationOutputIntegrityStatus = !storage.exists
+        ? 'MISSING'
+        : storage.digestMatches ? 'VERIFIED' : 'CORRUPT';
+      const status: FuryMediaGenerationOutputIntegrityStatus = storageStatus === 'MISSING' || artifactStatus === 'MISSING'
+        ? 'MISSING'
+        : storageStatus === 'CORRUPT' || artifactStatus === 'MISMATCH'
+          ? 'CORRUPT'
+          : 'VERIFIED';
+      return Object.freeze({
+        ...reference,
+        status,
+        storage,
+        artifact: Object.freeze({
+          status: artifactStatus,
+          ...(artifact ? { projectId: artifact.projectId } : {}),
+          ...(version ? { contentSha256: version.contentSha256 } : {}),
+        }),
+        provenance: Object.freeze({ requestDigestSha256: job.requestDigestSha256, planDigestSha256: job.planDigestSha256 }),
+      });
+    }));
+    const status = outputReferences.length === 0
+      ? 'NO_OUTPUTS' as const
+      : outputReferences.some((output) => output.status === 'CORRUPT')
+        ? 'CORRUPT' as const
+        : outputReferences.some((output) => output.status === 'MISSING')
+          ? 'MISSING' as const
+          : 'VERIFIED' as const;
+    return Object.freeze({
+      format: 'furypipe-media-generation-output-inspection/v1' as const,
+      jobId: job.jobId,
+      status,
+      outputReferences: Object.freeze(outputReferences),
+      executionAuthorized: false as const,
+    });
+  };
+
+  const planOutputCleanup = async (jobId: string): Promise<FuryMediaGenerationJobOutputCleanupPlan> => {
+    const inspection = await inspectOutputs(jobId);
+    return Object.freeze({
+      format: 'furypipe-media-generation-output-cleanup-plan/v1' as const,
+      jobId: inspection.jobId,
+      candidates: Object.freeze(inspection.outputReferences
+        .filter((output) => output.status !== 'VERIFIED')
+        .map((output) => Object.freeze({
+          artifactId: output.artifactId,
+          version: output.version,
+          storageHandle: output.storageHandle,
+          status: output.status,
+          action: 'REPAIR_REFERENCE_OR_RECONCILE' as const,
+        }))),
+      deletionPerformed: false as const,
+      cleanupAuthorized: false as const,
+      executionAuthorized: false as const,
+      reason: 'IMMUTABLE_REFERENCES_MUST_BE_REPAIRED_OR_RECONCILED_BEFORE_DELETION' as const,
+    });
+  };
+
+  const readOutput = async (jobId: string, artifactId: string, version?: number): Promise<FuryMediaGenerationJobOutputBytes> => {
+    const job = (await readStored(jobId)).job;
+    if (typeof artifactId !== 'string' || artifactId.length < 1 || artifactId.length > 128) {
+      throw Object.assign(new Error('media output artifactId is invalid'), { status: 400 });
+    }
+    if (version !== undefined && (!Number.isSafeInteger(version) || version < 1 || version > 256)) {
+      throw Object.assign(new Error('media output version is invalid'), { status: 400 });
+    }
+    const reference = job.outputReferences.find((candidate) => candidate.artifactId === artifactId && (version === undefined || candidate.version === version));
+    if (!reference) throw Object.assign(new Error('media output reference was not found'), { status: 404 });
+    const inspection = await inspectOutputs(jobId);
+    const inspected = inspection.outputReferences.find((candidate) => candidate.artifactId === reference.artifactId && candidate.version === reference.version);
+    if (!inspected || inspected.status !== 'VERIFIED') {
+      throw Object.assign(new Error('media output artifact or bytes are not verified'), { status: 409 });
+    }
+    const verification = await store.verify(reference.storageHandle);
+    if (!verification.exists) throw Object.assign(new Error('media output bytes are missing'), { status: 409 });
+    if (!verification.ok || !verification.digestMatches || verification.bytes !== reference.byteLength) {
+      throw Object.assign(new Error('media output integrity verification failed'), { status: 409 });
+    }
+    const bytes = await store.get(reference.storageHandle);
+    if (bytes.byteLength !== reference.byteLength || sha256(bytes) !== reference.mediaSha256) {
+      bytes.fill(0);
+      throw Object.assign(new Error('media output bytes do not match the durable reference'), { status: 409 });
+    }
+    const copy = new Uint8Array(bytes);
+    bytes.fill(0);
+    return Object.freeze({
+      bytes: copy,
+      mimeType: reference.mimeType,
+      mediaSha256: reference.mediaSha256,
+      byteLength: reference.byteLength,
+      artifactId: reference.artifactId,
+      version: reference.version,
+    });
+  };
+
   return Object.freeze({
     create,
     get: async (jobId: string) => (await readStored(jobId)).job,
@@ -964,5 +1157,8 @@ export function createFuryMediaGenerationJobEngine(options: FuryMediaGenerationJ
     reconcile,
     cancel,
     recover,
+    inspectOutputs,
+    planOutputCleanup,
+    readOutput,
   });
 }

@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
 import type { ProviderRuntimeState } from './core/provider-runtime.js';
+import {
+  createGovernedProviderStreamExecutor,
+  type GovernedProviderStreamEvent,
+} from './governed-provider-stream-executor.js';
 import type {
   ContinuousMemoryEngine,
   ContinuousMemoryMessage,
@@ -31,7 +35,15 @@ import {
   type FuryProviderRetryFallbackContinuationPolicy,
   type FuryProviderRetryFallbackResult,
 } from './provider-retry-fallback-orchestrator.js';
+import {
+  prepareProviderAttemptContext,
+} from './provider-attempt-context-runtime.js';
+import { createProviderAttemptPlanner } from './provider-attempt-planner.js';
+import { createProviderExecutionGate } from './provider-execution-gate.js';
+import { prepareProviderRequestEnvelope } from './provider-request-envelope.js';
+import { FuryGovernedProviderStreamError } from './provider-stream-errors.js';
 import type { ProviderTransportRegistry } from './provider-transport.js';
+import type { ProviderStreamTransportRegistry } from './provider-stream-transport.js';
 import {
   decodeFuryProviderResponseText,
   FuryProviderResponseTextError,
@@ -58,6 +70,8 @@ export interface FuryKernelModelBridgeOptions {
   readonly kernel: FuryKernelConversationStore;
   readonly providerRuntime: ProviderRuntimeState;
   readonly transports: ProviderTransportRegistry;
+  /** Optional exact provider stream transports used only for evented turns. */
+  readonly streamTransports?: ProviderStreamTransportRegistry;
   readonly routes: readonly FuryKernelModelRoute[];
   readonly continuationPolicy: FuryProviderRetryFallbackContinuationPolicy;
   readonly modelAdapters?: {
@@ -79,6 +93,33 @@ export interface FuryKernelModelBridgeOptions {
 export interface FuryKernelModelExecutionInput {
   readonly conversationId: string;
   readonly turnId: string;
+  /** Receives bounded, transport-reported lifecycle/text events for this turn. */
+  readonly onEvent?: (event: FuryKernelModelStreamEvent) => void;
+}
+
+export const FURY_KERNEL_MODEL_STREAM_EVENT_FORMAT =
+  'furypipe-kernel-model-stream-event/v1' as const;
+
+/**
+ * Browser-safe projection of a governed provider event.
+ *
+ * Request digests, prompts, usage/cost details and credentials are deliberately
+ * not forwarded across the WebSocket. This is presentation evidence only and
+ * never grants execution authority.
+ */
+export interface FuryKernelModelStreamEvent {
+  readonly format: typeof FURY_KERNEL_MODEL_STREAM_EVENT_FORMAT;
+  readonly sequence: number;
+  readonly providerId: string;
+  readonly model: string;
+  readonly kind: GovernedProviderStreamEvent['kind'];
+  readonly providerEventType: string;
+  readonly text?: string;
+  readonly finishReason?: string;
+  readonly terminalStatus?: GovernedProviderStreamEvent['terminalStatus'];
+  readonly errorCode?: string;
+  readonly evidence: 'transport-reported';
+  readonly executionAuthority: false;
 }
 
 export type FuryKernelModelBridgeStatus =
@@ -215,13 +256,15 @@ function validateInput(input: FuryKernelModelExecutionInput): FuryKernelModelExe
   const record = input as unknown as Record<string, unknown>;
   const keys = Object.keys(record);
   if (
-    keys.length !== 2
+    (keys.length !== 2 && keys.length !== 3)
     || !keys.includes('conversationId')
     || !keys.includes('turnId')
     || typeof input.conversationId !== 'string'
     || !CONVERSATION_ID_RE.test(input.conversationId)
     || typeof input.turnId !== 'string'
     || !TURN_ID_RE.test(input.turnId)
+    || (keys.includes('onEvent') && typeof input.onEvent !== 'function')
+    || keys.some((entry) => !['conversationId', 'turnId', 'onEvent'].includes(entry))
   ) {
     throw new Error('model execution input is invalid');
   }
@@ -238,6 +281,25 @@ function attemptSummary(result: FuryProviderRetryFallbackResult) {
     processed: result.attemptsProcessed,
     transportInvocations: result.transportInvocations,
     outcome: result.outcome,
+  });
+}
+
+function kernelStreamEvent(
+  event: GovernedProviderStreamEvent,
+): FuryKernelModelStreamEvent {
+  return Object.freeze({
+    format: FURY_KERNEL_MODEL_STREAM_EVENT_FORMAT,
+    sequence: event.sequence,
+    providerId: event.providerId,
+    model: event.model,
+    kind: event.kind,
+    providerEventType: event.providerEventType,
+    ...(event.text === undefined ? {} : { text: event.text }),
+    ...(event.finishReason === undefined ? {} : { finishReason: event.finishReason }),
+    ...(event.terminalStatus === undefined ? {} : { terminalStatus: event.terminalStatus }),
+    ...(event.errorCode === undefined ? {} : { errorCode: event.errorCode }),
+    evidence: 'transport-reported' as const,
+    executionAuthority: false as const,
   });
 }
 
@@ -567,12 +629,247 @@ export function createFuryKernelModelBridge(
 
       const modelNeutralBase = basePrompt(source.task);
 
+      const runStreamingProvider = async (
+        preparedPrompt: FuryPromptCompileInput,
+        onEvent: (event: FuryKernelModelStreamEvent) => void,
+      ): Promise<{
+        readonly result: FuryKernelModelBridgeResult;
+        readonly assistantMessage?: string;
+      }> => {
+        const route = routes[0]!;
+        const withAttempts = (
+          outcome: FuryProviderRetryFallbackResult['outcome'],
+          processed: number,
+          transportInvocations: number,
+        ) => Object.freeze({
+          planned: routes.length,
+          processed,
+          transportInvocations,
+          outcome,
+        });
+        const policy = Object.freeze({
+          format: 'furypipe-provider-execution-policy/v1' as const,
+          policyId: `webchat-stream-${randomUUID()}`,
+          allowProviderRequest: route.allowProviderRequest,
+          providerId: route.providerId,
+          model: route.model,
+          workloadId: WORKLOAD_ID,
+          expiresInMs: route.permitTtlMs,
+        });
+
+        let processed = 0;
+        let transportInvocations = 0;
+        const failStream = (
+          failureCode: string,
+          outcome: FuryProviderRetryFallbackResult['outcome'],
+        ) => {
+          terminalFail(options.kernel, valid.conversationId, valid.turnId, failureCode);
+          return Object.freeze({
+            result: failedResult(
+              valid.conversationId,
+              valid.turnId,
+              failureCode,
+              withAttempts(outcome, processed, transportInvocations),
+            ),
+          });
+        };
+
+        try {
+          const planner = createProviderAttemptPlanner({
+            basePrompt: preparedPrompt,
+            modelAdapters,
+            contextProfiles,
+          });
+          const plan = planner.plan({
+            providerId: route.providerId,
+            model: route.model,
+            workloadId: WORKLOAD_ID,
+          });
+          const context = prepareProviderAttemptContext({
+            attemptPlan: plan,
+            items: source.items,
+            securityPolicy: { allowSecret: false },
+          });
+          const request = prepareProviderRequestEnvelope(
+            context,
+            options.providerRuntime.registry(safeNow(now)),
+          );
+          const gate = createProviderExecutionGate({
+            providerRuntime: options.providerRuntime,
+            now,
+          });
+          const executor = createGovernedProviderStreamExecutor({
+            transports: options.streamTransports!,
+            providerRuntime: options.providerRuntime,
+            now,
+          });
+          const permit = gate.authorize(request, policy);
+          processed = 1;
+          let session;
+          try {
+            session = await executor.open(request, permit, { signal: controller.signal });
+            transportInvocations = 1;
+          } catch (error) {
+            transportInvocations = error instanceof FuryGovernedProviderStreamError
+              && error.transportInvoked
+              ? 1
+              : 0;
+            throw error;
+          }
+
+          if (
+            session.providerRequest.status !== 'accepted'
+            || session.network.status !== 'executed'
+          ) {
+            if (
+              session.providerRequest.status === 'unknown'
+              || session.network.status === 'unknown'
+            ) {
+              return failStream('provider-outcome-ambiguous', 'AMBIGUOUS_STOP');
+            }
+            return failStream('provider-request-rejected', 'STOPPED');
+          }
+
+          let assistantMessage = '';
+          let assistantBytes = 0;
+          let terminal: GovernedProviderStreamEvent | undefined;
+          for await (const event of session.events) {
+            const projected = kernelStreamEvent(event);
+            try {
+              onEvent(projected);
+            } catch {
+              // A presentation observer cannot grant authority or abort the
+              // provider stream by throwing into the governed bridge.
+            }
+
+            if (event.kind === 'text-delta') {
+              const delta = event.text ?? '';
+              assistantBytes += Buffer.byteLength(delta, 'utf8');
+              if (assistantBytes > maxAssistantBytes) {
+                controller.abort();
+                return failStream('assistant-message-limit', 'AMBIGUOUS_STOP');
+              }
+              assistantMessage += delta;
+            }
+            if (event.kind === 'terminal' || event.kind === 'provider-error') {
+              terminal = event;
+            }
+          }
+
+          if (controller.signal.aborted) {
+            terminalCancel(options.kernel, valid.conversationId, valid.turnId);
+            return Object.freeze({
+              result: Object.freeze({
+                format: FURY_KERNEL_MODEL_BRIDGE_FORMAT,
+                conversationId: valid.conversationId,
+                turnId: valid.turnId,
+                status: 'cancelled' as const,
+                attempts: withAttempts('CANCELLED', processed, transportInvocations),
+                executionAuthority: false as const,
+              }),
+            });
+          }
+
+          if (
+            !terminal
+            || terminal.kind !== 'terminal'
+            || terminal.terminalStatus !== 'completed'
+            || assistantMessage.length === 0
+            || assistantMessage.trim().length === 0
+          ) {
+            const failureCode = terminal?.kind === 'provider-error'
+              ? `provider-stream-${terminal.errorCode ?? 'provider-error'}`
+              : terminal?.terminalStatus === undefined
+                ? 'provider-stream-interrupted'
+                : `provider-stream-${terminal.terminalStatus}`;
+            return failStream(failureCode, 'STOPPED');
+          }
+
+          if (!isTurnStillActive(options.kernel, valid.conversationId, valid.turnId)) {
+            return Object.freeze({
+              result: Object.freeze({
+                format: FURY_KERNEL_MODEL_BRIDGE_FORMAT,
+                conversationId: valid.conversationId,
+                turnId: valid.turnId,
+                status: 'cancelled' as const,
+                attempts: withAttempts('CANCELLED', processed, transportInvocations),
+                executionAuthority: false as const,
+              }),
+            });
+          }
+
+          const assistantMessageId = `assistant-${randomUUID()}`;
+          try {
+            options.kernel.completeTurn({
+              conversationId: valid.conversationId,
+              turnId: valid.turnId,
+              messageId: assistantMessageId,
+              content: assistantMessage,
+            });
+          } catch (error) {
+            const failureCode = error instanceof FuryKernelConversationError
+              && (error.code === 'byte-limit' || error.code === 'message-limit')
+              ? 'assistant-message-limit'
+              : 'kernel-completion-failed';
+            return failStream(failureCode, 'STOPPED');
+          }
+
+          return Object.freeze({
+            assistantMessage,
+            result: Object.freeze({
+              format: FURY_KERNEL_MODEL_BRIDGE_FORMAT,
+              conversationId: valid.conversationId,
+              turnId: valid.turnId,
+              status: 'completed' as const,
+              assistantMessageId,
+              provider: Object.freeze({
+                providerId: session.providerId,
+                model: session.model,
+                networkStatus: session.network.status,
+                providerRequestStatus: session.providerRequest.status,
+                ...(session.httpStatus === undefined ? {} : { httpStatus: session.httpStatus }),
+                ...(terminal.finishReason === undefined ? {} : { finishReason: terminal.finishReason }),
+                verification: 'unverified' as const,
+              }),
+              attempts: withAttempts('SUCCEEDED', processed, transportInvocations),
+              executionAuthority: false as const,
+            }),
+          });
+        } catch (error) {
+          if (controller.signal.aborted) {
+            terminalCancel(options.kernel, valid.conversationId, valid.turnId);
+            return Object.freeze({
+              result: Object.freeze({
+                format: FURY_KERNEL_MODEL_BRIDGE_FORMAT,
+                conversationId: valid.conversationId,
+                turnId: valid.turnId,
+                status: 'cancelled' as const,
+                attempts: withAttempts('CANCELLED', processed, transportInvocations),
+                executionAuthority: false as const,
+              }),
+            });
+          }
+          const transportError = error instanceof FuryGovernedProviderStreamError;
+          return failStream(
+            transportError && error.transportInvoked
+              ? 'provider-outcome-ambiguous'
+              : transportError
+                ? `provider-stream-${error.code}`
+                : 'provider-stream-orchestration-failed',
+            transportError && error.transportInvoked ? 'AMBIGUOUS_STOP' : 'BLOCKED',
+          );
+        }
+      };
+
       const runProvider = async (
         preparedPrompt: FuryPromptCompileInput,
       ): Promise<{
         readonly result: FuryKernelModelBridgeResult;
         readonly assistantMessage?: string;
       }> => {
+        if (valid.onEvent !== undefined && options.streamTransports !== undefined) {
+          return runStreamingProvider(preparedPrompt, valid.onEvent);
+        }
         let orchestrator: ReturnType<typeof createProviderRetryFallbackOrchestrator>;
         try {
           orchestrator = createProviderRetryFallbackOrchestrator({

@@ -221,31 +221,61 @@ async function startHarness(
     now,
     ...(modelEnabled
       ? {
-          fetchImpl: async () => new Response(JSON.stringify({
-            id: 'resp_browser_qa',
-            output: [{
-              type: 'message',
-              role: 'assistant',
-              content: [{
-                type: 'output_text',
-                text: 'Governed browser QA model response.',
+          fetchImpl: async (_input, init) => {
+            let streaming = false;
+            if (typeof init?.body === 'string') {
+              try {
+                streaming = (JSON.parse(init.body) as { stream?: unknown }).stream === true;
+              } catch {
+                streaming = false;
+              }
+            }
+            if (streaming) {
+              const sse = [
+                'event: response.output_text.delta',
+                'data: {"type":"response.output_text.delta","delta":"Governed "}',
+                '',
+                'event: response.output_text.delta',
+                'data: {"type":"response.output_text.delta","delta":"browser QA model response."}',
+                '',
+                'event: response.completed',
+                'data: {"type":"response.completed","response":{"usage":{"input_tokens":12,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens":6}}}',
+                '',
+              ].join('\n');
+              return new Response(sse, {
+                status: 200,
+                headers: {
+                  'content-type': 'text/event-stream',
+                  'x-request-id': 'browser-qa-stream-request',
+                },
+              });
+            }
+            return new Response(JSON.stringify({
+              id: 'resp_browser_qa',
+              output: [{
+                type: 'message',
+                role: 'assistant',
+                content: [{
+                  type: 'output_text',
+                  text: 'Governed browser QA model response.',
+                }],
               }],
-            }],
-            usage: {
-              input_tokens: 12,
-              input_tokens_details: {
-                cached_tokens: 0,
-                cache_write_tokens: 0,
+              usage: {
+                input_tokens: 12,
+                input_tokens_details: {
+                  cached_tokens: 0,
+                  cache_write_tokens: 0,
+                },
+                output_tokens: 6,
               },
-              output_tokens: 6,
-            },
-          }), {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              'x-request-id': 'browser-qa-request',
-            },
-          }),
+            }), {
+              status: 200,
+              headers: {
+                'content-type': 'application/json',
+                'x-request-id': 'browser-qa-request',
+              },
+            });
+          },
         }
       : {}),
   });
@@ -450,9 +480,12 @@ async function startHarness(
               && modelRuntime.bridge
             ) {
               return modelRuntime.bridge.executeTurn(
-                command.input as {
-                  readonly conversationId: string;
-                  readonly turnId: string;
+                {
+                  ...(command.input as {
+                    readonly conversationId: string;
+                    readonly turnId: string;
+                  }),
+                  onEvent: command.emit,
                 },
               );
             }

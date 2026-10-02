@@ -3,6 +3,14 @@ import { lookup } from 'node:dns/promises';
 import { mkdir, open, readFile, realpath, stat } from 'node:fs/promises';
 import { isIP } from 'node:net';
 import { basename, dirname, extname, join, resolve, sep } from 'node:path';
+import {
+  createFuryExternalEffectLedger,
+  digestFuryExternalEffect,
+  FuryExternalEffectLedgerError,
+  type FuryExternalEffectRecord,
+  type FuryExternalEffectReconciliationInput,
+} from './fury-external-effect-ledger.js';
+import type { RecoveryStore } from './core/recovery-store.js';
 
 export const FURY_BROWSER_RUNTIME_FORMAT = 'furypipe-browser-runtime/v1' as const;
 export const FURY_BROWSER_SESSION_FORMAT = 'furypipe-browser-session/v1' as const;
@@ -62,6 +70,8 @@ export interface BrowserRuntimeOptions {
   readonly downloadsRoot?: string;
   readonly uploadRoots?: readonly string[];
   readonly resolveHostname?: (hostname: string) => Promise<readonly string[]>;
+  /** Optional durable ledger for effects whose external outcome cannot be observed locally. */
+  readonly recovery?: RecoveryStore;
 }
 
 export interface BrowserActionPermit {
@@ -75,6 +85,7 @@ export interface BrowserActionPermit {
   readonly policySha256: string;
   readonly issuedAt: number;
   readonly expiresAt: number;
+  readonly recoveryOperationId?: string;
   readonly executionAuthority: false;
 }
 
@@ -97,6 +108,7 @@ export interface BrowserActionReceipt {
   readonly originSha256?: string;
   readonly finalUrlSha256?: string;
   readonly errorCode?: BrowserErrorCode;
+  readonly recoveryOperationId?: string;
   readonly executionAuthority: false;
 }
 
@@ -134,7 +146,8 @@ export type BrowserErrorCode =
   | 'page-closed' | 'permit-invalid' | 'permit-expired' | 'permit-consumed'
   | 'policy-denied' | 'url-invalid' | 'url-private' | 'url-not-allowed'
   | 'redirect-private' | 'upload-invalid' | 'download-invalid' | 'timeout'
-  | 'cancelled' | 'host-failed' | 'unsupported-action';
+  | 'cancelled' | 'host-failed' | 'unsupported-action'
+  | 'recovery-required' | 'recovery-failed';
 
 export class BrowserRuntimeError extends Error {
   readonly code: BrowserErrorCode;
@@ -218,6 +231,9 @@ export interface BrowserRuntime {
   inspectPage(session: BrowserSession, page: BrowserPage): BrowserPage;
   authorize(request: BrowserActionRequest, options?: { readonly ttlMs?: number; readonly timeoutMs?: number }): Promise<BrowserActionPermit>;
   invoke(permit: BrowserActionPermit, options?: { readonly signal?: AbortSignal }): Promise<BrowserActionResult>;
+  listOutcomeUnknown(input?: { readonly effectKeySha256?: string; readonly limit?: number }): Promise<readonly FuryExternalEffectRecord[]>;
+  inspectOutcomeUnknown(operationId: string): Promise<FuryExternalEffectRecord | undefined>;
+  reconcileOutcomeUnknown(operationId: string, input: FuryExternalEffectReconciliationInput): Promise<FuryExternalEffectRecord>;
 }
 
 interface SessionState {
@@ -830,6 +846,16 @@ export function createManagedBrowserRuntime(options: BrowserRuntimeOptions): Bro
   const sessions = new Map<string, SessionState>();
   let pendingSessions = 0;
   const at = (): number => finiteTimestamp(now(), 'browser clock');
+  const effectLedger = options.recovery === undefined
+    ? undefined
+    : createFuryExternalEffectLedger({ store: options.recovery, now: at });
+  const ledgerError = (error: unknown, fallback: BrowserErrorCode = 'recovery-failed'): BrowserRuntimeError => {
+    if (error instanceof FuryExternalEffectLedgerError) {
+      if (error.code === 'recovery-required') return new BrowserRuntimeError('recovery-required', error.message);
+      if (error.code === 'invalid-input' || error.code === 'not-found') return new BrowserRuntimeError('invalid-request', error.message);
+    }
+    return new BrowserRuntimeError(fallback, error instanceof Error ? error.message : 'browser external-effect recovery failed');
+  };
   const requireSession = (value: BrowserSession): SessionState => {
     const state = SESSION_STATE.get(value as unknown as object);
     if (!state) throw new BrowserRuntimeError('invalid-session', 'browser session is not process-local evidence');
@@ -998,6 +1024,7 @@ export function createManagedBrowserRuntime(options: BrowserRuntimeOptions): Bro
         principalIdSha256: principalDigest(checked.session.principalId),
         pageIdSha256: pageDigest(checked.page.pageId),
         action: request.action, targetSha256, policySha256, issuedAt, expiresAt,
+        ...(effectLedger === undefined ? {} : { recoveryOperationId: permitId }),
         executionAuthority: false as const,
       });
       PERMIT_STATE.set(permit, permitState);
@@ -1022,7 +1049,59 @@ export function createManagedBrowserRuntime(options: BrowserRuntimeOptions): Bro
         action: state.request.action, targetSha256: state.targetSha256, policySha256: state.policySha256,
         startedAt: now, executionAuthority: false as const,
       };
-      const finish = (input: Omit<BrowserActionReceipt, keyof typeof common>): BrowserActionReceipt => Object.freeze({ ...common, ...input });
+      const finish = (input: Omit<BrowserActionReceipt, keyof typeof common>): BrowserActionReceipt => Object.freeze({
+        ...common,
+        ...(effectLedger === undefined ? {} : { recoveryOperationId: permit.permitId }),
+        ...input,
+      });
+      if (effectLedger === undefined) {
+        // No durable ledger was requested; preserve the process-local behavior.
+      } else {
+        try {
+          await effectLedger.arm({
+            operationId: permit.permitId,
+            kind: 'browser',
+            effectKeySha256: digestFuryExternalEffect({
+              sessionId: state.session.sessionId,
+              pageId: state.page.pageId,
+              action: state.request.action,
+              targetSha256: state.targetSha256,
+            }),
+            intentSha256: digestFuryExternalEffect({
+              action: state.request.action,
+              targetSha256: state.targetSha256,
+              policySha256: state.policySha256,
+              sessionIdSha256: sessionDigest(state.session.sessionId),
+              pageIdSha256: pageDigest(state.page.pageId),
+            }),
+            now: at(),
+          });
+        } catch (error) {
+          throw ledgerError(error);
+        }
+      }
+      const settleResult = async (result: BrowserActionResult): Promise<BrowserActionResult> => {
+        if (effectLedger === undefined || result.receipt.outcome === 'outcome-unknown') return result;
+        try {
+          await effectLedger.settle(permit.permitId, {
+            outcome: result.receipt.outcome,
+            evidenceSha256: digestFuryExternalEffect(result.receipt),
+            confirmation: 'operator-confirmed',
+            now: at(),
+          });
+          return result;
+        } catch {
+          return Object.freeze({
+            ...result,
+            receipt: Object.freeze({
+              ...result.receipt,
+              outcome: 'outcome-unknown' as const,
+              verificationStatus: 'not-verified' as const,
+              errorCode: 'recovery-failed' as const,
+            }),
+          });
+        }
+      };
       let invocation: { readonly value: unknown; readonly pageUrl?: string; readonly redirects?: readonly string[] };
       try {
         const result = await withTimeout(
@@ -1047,23 +1126,23 @@ export function createManagedBrowserRuntime(options: BrowserRuntimeOptions): Bro
           try {
             await validateBrowserUrl(redirect, { allowedOrigins: policy.allowedOrigins, resolveHostname });
           } catch {
-            return Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', redirectCount: invocation.redirects?.length ?? 0, errorCode: 'redirect-private' }) });
+          return settleResult(Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', redirectCount: invocation.redirects?.length ?? 0, errorCode: 'redirect-private' }) }));
           }
         }
       } catch (error) {
         const code = error instanceof BrowserRuntimeError ? error.code : 'host-failed';
-        return Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: code }) });
+        return settleResult(Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: code }) }));
       }
       if (invocation.pageUrl !== undefined) {
         const checkedUrl = await validateBrowserUrl(invocation.pageUrl, { allowedOrigins: policy.allowedOrigins, resolveHostname }).catch(() => undefined);
-        if (!checkedUrl) return Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', redirectCount: invocation.redirects?.length ?? 0, errorCode: 'redirect-private' }) });
+        if (!checkedUrl) return settleResult(Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', redirectCount: invocation.redirects?.length ?? 0, errorCode: 'redirect-private' }) }));
         if (state.page.history.length >= maxHistory) state.page.history.shift();
         state.page.history.push(checkedUrl.url);
         state.page.currentUrl = checkedUrl.url;
       }
       const resultValue = invocation.value;
       if (state.request.action === 'download') {
-        if (downloadsRoot === undefined) return Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: 'download-invalid' }) });
+        if (downloadsRoot === undefined) return settleResult(Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: 'download-invalid' }) }));
         try {
           const download = await writeDownload(
             downloadsRoot,
@@ -1072,46 +1151,63 @@ export function createManagedBrowserRuntime(options: BrowserRuntimeOptions): Bro
             { allowedOrigins: policy.allowedOrigins, resolveHostname },
             at,
           );
-          return Object.freeze({
+          return settleResult(Object.freeze({
             receipt: finish({ finishedAt: at(), outcome: 'succeeded', verificationStatus: 'locally-verified', resultSha256: download.sha256, resultBytes: download.bytes, originSha256: download.sourceUrlSha256 }),
             download,
-          });
+          }));
         } catch (error) {
           const code = error instanceof BrowserRuntimeError ? error.code : 'download-invalid';
-          return Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: code }) });
+          return settleResult(Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: code }) }));
         }
       }
       if (state.request.action === 'extract_text' || state.request.action === 'accessibility_snapshot') {
         const data = observation(state.request.action === 'extract_text' ? 'text' : 'accessibility', resultValue, maxObservationBytes);
-        return Object.freeze({
+        return settleResult(Object.freeze({
           receipt: finish({ finishedAt: at(), outcome: 'succeeded', verificationStatus: 'locally-verified', resultSha256: data.textSha256, resultBytes: data.bytes }),
           observation: data,
-        });
+        }));
       }
       if (state.request.action === 'screenshot') {
-        if (!(resultValue instanceof Uint8Array)) return Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: 'host-failed' }) });
+        if (!(resultValue instanceof Uint8Array)) return settleResult(Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: 'host-failed' }) }));
         const bytes = new Uint8Array(resultValue);
-        return Object.freeze({
+        return settleResult(Object.freeze({
           receipt: finish({ finishedAt: at(), outcome: 'succeeded', verificationStatus: 'locally-verified', resultSha256: sha256(bytes), resultBytes: bytes.byteLength }),
           artifact: Object.freeze({ bytes, sha256: sha256(bytes) }),
-        });
+        }));
       }
       if (state.request.action === 'inspect_url') {
         const checkedUrl = await validateBrowserUrl(String(resultValue), { allowedOrigins: policy.allowedOrigins, resolveHostname }).catch(() => undefined);
-        if (!checkedUrl) return Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: 'url-private' }) });
-        return Object.freeze({
+        if (!checkedUrl) return settleResult(Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: 'url-private' }) }));
+        return settleResult(Object.freeze({
           receipt: finish({ finishedAt: at(), outcome: 'succeeded', verificationStatus: 'locally-verified', resultSha256: sha256(checkedUrl.url), resultBytes: utf8Bytes(checkedUrl.url), originSha256: sha256(checkedUrl.origin), finalUrlSha256: sha256(checkedUrl.url) }),
-        });
+        }));
       }
       const resultText = resultValue === null || resultValue === undefined ? 'null' : JSON.stringify(secretSafeJson(resultValue)) ?? '';
-      return Object.freeze({
+      return settleResult(Object.freeze({
         receipt: finish({
           finishedAt: at(), outcome: 'succeeded', verificationStatus: 'locally-verified',
           resultSha256: sha256(resultText), resultBytes: utf8Bytes(resultText),
           ...(invocation.redirects === undefined ? {} : { redirectCount: invocation.redirects.length }),
           ...(invocation.pageUrl === undefined ? {} : { finalUrlSha256: sha256(state.page.currentUrl) }),
         }),
-      });
+      }));
+    },
+    async listOutcomeUnknown(input = {}): Promise<readonly FuryExternalEffectRecord[]> {
+      if (effectLedger === undefined) return Object.freeze([]);
+      return effectLedger.listOutcomeUnknown(input);
+    },
+    async inspectOutcomeUnknown(operationId: string): Promise<FuryExternalEffectRecord | undefined> {
+      if (effectLedger === undefined) return undefined;
+      const record = await effectLedger.inspect(operationId);
+      return record?.state === 'outcome-unknown' ? record : undefined;
+    },
+    async reconcileOutcomeUnknown(operationId: string, input: FuryExternalEffectReconciliationInput): Promise<FuryExternalEffectRecord> {
+      if (effectLedger === undefined) throw new BrowserRuntimeError('recovery-required', 'browser outcome reconciliation requires a RecoveryStore');
+      try {
+        return await effectLedger.settle(operationId, input);
+      } catch (error) {
+        throw ledgerError(error);
+      }
     },
   });
 }

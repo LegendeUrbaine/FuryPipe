@@ -788,6 +788,24 @@ try {
     "const m = await import('furypipe/provider-stream-transports'); if (typeof m.createOpenAIProviderStreamTransport !== 'function' || typeof m.createAnthropicProviderStreamTransport !== 'function' || typeof m.createGoogleProviderStreamTransport !== 'function') process.exit(1);",
   ], installDir);
   assert(providerStreamTransportsExport.stderr === '', `Provider stream transports package export wrote stderr: ${providerStreamTransportsExport.stderr}`);
+  const furyEvalHistoryExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-eval-history'); if (typeof m.createFuryEvalHistoryRepository !== 'function' || m.FURY_EVAL_HISTORY_RECORD_FORMAT !== 'furypipe-eval-history-record/v1') process.exit(1);",
+  ], installDir);
+  assert(furyEvalHistoryExport.stderr === '', `FuryEval history package export wrote stderr: ${furyEvalHistoryExport.stderr}`);
+  const externalEffectLedgerExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-external-effect-ledger'); if (typeof m.createFuryExternalEffectLedger !== 'function' || m.FURY_EXTERNAL_EFFECT_LEDGER_FORMAT !== 'furypipe-external-effect-ledger/v1') process.exit(1);",
+  ], installDir);
+  assert(externalEffectLedgerExport.stderr === '', `External effect ledger package export wrote stderr: ${externalEffectLedgerExport.stderr}`);
+  const mediaGenerationJobEngineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/media-generation-job-engine'); if (typeof m.createFuryMediaGenerationJobEngine !== 'function' || m.FURY_MEDIA_GENERATION_JOB_FORMAT !== 'furypipe-media-generation-job/v1') process.exit(1);",
+  ], installDir);
+  assert(mediaGenerationJobEngineExport.stderr === '', `Media generation job engine package export wrote stderr: ${mediaGenerationJobEngineExport.stderr}`);
   const omniRouteExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

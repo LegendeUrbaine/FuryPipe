@@ -568,6 +568,7 @@ main>section{max-width:1180px;padding:22px 42px 64px}main>section>h1{font-size:3
 main>section.chat{max-width:none;padding:0}.chat-scroll{padding-left:34px;padding-right:34px}.log,.dock-inner{max-width:960px}.dock{padding-left:34px;padding-right:34px}
 .hero{max-width:760px;margin-bottom:26px}.hero-kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:18px;color:var(--o-hot);font:750 10px/1 var(--mono);letter-spacing:.16em}.signal-dot{width:7px;height:7px;border-radius:50%;background:var(--o-hot);box-shadow:0 0 12px rgba(255,106,26,.8)}.hero h2{font-size:clamp(34px,3.8vw,48px)}.hero p{max-width:62ch;margin-left:auto;margin-right:auto;color:var(--ink-2)}
 .hero-trust{display:flex;justify-content:center;flex-wrap:wrap;gap:7px;margin-top:18px}.hero-trust span{display:inline-flex;align-items:center;gap:6px;height:27px;padding:0 9px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.018);color:var(--muted);font:550 11px/1 var(--font)}.hero-trust .i{width:13px;height:13px;color:var(--o-hot)}
+.hero-runtime{max-width:680px;margin:18px auto 0;text-align:left;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.018);color:var(--muted);font-size:12px}.hero-runtime summary{padding:10px 12px;color:var(--ink-2);cursor:pointer;font-weight:650}.hero-runtime p{max-width:none;padding:0 12px;margin:0 0 10px;color:var(--muted);font-size:12px;line-height:1.5}
 .composer{background:linear-gradient(180deg,rgba(27,27,33,.98),rgba(14,14,18,.99));border-color:rgba(255,255,255,.13);box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 26px 80px -30px rgba(0,0,0,.96),0 0 0 1px rgba(255,106,26,.025)}.composer textarea{padding-top:20px}.dock-foot{padding-left:4px;padding-right:4px}.suggest{max-width:720px}
 @media (max-width:1100px){main>section{padding-left:28px;padding-right:28px}.top{padding-left:20px;padding-right:20px}}
 @media (max-width:860px){.side-nav{max-height:none;overflow:auto}.top{height:58px;padding:0 14px}.top-surface{display:none}.top-kicker{font-size:8px}.chat-scroll{padding-left:16px;padding-right:16px}.dock{padding-left:16px;padding-right:16px}.hero h2{font-size:clamp(30px,8vw,40px)}}
@@ -1126,7 +1127,7 @@ const SCRIPT = String.raw`
     if (name === 'knowledge') loadKnowledge();
     if (name === 'memory') loadMemory();
     if (name === 'integrations') loadIntegrations();
-    if (name === 'code') { loadGraph(); loadTree(''); loadWorktrees(); }
+    if (name === 'code') { loadGraph(); loadTree(''); loadWorktrees(); loadEvalHistory(); }
     if (name === 'mission') loadRuns();
     clearInterval(state.poll); if (name === 'mission') state.poll = setInterval(loadRuns, 2000);
   }
@@ -1540,6 +1541,8 @@ const SCRIPT = String.raw`
     const videoControls = $('#media-video-controls');
     const audioControls = $('#media-audio-controls');
     const submitButton = $('#media-submit');
+    const liveConfirm = $('#media-live-confirm');
+    const liveStatus = $('#media-live-status');
     if (!surfaceSelect || !operationSelect || !mimeSelect || !snapshot || !Array.isArray(snapshot.surfaces)) return;
     const surface = snapshot.surfaces.find((item) => item.id === surfaceSelect.value) || snapshot.surfaces[0];
     if (!surface) return;
@@ -1556,7 +1559,14 @@ const SCRIPT = String.raw`
     if (imageControls) imageControls.hidden = !image;
     if (videoControls) videoControls.hidden = !video;
     if (audioControls) audioControls.hidden = !audio;
-    if (submitButton) submitButton.textContent = image ? 'Generate image (preview-only)' : video ? 'Generate video (preview-only)' : audio ? 'Generate audio (preview-only)' : 'Preview governed request';
+    if (submitButton) submitButton.textContent = liveConfirm?.checked === true
+      ? 'Submit ' + surface.id + ' to configured provider'
+      : image ? 'Generate image (preview-only)' : video ? 'Generate video (preview-only)' : audio ? 'Generate audio (preview-only)' : 'Preview governed request';
+    const executionConfigured = snapshot.execution?.state === 'CONFIGURED';
+    if (liveConfirm) liveConfirm.disabled = !executionConfigured;
+    if (liveStatus) liveStatus.textContent = executionConfigured
+      ? 'A real media runtime is configured. Check the confirmation box to submit a governed job.'
+      : 'NOT_CONFIGURED: no real media provider runtime is attached; this Studio remains preview-only.';
     const activeAdapters = Array.isArray(snapshot.adapters) ? snapshot.adapters.filter((adapter) => adapter.family === surface.family) : [];
     if (providerSelect && modelSelect) {
       const previousProvider = providerSelect.value || 'AUTO';
@@ -1592,7 +1602,9 @@ const SCRIPT = String.raw`
     const imageAdapters = Array.isArray(snapshot.adapters) ? snapshot.adapters.filter((adapter) => adapter.family === 'image-generation') : [];
     if (providerStatus) providerStatus.textContent = imageAdapters.length === 0
       ? 'No image provider configured. Studio remains preview-only.'
-      : 'Image adapter capability observed. Live provider execution is not validated here.';
+      : snapshot.execution?.state === 'CONFIGURED'
+        ? 'Image adapter observed and real execution boundary configured; explicit confirmation is still required.'
+        : 'Image adapter capability observed, but no real execution boundary is configured.';
     const adapters = $('#media-adapters');
     if (adapters) {
       const observations = Array.isArray(snapshot.adapters) ? snapshot.adapters : [];
@@ -1614,6 +1626,46 @@ const SCRIPT = String.raw`
     }
     target.replaceChildren(...jobs.map((job) => {
       const card = el('article', { class: 'card media-gallery-item' });
+      const details = el('div', { class: 'media-output-details' });
+      const inspect = el('button', { type: 'button', class: 'secondary', text: 'Inspect durable outputs' });
+      const cleanup = el('button', { type: 'button', class: 'secondary', text: 'Plan cleanup' });
+      const actions = el('div', { class: 'row' }, inspect, cleanup);
+      inspect.addEventListener('click', async () => {
+        inspect.disabled = true;
+        details.replaceChildren(el('p', { class: 'muted', text: 'Verifying durable storage and artifact references…' }));
+        try {
+          const inspection = await post('/api/studio/media/jobs/inspect', { jobId: job.jobId });
+          details.replaceChildren(
+            el('p', { class: inspection.status === 'VERIFIED' ? 'status good' : 'status warn', text: 'Index status: ' + inspection.status + ' · retrieval: ' + inspection.retrieval }),
+            ...inspection.outputReferences.map((output) => {
+              const links = el('div', { class: 'row' });
+              if (output.status === 'VERIFIED') {
+                links.append(
+                  el('a', { class: 'btn secondary', href: output.previewUrl, target: '_blank', rel: 'noopener noreferrer', text: 'Preview' }),
+                  el('a', { class: 'btn secondary', href: output.exportUrl, target: '_blank', rel: 'noopener noreferrer', text: 'Export' }),
+                );
+              }
+              return el('article', { class: 'card extension-card' },
+                el('h3', { text: output.artifactId + ' · v' + output.version + ' · ' + output.status }),
+                el('p', { class: 'muted', text: 'Storage: ' + output.storageHandle + ' · ' + output.storage.bytes + ' bytes · digest ' + String(output.mediaSha256).slice(0, 16) + '…' }),
+                el('p', { class: 'muted', text: 'Artifact index: ' + output.artifact.status + ' · request sha256:' + String(output.provenance.requestDigestSha256).slice(0, 16) + '… · plan sha256:' + String(output.provenance.planDigestSha256).slice(0, 16) + '…' }),
+                links,
+              );
+            }),
+          );
+        } catch (error) {
+          details.replaceChildren(el('p', { class: 'bad', text: 'Output inspection failed: ' + (error instanceof Error ? error.message : String(error)) }));
+        } finally { inspect.disabled = false; }
+      });
+      cleanup.addEventListener('click', async () => {
+        cleanup.disabled = true;
+        try {
+          const plan = await post('/api/studio/media/jobs/cleanup-plan', { jobId: job.jobId });
+          details.replaceChildren(el('pre', { class: 'code-view', text: JSON.stringify(plan, null, 2) }));
+        } catch (error) {
+          details.replaceChildren(el('p', { class: 'bad', text: 'Cleanup plan failed: ' + (error instanceof Error ? error.message : String(error)) }));
+        } finally { cleanup.disabled = false; }
+      });
       const output = Array.isArray(job.outputMimeTypes) && job.outputMimeTypes.length ? job.outputMimeTypes.join(', ') : 'No output recorded';
       const latency = job.latencyMs === null ? 'UNKNOWN' : String(job.latencyMs) + ' ms';
       card.append(
@@ -1622,6 +1674,8 @@ const SCRIPT = String.raw`
         el('p', { class: 'muted', text: 'Output: ' + output + ' · Dimensions: ' + job.dimensions + ' · Seed: ' + job.seed }),
         el('p', { class: 'muted', text: 'Cost: ' + job.cost + ' · Latency: ' + latency + ' · Created: ' + new Date(job.createdAt).toISOString() }),
         el('p', { class: 'muted', text: 'Prompt digest: sha256:' + String(job.promptDigestSha256).slice(0, 16) + '… · Provenance: ' + (job.provenance && job.provenance.artifactIds ? job.provenance.artifactIds.length : 0) + ' artifact(s)' }),
+        actions,
+        details,
       );
       return card;
     }));
@@ -1852,27 +1906,44 @@ const SCRIPT = String.raw`
       language: valueOrUndefined('#media-language'),
       durationMs: numberOrUndefined('#media-audio-duration'),
     } : undefined;
-    if (status) status.textContent = 'Building preview…';
+    const live = $('#media-live-confirm')?.checked === true;
+    if (status) status.textContent = live ? 'Submitting governed media job…' : 'Building preview…';
     if (output) output.hidden = true;
     try {
-      const preview = await post('/api/studio/media/preview', {
+      const payload = {
         surface,
         operation: $('#media-operation').value,
         outputMimeType: $('#media-mime').value,
         prompt: $('#media-prompt').value,
         ...(imageOptions ? { options: imageOptions } : videoOptions ? { options: videoOptions } : audioOptions ? { options: audioOptions } : {}),
-      });
-      if (output) { output.textContent = JSON.stringify(preview, null, 2); output.hidden = false; }
-      if (status) status.textContent = surface === 'image'
-        ? 'Image preview built. No provider call or billable generation executed.'
-        : surface === 'video'
-          ? 'Video preview built. No provider call or billable generation executed.'
-          : surface === 'audio'
-            ? 'Audio preview built. No provider call, microphone capture or billable generation executed.'
-            : 'Preview built. No provider call or billable generation executed.';
+        ...(live ? { confirm: true } : {}),
+      };
+      const result = await post(live ? '/api/studio/media/generate' : '/api/studio/media/preview', payload);
+      if (output) { output.textContent = JSON.stringify(result, null, 2); output.hidden = false; }
+      if (status) {
+        if (live) {
+          status.textContent = 'Media job submitted · ' + (result.jobId || 'job identity unavailable') + ' · status ' + (result.status || 'unknown');
+        } else {
+          status.textContent = surface === 'image'
+            ? 'Image preview built. No provider call or billable generation executed.'
+            : surface === 'video'
+              ? 'Video preview built. No provider call or billable generation executed.'
+              : surface === 'audio'
+                ? 'Audio preview built. No provider call, microphone capture or billable generation executed.'
+                : 'Preview built. No provider call or billable generation executed.';
+        }
+      }
     } catch (error) {
-      if (status) status.textContent = 'Preview rejected: ' + (error instanceof Error ? error.message : String(error));
+      if (status) status.textContent = (live ? 'Media execution rejected: ' : 'Preview rejected: ') + (error instanceof Error ? error.message : String(error));
     }
+  });
+  const mediaLiveConfirm = $('#media-live-confirm');
+  if (mediaLiveConfirm) mediaLiveConfirm.addEventListener('change', () => {
+    const surface = $('#media-surface').value;
+    const submit = $('#media-submit');
+    if (submit) submit.textContent = mediaLiveConfirm.checked
+      ? 'Submit ' + surface + ' to configured provider'
+      : surface === 'image' ? 'Generate image (preview-only)' : surface === 'video' ? 'Generate video (preview-only)' : 'Generate audio (preview-only)';
   });
 
   async function loadConversations() {
@@ -2160,6 +2231,35 @@ const SCRIPT = String.raw`
       status.textContent = '';
     } catch (e) { status.textContent = 'Graph unavailable: ' + e.message; }
   }
+  function graphChangedFiles() {
+    return $('#blast-files').value.split(/[\n,]/).map(s => s.trim()).filter(Boolean).slice(0, 200);
+  }
+  $('#graph-plan').addEventListener('click', async () => {
+    const status = $('#graph-status'); const out = $('#graph-plan-out');
+    status.textContent = 'Planning Graphify lifecycle…'; out.hidden = true; out.textContent = '';
+    try {
+      const plan = await getJson('/api/studio/graph/lifecycle', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ changedFiles: graphChangedFiles() }),
+      });
+      out.textContent = JSON.stringify(plan, null, 2); out.hidden = false;
+      status.textContent = plan.stale ? 'Graph lifecycle requires attention.' : 'Graph lifecycle is currently consistent.';
+    } catch (e) { status.textContent = 'Graph lifecycle unavailable: ' + e.message; }
+  });
+  $('#graph-refresh').addEventListener('click', async () => {
+    if (!confirm('Refresh Graphify now? This runs the configured local Graphify refresh command.')) return;
+    const status = $('#graph-status'); const out = $('#graph-plan-out');
+    status.textContent = 'Refreshing Graphify…'; out.hidden = true; out.textContent = '';
+    try {
+      const result = await getJson('/api/studio/graph/refresh', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirm: true }),
+      });
+      out.textContent = JSON.stringify(result, null, 2); out.hidden = false;
+      await loadGraph();
+      status.textContent = 'Graphify refresh completed and graph state reloaded.';
+    } catch (e) { status.textContent = 'Graphify refresh failed: ' + e.message; }
+  });
   $('#blast-form').addEventListener('submit', async (ev) => {
     ev.preventDefault(); const files = $('#blast-files').value.split(/[\n,]/).map(s => s.trim()).filter(Boolean); const out = $('#blast-out');
     out.replaceChildren();
@@ -2168,6 +2268,53 @@ const SCRIPT = String.raw`
       const ul = el('ul'); for (const f of r.affected) ul.append(el('li', { text: f + (r.affectedTests.includes(f) ? '  (test)' : '') })); out.append(ul);
     } catch (e) { out.append(el('p', { class: 'bad', text: e.message })); }
   });
+
+  function renderEvalHistory(history) {
+    const target = $('#eval-history-list');
+    if (!target) return;
+    const runs = Array.isArray(history && history.runs) ? history.runs : [];
+    if (!runs.length) { target.replaceChildren(el('p', { class: 'muted', text: 'No FuryEval run persisted yet.' })); return; }
+    target.replaceChildren(...runs.map((record, index) => {
+      const card = el('article', { class: 'card extension-card' });
+      const actions = el('div', { class: 'row' });
+      if (index + 1 < runs.length) {
+        const compare = el('button', { type: 'button', class: 'secondary', text: 'Compare with previous' });
+        compare.addEventListener('click', async () => {
+          const output = $('#eval-compare-out');
+          output.hidden = false; output.textContent = 'Comparing…'; compare.disabled = true;
+          try {
+            const result = await post('/api/studio/eval/compare', { baselineRunId: runs[index + 1].runId, candidateReport: record.report });
+            output.textContent = JSON.stringify(result, null, 2);
+          } catch (error) { output.textContent = 'Comparison rejected: ' + (error instanceof Error ? error.message : String(error)); }
+          finally { compare.disabled = false; }
+        });
+        actions.append(compare);
+      }
+      card.append(
+        el('h3', { text: record.runId + ' · ' + record.report.datasetId + ' · ' + record.report.overall.successRate + ' success rate' }),
+        el('p', { class: 'muted', text: new Date(record.recordedAt).toISOString() + ' · dataset sha256:' + String(record.report.datasetDigestSha256).slice(0, 16) + '… · result sha256:' + String(record.report.resultDigestSha256).slice(0, 16) + '…' }),
+        actions,
+      );
+      return card;
+    }));
+  }
+  async function loadEvalHistory() {
+    const status = $('#eval-status');
+    try { const history = await getJson('/api/studio/eval/history.json?limit=50'); renderEvalHistory(history); if (status) status.textContent = history.runs.length + ' durable evaluation run(s). Execution authority: false.'; }
+    catch (error) { if (status) status.textContent = 'FuryEval history unavailable: ' + (error instanceof Error ? error.message : String(error)); }
+  }
+  $('#eval-run').addEventListener('click', async () => {
+    const status = $('#eval-status');
+    let dataset;
+    try { dataset = JSON.parse($('#eval-dataset').value); } catch { status.textContent = 'Dataset JSON is invalid.'; return; }
+    try {
+      status.textContent = 'Evaluating and persisting report…';
+      const result = await post('/api/studio/eval', { dataset });
+      status.textContent = 'Persisted ' + result.historyRunId + ' · result sha256:' + result.resultDigestSha256.slice(0, 16) + '…';
+      await loadEvalHistory();
+    } catch (error) { status.textContent = 'FuryEval rejected: ' + (error instanceof Error ? error.message : String(error)); }
+  });
+  $('#eval-history-refresh').addEventListener('click', loadEvalHistory);
 
   $('#dispatch-form').addEventListener('submit', async (ev) => {
     ev.preventDefault(); const out = $('#dispatch-out'); const status = $('#dispatch-status'); out.replaceChildren(); status.textContent = 'Planning…';
@@ -3038,15 +3185,16 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
       <div class="hero-kicker"><span class="signal-dot" aria-hidden="true"></span>LOCAL-FIRST WORKSPACE</div>
       <div class="hero-mark" aria-hidden="true"><div class="hero-glow"></div>${HERO_MARK}</div>
       <h2>How can FuryPipe help?</h2>
-      <p>Ask, build and inspect in one local workspace for models, agents and tools.</p>
+      <p>Ask, build and inspect in one governed workspace for models, agents and tools.</p>
       <div class="hero-trust" aria-label="Workspace guarantees"><span>${icon('shield')}Private by default</span><span>${icon('route')}Explicit routing</span><span>${icon('check')}Visible control</span></div>
+      <details class="hero-runtime"><summary>How this workspace runs</summary><p>Studio is the primary user experience. Chat uses a configured local model through the loopback boundary; agent tools, Skills, MCP and the Gateway keep their own explicit permissions and receipts.</p><p>Advanced Gateway WebChat remains available for diagnostics and governed provider streaming. It is not required for ordinary Studio use.</p></details>
     </div>
     <div id="chat-empty" class="setup setup-compact" hidden>
-      <div class="setup-copy"><span class="setup-orb" aria-hidden="true"></span><div><h3>Choose your AI</h3><p>Connect a cloud account or install a private local model. Fury Auto can route between what you enable.</p></div></div>
+      <div class="setup-copy"><span class="setup-orb" aria-hidden="true"></span><div><h3>Choose a local model</h3><p>Studio chat requires a reachable loopback model. Gateway provider accounts remain visible under Connections and the advanced diagnostics surface.</p></div></div>
       <div class="setup-actions">
-        <a class="setup-choice primary" href="#/connections">${icon('connections')}<span><b>Connect AI</b><small>Claude, ChatGPT/Codex, Gemini</small></span></a>
+        <a class="setup-choice primary" href="#/models">${icon('models')}<span><b>Configure local model</b><small>Ollama · LM Studio · compatible endpoints</small></span></a>
         <button type="button" class="setup-choice" data-install-runtime="ollama">${icon('cpu')}<span><b>Install Ollama</b><small>Private · on this PC</small></span></button>
-        <a class="setup-choice" href="#/models">${icon('models')}<span><b>Local models</b><small>Find what fits your hardware</small></span></a>
+        <a class="setup-choice" href="#/connections">${icon('connections')}<span><b>Provider diagnostics</b><small>Gateway accounts · no chat switch required</small></span></a>
       </div>
       <p id="setup-status" class="status muted" role="status"></p>
     </div>
@@ -3093,10 +3241,10 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   </div>
   <div id="autopilot-out" aria-live="polite"></div>
 </section>
-<section data-view="media" class="media-workspace" aria-labelledby="h-media" hidden><h1 id="h-media">Media Studio</h1><p class="lead">FuryImage, FuryVideo and FuryAudio share the governed media runtime. This surface builds bounded previews only; no provider call, credential use or billable generation starts here.</p>
+<section data-view="media" class="media-workspace" aria-labelledby="h-media" hidden><h1 id="h-media">Media Studio</h1><p class="lead">FuryImage, FuryVideo and FuryAudio share the governed media runtime. Studio previews are always local and bounded; a real provider job appears only when a host configures the runtime and you explicitly confirm it.</p>
   <div class="cap-rail" aria-label="Media Studio guarantees"><span>${icon('shield')}Preview authority only</span><span>${icon('check')}Bounded prompt + MIME</span><span>${icon('artifacts')}Artifact references after runtime proof</span></div>
   <div class="grid" id="media-surfaces"></div>
-  <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-provider">Provider / AUTO</label><select id="media-provider"><option value="AUTO">AUTO</option></select></div><div><label for="media-model">Model</label><select id="media-model"><option value="AUTO">AUTO</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><fieldset id="media-image-controls"><legend>FuryImage controls</legend><div class="row"><div><label for="media-aspect-ratio">Aspect ratio</label><select id="media-aspect-ratio"><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-resolution">Resolution</label><select id="media-resolution"><option value="1024x1024">1024×1024</option><option value="1536x1024">1536×1024</option><option value="1024x1536">1024×1536</option></select></div><div><label for="media-quality">Quality</label><select id="media-quality"><option value="standard">Standard</option><option value="high">High</option></select></div></div><details><summary>Advanced image controls</summary><div class="row"><div><label for="media-negative-prompt">Negative prompt</label><input id="media-negative-prompt" maxlength="100000" placeholder="Optional exclusions"></div><div><label for="media-seed">Seed</label><input id="media-seed" type="number" min="0" max="2147483647" step="1"></div><div><label for="media-guidance">Guidance</label><input id="media-guidance" type="number" min="0" max="30" step="0.1"></div><div><label for="media-steps">Steps</label><input id="media-steps" type="number" min="1" max="150" step="1"></div><div><label for="media-style">Style</label><select id="media-style"><option value="auto">Auto</option><option value="photorealistic">Photorealistic</option><option value="illustration">Illustration</option><option value="cinematic">Cinematic</option><option value="3d">3D</option></select></div><div><label for="media-input-strength">Input strength</label><input id="media-input-strength" type="number" min="0" max="1" step="0.01"></div></div></details></fieldset><fieldset id="media-video-controls" hidden><legend>FuryVideo controls</legend><div class="row"><div><label for="media-reference">Reference</label><input id="media-reference" maxlength="512" placeholder="Optional artifact/reference ID"></div><div><label for="media-duration">Duration (ms)</label><input id="media-duration" type="number" min="500" max="600000" step="1"></div><div><label for="media-fps">FPS</label><input id="media-fps" type="number" min="1" max="120" step="1"></div><div><label for="media-video-aspect-ratio">Aspect ratio</label><select id="media-video-aspect-ratio"><option value="16:9">16:9</option><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-video-resolution">Resolution</label><select id="media-video-resolution"><option value="1080p">1080p</option><option value="720p">720p</option><option value="2160p">2160p</option></select></div></div></fieldset><fieldset id="media-audio-controls" hidden><legend>FuryAudio / Voice controls</legend><div class="row"><div><label for="media-voice">Voice</label><input id="media-voice" maxlength="128" placeholder="Optional voice ID"></div><div><label for="media-language">Language</label><input id="media-language" maxlength="32" placeholder="Optional language, e.g. fr-FR"></div><div><label for="media-audio-duration">Duration (ms)</label><input id="media-audio-duration" type="number" min="500" max="600000" step="1"></div></div><p class="muted">Microphone capture requires explicit consent and is not started by this preview.</p></fieldset><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><div class="row"><button id="media-submit" type="submit">Generate image (preview-only)</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
+  <div class="card"><h2>Build a governed preview</h2><form id="media-preview-form"><div class="row"><div><label for="media-surface">Surface</label><select id="media-surface"><option value="image">FuryImage Studio</option><option value="video">FuryVideo Studio</option><option value="audio">FuryAudio Studio</option></select></div><div><label for="media-provider">Provider / AUTO</label><select id="media-provider"><option value="AUTO">AUTO</option></select></div><div><label for="media-model">Model</label><select id="media-model"><option value="AUTO">AUTO</option></select></div><div><label for="media-operation">Operation</label><select id="media-operation"></select></div><div><label for="media-mime">Output MIME</label><select id="media-mime"></select></div></div><fieldset id="media-image-controls"><legend>FuryImage controls</legend><div class="row"><div><label for="media-aspect-ratio">Aspect ratio</label><select id="media-aspect-ratio"><option value="1:1">1:1</option><option value="16:9">16:9</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-resolution">Resolution</label><select id="media-resolution"><option value="1024x1024">1024×1024</option><option value="1536x1024">1536×1024</option><option value="1024x1536">1024×1536</option></select></div><div><label for="media-quality">Quality</label><select id="media-quality"><option value="standard">Standard</option><option value="high">High</option></select></div></div><details><summary>Advanced image controls</summary><div class="row"><div><label for="media-negative-prompt">Negative prompt</label><input id="media-negative-prompt" maxlength="100000" placeholder="Optional exclusions"></div><div><label for="media-seed">Seed</label><input id="media-seed" type="number" min="0" max="2147483647" step="1"></div><div><label for="media-guidance">Guidance</label><input id="media-guidance" type="number" min="0" max="30" step="0.1"></div><div><label for="media-steps">Steps</label><input id="media-steps" type="number" min="1" max="150" step="1"></div><div><label for="media-style">Style</label><select id="media-style"><option value="auto">Auto</option><option value="photorealistic">Photorealistic</option><option value="illustration">Illustration</option><option value="cinematic">Cinematic</option><option value="3d">3D</option></select></div><div><label for="media-input-strength">Input strength</label><input id="media-input-strength" type="number" min="0" max="1" step="0.01"></div></div></details></fieldset><fieldset id="media-video-controls" hidden><legend>FuryVideo controls</legend><div class="row"><div><label for="media-reference">Reference</label><input id="media-reference" maxlength="512" placeholder="Optional artifact/reference ID"></div><div><label for="media-duration">Duration (ms)</label><input id="media-duration" type="number" min="500" max="600000" step="1"></div><div><label for="media-fps">FPS</label><input id="media-fps" type="number" min="1" max="120" step="1"></div><div><label for="media-video-aspect-ratio">Aspect ratio</label><select id="media-video-aspect-ratio"><option value="16:9">16:9</option><option value="1:1">1:1</option><option value="9:16">9:16</option><option value="4:3">4:3</option><option value="3:4">3:4</option></select></div><div><label for="media-video-resolution">Resolution</label><select id="media-video-resolution"><option value="1080p">1080p</option><option value="720p">720p</option><option value="2160p">2160p</option></select></div></div></fieldset><fieldset id="media-audio-controls" hidden><legend>FuryAudio / Voice controls</legend><div class="row"><div><label for="media-voice">Voice</label><input id="media-voice" maxlength="128" placeholder="Optional voice ID"></div><div><label for="media-language">Language</label><input id="media-language" maxlength="32" placeholder="Optional language, e.g. fr-FR"></div><div><label for="media-audio-duration">Duration (ms)</label><input id="media-audio-duration" type="number" min="500" max="600000" step="1"></div></div><p class="muted">Microphone capture requires explicit consent and is not started by this preview.</p></fieldset><label for="media-prompt">Prompt</label><textarea id="media-prompt" required maxlength="100000" placeholder="Describe the media you want to preview…"></textarea><label id="media-live-control"><input id="media-live-confirm" type="checkbox" disabled> Submit to a configured provider (explicit confirmation; provider cost may apply)</label><p id="media-live-status" class="status muted" role="status">NOT_CONFIGURED: loading provider execution boundary…</p><div class="row"><button id="media-submit" type="submit">Generate image (preview-only)</button></div></form><p id="media-status" class="status muted" role="status"></p><pre id="media-preview-out" class="code-view" hidden tabindex="0" aria-label="Media preview receipt"></pre></div>
   <div class="card"><h2>Provider boundary</h2><p id="media-provider-status" class="muted">Loading registered capability observations…</p><div id="media-adapters"></div></div>
   <div class="card"><h2>Media job history / gallery</h2><div id="media-gallery"><p class="muted">Loading media job history…</p></div></div>
 </section>
@@ -3131,10 +3279,17 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
   <div class="grid"><div class="card"><h2>Project graph</h2><table><tbody>
     <tr><th scope="row">Provider</th><td id="graph-provider">—</td></tr><tr><th scope="row">Files</th><td id="graph-files">—</td></tr>
     <tr><th scope="row">Edges</th><td id="graph-edges">—</td></tr><tr><th scope="row">Freshness</th><td id="graph-stale">—</td></tr>
-    <tr><th scope="row">Outputs</th><td id="graph-outputs">—</td></tr></tbody></table><p id="graph-status" class="status muted" role="status"></p></div>
+    <tr><th scope="row">Outputs</th><td id="graph-outputs">—</td></tr></tbody></table><p id="graph-status" class="status muted" role="status"></p>
+    <div class="row"><button id="graph-plan" type="button" class="secondary">Plan lifecycle</button><button id="graph-refresh" type="button">Refresh Graphify</button></div>
+    <pre id="graph-plan-out" class="code-view" hidden tabindex="0" aria-label="Graphify lifecycle plan"></pre></div>
   <div class="card"><h2>Blast radius</h2><form id="blast-form"><label for="blast-files">Changed files (one per line)</label><textarea id="blast-files" placeholder="src/auth/session.ts"></textarea><button type="submit">Analyse</button></form><div id="blast-out" aria-live="polite"></div></div></div>
   <div class="grid"><div class="card"><h2>Files</h2><p class="muted" id="tree-path">/</p><ul id="tree" class="tree"></ul></div>
   <div class="card"><h2 id="file-title">File</h2><pre id="file-view" class="code-view" tabindex="0" aria-labelledby="file-title">Select a file.</pre></div></div>
+  <div class="card"><h2>FuryEval history</h2><p class="muted">Run the bounded evaluation dataset, persist the report locally, and compare runs after a restart. Evaluation never grants execution authority.</p>
+    <label for="eval-dataset">Dataset JSON</label><textarea id="eval-dataset" class="code" spellcheck="false">{"format":"furypipe-eval-dataset/v1","id":"studio-smoke","version":"1","cases":[{"id":"case-1","domain":"routing","objective":"Route a local task","expected":["local"],"observed":["local"],"success":true}]}</textarea>
+    <div class="row"><button id="eval-run" type="button">Run and persist evaluation</button><button id="eval-history-refresh" type="button" class="secondary">Refresh history</button></div>
+    <p id="eval-status" class="status muted" role="status"></p><div id="eval-history-list"><p class="muted">Loading evaluation history…</p></div><pre id="eval-compare-out" class="code-view" hidden tabindex="0" aria-label="FuryEval comparison"></pre>
+  </div>
   <div class="grid">
     <div class="card" id="code-edit-card" hidden><h2>Governed edit</h2><p class="muted">The current file remains visible above. FuryPipe plans an exact-file replacement first; applying it requires confirmation and fails closed if HEAD or file content changed.</p>
       <label for="code-edit-content">Replacement for <span id="code-edit-path" class="code">—</span></label><textarea id="code-edit-content" class="code" spellcheck="false" maxlength="240000"></textarea>

@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import * as os from 'node:os';
+import * as path from 'node:path';
 
 import { createFuryGatewayCommandRegistry } from './gateway-command-authorization-node.js';
 import {
@@ -104,6 +105,8 @@ export interface FuryGatewayLocalRuntime {
 export interface FuryGatewayLocalRuntimeOptions extends FuryGatewayLocalConfigOptions {
   readonly now?: () => number;
   readonly localSubject?: string;
+  /** Optional local path for durable WebChat conversation snapshots. */
+  readonly conversationStateFile?: string;
   readonly channelObservability?: FuryGatewayChannelObservability;
   readonly automationObservability?: FuryGatewayAutomationObservability;
 }
@@ -175,6 +178,9 @@ export async function startFuryGatewayLocalRuntime(
     ...(options.file === undefined ? {} : { file: options.file }),
     ...(options.env === undefined ? {} : { env: options.env }),
   });
+  const conversationStateFile = options.conversationStateFile
+    ?? (options.env ?? process.env).FURYPIPE_WEBCHAT_STATE_FILE
+    ?? path.join(os.homedir(), '.furypipe', 'gateway', 'conversations.json');
   const kernel = createFuryKernelConversationStore({
     maxConversations: 32,
     maxMessagesPerConversation: 256,
@@ -182,6 +188,7 @@ export async function startFuryGatewayLocalRuntime(
     maxMessageBytes: 32 * 1024,
     maxConversationBytes: 512 * 1024,
     maxInFlightTurns: 16,
+    stateFile: conversationStateFile,
     now,
   });
   const memoryRuntime = createFuryGatewayLocalMemoryRuntime({
@@ -428,9 +435,12 @@ export async function startFuryGatewayLocalRuntime(
                 && modelRuntime.bridge
               ) {
                 return modelRuntime.bridge.executeTurn(
-                  command.input as {
-                    readonly conversationId: string;
-                    readonly turnId: string;
+                  {
+                    ...(command.input as {
+                      readonly conversationId: string;
+                      readonly turnId: string;
+                    }),
+                    onEvent: command.emit,
                   },
                 );
               }

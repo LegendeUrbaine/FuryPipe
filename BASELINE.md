@@ -368,3 +368,51 @@ Baseline d'intégration : `v5-production-hardening` / `bc92bef794df25b2a7c541846
 | Human/client/provider gates | NOT VERIFIED / NOT EXECUTED | validation visuelle humaine, lecteur d’écran, client externe, provider/OAuth, hosted MCP/OpenClaw/Figma non réalisés |
 | Release / provenance / mutation externe | NOT EXECUTED | PR Draft sans review ; pas de merge, release, tag, npm publish, deploy ni attestation signée candidate |
 | Intégrations restantes | PARTIAL | wiring Gateway/provider, Graphify UI, historique FuryEval, reconcile automation et index média non déclarés complets sans preuve runtime |
+
+## FuryPipe Final Product Integration & Release Closure — 2026-10-02 — slice local non poussé
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Worktree / exact local state | PASS local | worktree isolé `C:\Users\loicd\.codex\worktrees\furypipe-production-finalization\FuryPipe`, branche `codex/furypipe-production-finalization-2026`, HEAD `191f29c2010d5fce77095525576ec61186e8f135`; PR #238 distante précédemment vérifiée `OPEN + DRAFT` sur `100d3fff5e53b79cf03632f929fbc2c98c73c553`; modifications actuelles non commitées et non poussées |
+| Provider/Gateway/WebSocket | PASS local borné | stream planner/context/request/gate/transport, événement borné, annulation, terminal/error/ambiguous fail-closed, un seul appel sans retry/fallback ; `executionAuthority=false` |
+| Kernel/WebChat durable | PASS local borné | snapshot atomique, récupération après restart, tour accepté interrompu terminalisé `recovered-process-restart`, aucun replay/permit/credential persisté |
+| Governed WebChat workflow | PASS browser local | approbation → exécution → résultat vérifié exercé dans les cas outils WebChat ; modèle streamé observé via transport de test |
+| Outcome-unknown durable | PASS local borné | ledger automation réconciliable après restart par preuve SHA-256 + confirmation opérateur ; identité d’exécution conservée, replay et seconde réconciliation refusés |
+| Graphify UI | PASS browser local | plan lifecycle, confirmation refresh et routes existantes raccordés ; Studio browser QA passe sur les 3 moteurs |
+| FuryEval history | PASS local borné | RecoveryStore, append/list/get exact/compare, redémarrage et routes Studio testés ; `executionAuthorized=false` |
+| Media artifact index/recovery | PASS local borné | inspection stockage + artifact pointer/provenance ; `VERIFIED`/`MISSING`/`CORRUPT`, preview/export après vérification, cleanup plan-only ; redémarrage et missing testés |
+| Installation déterministe | PASS local | `pnpm install --frozen-lockfile`, pnpm `10.21.0`, lockfile inchangé ; Node `26.8.2`; npm observé `12.0.2` vs référence documentaire `11.14.1` |
+| Suite complète finale | PASS local | `pnpm test` : 358 fichiers ; 3 632 réussis ; 6 ignorés ; 3 638 total |
+| Typecheck / lint | PASS local | `pnpm run typecheck` principal + hosted MCP ; `pnpm run lint --max-warnings 0` |
+| Build | PASS local | `pnpm run build` : dist bibliothèque/déclarations + Node/MCP ; version smoke `0.16.0` |
+| Audit production | PASS local | `pnpm audit --prod --audit-level high` : `No known vulnerabilities found` |
+| Tests ciblés post-patch | PASS local | média + Studio API : 2 fichiers / 34 tests |
+| Browser Studio | PASS automatisé local | `pnpm run browser:studio:qa` : Chromium, Firefox, WebKit |
+| Gateway WebChat browser | PASS automatisé local | `pnpm run browser:webchat:qa` : 15/15 cas, 3 moteurs, desktop/mobile, modèle/outils/mémoire/resynchronisation |
+| Package / installed runtime | PASS local | `pnpm run package:smoke` : tarball `furypipe-0.16.0.tgz`, imports installés `fury-eval-history` + `media-generation-job-engine`, Gateway loopback/ready/clean shutdown, MCP stdio, phases 6–8, provider-attempt et governed-provider ; tarball SHA-256 `bb201ebec42b1eb047d6348186c71d45b24a4b903be7c8d552bb4b1c02df1f8d` |
+| `git diff --check` | PASS local | aucune erreur après journalisation |
+| Browser/coding durable reconciliation | NOT IMPLEMENTED / EXPLICIT LIMIT | `browser-runtime.ts` et `coding-runtime.ts` conservent leurs `outcome-unknown` process-local sur timeout/overflow ; aucune replay automatique |
+| Provider/OAuth/hosted/client/human gates | NOT VERIFIED | aucun provider payant/OAuth réel, hosted MCP/OpenClaw/Figma, client externe, lecteur d’écran humain ou validation visuelle humaine |
+| Cleanup / release / mutation externe | NOT EXECUTED | cleanup média uniquement planifié ; pas de suppression de référence, commit, push, merge, release, tag, npm publish ou deploy |
+
+## FuryPipe Final Product Integration — durable effects, Studio primary UX et preuve locale finale — 2026-10-02
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Worktree / parent exact | PASS local | worktree isolé `C:\Users\loicd\.codex\worktrees\furypipe-production-finalization\FuryPipe`, branche `codex/furypipe-production-finalization-2026`, parent `191f29c2010d5fce77095525576ec61186e8f135`; modifications non commitées avant livraison |
+| External effect ledger | PASS local borné | `src/fury-external-effect-ledger.ts`, RecoveryStore durable, digest-only, replay automatique refusé, reconciliation après restart avec preuve SHA-256 + `operator-confirmed`; tests ciblés inclus dans la suite complète |
+| Browser/coding reconciliation | PASS local borné | `browser-runtime.ts` et `coding-runtime.ts` exposent list/inspect/reconcile quand un store est injecté ; un effet non résolu bloque une seconde exécution identique |
+| Studio media execution boundary | PASS local borné | route `/api/studio/media/generate`, confirmation obligatoire, `NOT_CONFIGURED` sans runtime injecté, runtime réel uniquement par injection, `executionAuthority=false` |
+| Studio primary UX | PASS automatisé local | disclosure runtime/permissions, preview média séparé de la soumission provider ; `browser:studio:qa` passe sur 3 moteurs |
+| Agent/MCP continuation | PASS unitaire production | résultat de `lookup` consommé par `expand`, appels et capability executions vérifiés dans l’ordre |
+| Document summary | NOT_CONFIGURED explicite | script réel local OpenAI-compatible présent et testé ; aucune base URL/modèle configuré, aucun fixture promu en preuve d’inférence |
+| Installation déterministe | PASS local | `pnpm install --frozen-lockfile`, pnpm `10.21.0`, lockfile inchangé |
+| Tests | PASS local | `pnpm test` : 359 fichiers ; 3 637 réussis ; 6 ignorés ; 3 643 total |
+| Typecheck / lint / build | PASS local | typecheck principal + hosted MCP ; ESLint `--max-warnings 0` ; dist Node/MCP + déclarations ; version `0.16.0` |
+| Audit production | PASS local | `pnpm audit --prod --audit-level high`, aucune vulnérabilité connue |
+| Browser Studio / WebChat / host | PASS automatisé local | Studio 3 moteurs ; WebChat `15/15` ; host `12/12` |
+| Cross-browser full source QA | À RELANCER après commit | premier lancement sans `FURYPIPE_SOURCE_COMMIT` exact ; aucune preuve PASS déduite de cet échec de précondition |
+| Paquet installé | PASS local | `package:smoke`, Gateway loopback/clean shutdown, MCP stdio, phases et exports ; tarball SHA-256 `4038f2d166b4c09efa08aba55faaadff17e8479cfb7942854cb377f7e7ae3058` |
+| `git diff --check` | PASS local | aucune erreur |
+| Provider / OAuth / hosted / client / humain / production | NOT VERIFIED | aucune exécution externe réelle ni validation humaine/client |
+| Publication / mutation externe | NOT EXECUTED | aucun npm publish, release, merge, deploy ou claim `500x` |

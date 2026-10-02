@@ -89,6 +89,8 @@ export interface FuryGatewayWebSocketAdmittedExecutionCommand {
   readonly input: unknown;
   readonly transportReceipt: FuryGatewayTransportReceipt;
   readonly admission: FuryGatewayCommandAdmissionDecision;
+  /** Emits one bounded presentation event on the same admitted connection. */
+  readonly emit: (event: unknown) => boolean;
   readonly executionAuthority: false;
 }
 
@@ -344,6 +346,39 @@ function safeSend(
     }
     return false;
   }
+}
+
+function safeExecutionEvent(
+  ws: WebSocket,
+  maxBufferedAmountBytes: number,
+  dispatch: Pick<
+    FuryGatewayWebSocketAdmittedExecutionCommand,
+    'connectionId' | 'messageId' | 'sequence' | 'commandName'
+  >,
+  event: unknown,
+): boolean {
+  if (!event || typeof event !== 'object' || Array.isArray(event)) return false;
+  let encoded: string;
+  try {
+    encoded = JSON.stringify(event);
+  } catch {
+    return false;
+  }
+  if (Buffer.byteLength(encoded, 'utf8') > DEFAULT_MAX_PAYLOAD_BYTES - 1024) {
+    return false;
+  }
+  return safeSend(
+    ws,
+    maxBufferedAmountBytes,
+    safeServerMessage({
+      type: 'execution-command-event',
+      connectionId: dispatch.connectionId,
+      messageId: dispatch.messageId,
+      sequence: dispatch.sequence,
+      commandName: dispatch.commandName,
+      event,
+    }),
+  );
 }
 
 function closeForTransportError(
@@ -898,7 +933,7 @@ export async function listenFuryGatewayWebSocketHost(
                   );
                 } else {
                   inFlightExecutionCommands += 1;
-                  const dispatch = Object.freeze({
+                  const dispatchBase = {
                     connectionId: state.connection.connectionId,
                     messageId: accepted.message.messageId,
                     sequence: accepted.message.sequence,
@@ -907,6 +942,15 @@ export async function listenFuryGatewayWebSocketHost(
                     transportReceipt: evaluated.transportReceipt,
                     admission: evaluated.admission,
                     executionAuthority: false as const,
+                  };
+                  const dispatch = Object.freeze({
+                    ...dispatchBase,
+                    emit: (event: unknown) => safeExecutionEvent(
+                      ws,
+                      maxBufferedAmountBytes,
+                      dispatchBase,
+                      event,
+                    ),
                   });
                   queueMicrotask(() => {
                     Promise.resolve()

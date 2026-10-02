@@ -386,6 +386,7 @@ const JS = `(() => {
     toolProposalId: null,
     toolProposalTransport: null,
     toolProposalStatus: null,
+    streamingAssistantBody: null,
   };
 
   const byId = (id) => document.getElementById(id);
@@ -455,6 +456,7 @@ const JS = `(() => {
 
   function clearMessages() {
     messages.replaceChildren();
+    state.streamingAssistantBody = null;
   }
 
   function renderMessage(role, content) {
@@ -467,6 +469,29 @@ const JS = `(() => {
     body.textContent = safeText(content);
     article.append(label, body);
     messages.append(article);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function ensureStreamingAssistant() {
+    if (state.streamingAssistantBody) return state.streamingAssistantBody;
+    const article = document.createElement('article');
+    article.className = 'message assistant';
+    const label = document.createElement('span');
+    label.className = 'role';
+    label.textContent = 'FURYPIPE';
+    const body = document.createElement('span');
+    body.textContent = '';
+    article.append(label, body);
+    messages.append(article);
+    state.streamingAssistantBody = body;
+    return body;
+  }
+
+  function appendStreamingAssistant(value) {
+    const text = safeText(value);
+    if (!text) return;
+    const body = ensureStreamingAssistant();
+    body.textContent += text;
     messages.scrollTop = messages.scrollHeight;
   }
 
@@ -1203,6 +1228,7 @@ const JS = `(() => {
       addActivity('Accepted', 'User turn accepted. Provider inference is still a separate command.', 'accepted');
       if (state.activeTurnId && state.modelBridgeEnabled) {
         turnStatus.textContent = 'Requesting governed model execution…';
+        state.streamingAssistantBody = null;
         addActivity(
           'Model requested',
           (state.modelProvider || 'provider') + ' / ' + (state.model || 'model'),
@@ -1324,6 +1350,23 @@ const JS = `(() => {
 
     if (message.type === 'state-command-result') {
       handleStateResult(message);
+      return;
+    }
+
+    if (message.type === 'execution-command-event') {
+      if (safeText(message.commandName) !== 'conversation.model.execute') return;
+      const event = message.event;
+      if (!event || typeof event !== 'object') return;
+      if (event.kind === 'text-delta') {
+        appendStreamingAssistant(event.text);
+        turnStatus.textContent = 'Provider stream in progress…';
+      } else if (event.kind === 'terminal') {
+        turnStatus.textContent = event.terminalStatus === 'completed'
+          ? 'Provider stream complete — finalizing…'
+          : 'Provider stream ended without a completed response.';
+      } else if (event.kind === 'provider-error') {
+        addActivity('Provider error', safeText(event.errorCode) || 'stream-error', 'blocked');
+      }
       return;
     }
 

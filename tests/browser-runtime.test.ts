@@ -11,6 +11,7 @@ import {
   validateBrowserUrl,
   type BrowserHost,
 } from '../src/browser-runtime.js';
+import { createRecoveryStore, type RecoveryStore } from '../src/core/recovery-store.js';
 
 function host(overrides: Partial<BrowserHost> = {}): BrowserHost {
   return {
@@ -46,6 +47,7 @@ function runtime(
     readonly now?: () => number;
     readonly root?: string;
     readonly uploadRoots?: readonly string[];
+    readonly recovery?: RecoveryStore;
     readonly allowedActions?: readonly Parameters<typeof createManagedBrowserRuntime>[0]['policy']['allowedActions'][number][];
   } = {},
 ) {
@@ -65,6 +67,7 @@ function runtime(
     now: input.now,
     downloadsRoot: input.root,
     uploadRoots: input.uploadRoots,
+    recovery: input.recovery,
     resolveHostname: async (hostname) => hostname === 'private.example.com'
       ? ['10.0.0.4']
       : ['93.184.216.34'],
@@ -251,6 +254,38 @@ describe('Phase 6 managed browser runtime', () => {
     const result = await browser.invoke(permit);
     expect(result.receipt).toMatchObject({ outcome: 'outcome-unknown', errorCode: 'timeout' });
     await expect(browser.invoke(permit)).rejects.toThrow(/already consumed/i);
+  });
+
+  it('persists browser outcome-unknown and requires explicit reconciliation after a restart', async () => {
+    const recoveryRoot = await mkdtemp(join(tmpdir(), 'furypipe-browser-effects-'));
+    try {
+      const recovery = createRecoveryStore(recoveryRoot, { namespace: 'browser_effects' });
+      const browser = runtime({
+        recovery,
+        browserHost: host({
+          click: async () => new Promise<void>((resolve) => setTimeout(resolve, 100)),
+        }),
+      });
+      const session = await browser.createSession('operator-1');
+      const page = await browser.createPage(session);
+      const permit = await browser.authorize({ action: 'click', session, page, selector: '#slow' }, { timeoutMs: 25 });
+      const result = await browser.invoke(permit);
+      const operationId = result.receipt.recoveryOperationId;
+      expect(result.receipt).toMatchObject({ outcome: 'outcome-unknown', errorCode: 'timeout' });
+      expect(operationId).toBe(permit.permitId);
+      expect(await browser.inspectOutcomeUnknown(operationId!)).toMatchObject({ state: 'outcome-unknown', operationId });
+
+      const restarted = runtime({ recovery: createRecoveryStore(recoveryRoot, { namespace: 'browser_effects' }) });
+      const settled = await restarted.reconcileOutcomeUnknown(operationId!, {
+        outcome: 'failed',
+        evidenceSha256: 'b'.repeat(64),
+        confirmation: 'operator-confirmed',
+      });
+      expect(settled).toMatchObject({ state: 'terminal', outcome: 'failed', operationId });
+      expect(await restarted.inspectOutcomeUnknown(operationId!)).toBeUndefined();
+    } finally {
+      await rm(recoveryRoot, { recursive: true, force: true });
+    }
   });
 
   it('denies submit and upload unless policy explicitly allows them', async () => {

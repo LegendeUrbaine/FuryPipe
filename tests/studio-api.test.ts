@@ -1,5 +1,8 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -12,8 +15,10 @@ import { createStudioApi, studioApiRoute, studioBindings } from '../src/studio/s
 import { renderStudioHtml, STUDIO_EXAMPLE_FLOW, STUDIO_EXAMPLE_IR } from '../src/studio/studio-page.js';
 
 const servers: Server[] = [];
+const evalHistoryRoot = path.join(os.tmpdir(), `furypipe-studio-api-eval-history-${process.pid}`);
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((s) => new Promise((r) => s.close(r))));
+  await rm(evalHistoryRoot, { recursive: true, force: true });
   resetRuntimeModelFabricForTests();
 });
 
@@ -57,6 +62,7 @@ function api(baseUrl: string) {
     discoverHarnesses: async () => harnesses,
     discoverLocal: async () => ({ backends: local(baseUrl) }),
     discoverHardware: async () => ({ platform: 'linux', arch: 'x64', cpuModel: 't', cpuCount: 8, totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: 1, unifiedMemory: false, gpus: [{ name: 'g', memoryBytes: 12 * 1024 ** 3 }] }),
+    evalHistoryDir: evalHistoryRoot,
   });
 }
 
@@ -71,13 +77,19 @@ describe('Studio API', () => {
     expect(studioApiRoute('/api/studio/setup/runtime/status')).toEqual({ route: 'runtime-setup-status', method: 'GET' });
     expect(studioApiRoute('/api/studio/autopilot/preview')).toEqual({ route: 'autopilot-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/eval')).toEqual({ route: 'eval', method: 'POST' });
+    expect(studioApiRoute('/api/studio/eval/history.json')).toEqual({ route: 'eval-history', method: 'GET' });
+    expect(studioApiRoute('/api/studio/eval/compare')).toEqual({ route: 'eval-compare', method: 'POST' });
     expect(studioApiRoute('/api/studio/headless')).toEqual({ route: 'headless', method: 'POST' });
     expect(studioApiRoute('/api/studio/graph/lifecycle')).toEqual({ route: 'graph-lifecycle', method: 'POST' });
     expect(studioApiRoute('/api/studio/graph/refresh')).toEqual({ route: 'graph-refresh', method: 'POST' });
     expect(studioApiRoute('/api/studio/connections/login')).toEqual({ route: 'connection-login', method: 'POST' });
     expect(studioApiRoute('/api/studio/media.json')).toEqual({ route: 'media', method: 'GET' });
     expect(studioApiRoute('/api/studio/media/preview')).toEqual({ route: 'media-preview', method: 'POST' });
+    expect(studioApiRoute('/api/studio/media/generate')).toEqual({ route: 'media-generate', method: 'POST' });
     expect(studioApiRoute('/api/studio/media/jobs.json')).toEqual({ route: 'media-jobs', method: 'GET' });
+    expect(studioApiRoute('/api/studio/media/jobs/inspect')).toEqual({ route: 'media-job-inspect', method: 'POST' });
+    expect(studioApiRoute('/api/studio/media/jobs/cleanup-plan')).toEqual({ route: 'media-job-cleanup-plan', method: 'POST' });
+    expect(studioApiRoute('/api/studio/media/jobs/output')).toEqual({ route: 'media-job-output', method: 'GET' });
     expect(studioApiRoute('/api/studio/media/timeline/preview')).toEqual({ route: 'media-timeline-preview', method: 'POST' });
     expect(studioApiRoute('/api/studio/observability.json')).toEqual({ route: 'observability', method: 'GET' });
     expect(studioApiRoute('/api/studio/marketplace.json')).toEqual({ route: 'marketplace', method: 'GET' });
@@ -101,6 +113,7 @@ describe('Studio API', () => {
       authority: 'studio-preview-only',
       executionAuthorized: false,
       providerExecution: 'NOT_CONFIGURED',
+      execution: { state: 'NOT_CONFIGURED', executionAuthority: false, confirmationRequired: true },
     });
     expect(snapshot.surfaces.map((surface) => surface.id)).toEqual(['image', 'video', 'audio']);
     expect(snapshot.surfaces.map((surface) => surface.title)).toEqual(['FuryImage Studio', 'FuryVideo Studio', 'FuryAudio Studio']);
@@ -119,6 +132,12 @@ describe('Studio API', () => {
     });
     expect(preview.controlsDigestSha256).toMatch(/^[0-9a-f]{64}$/u);
     expect(preview).not.toHaveProperty('prompt');
+
+    const missingExecution = await studio.handle('media-generate', post({
+      confirm: true, surface: 'image', operation: 'text-to-image', prompt: 'No provider', outputMimeType: 'image/png',
+    }));
+    expect(missingExecution.status).toBe(409);
+    expect(await missingExecution.json()).toMatchObject({ state: 'NOT_CONFIGURED', executionAuthority: false });
 
     const audioPreviewResponse = await studio.handle('media-preview', post({
       surface: 'audio', operation: 'text-to-audio', prompt: 'A bounded audio prompt', outputMimeType: 'audio/wav',
@@ -162,6 +181,33 @@ describe('Studio API', () => {
     expect(page).toContain('Marketplace');
     expect(page).toContain('Memory Time Machine');
     expect(page).toContain('preview-only');
+    expect(page).toContain('media-live-confirm');
+  });
+
+  it('submits media only through an explicitly injected real execution boundary', async () => {
+    let received: { prompt: string; operation: string } | undefined;
+    const studio = createStudioApi({
+      projectRoot: process.cwd(),
+      mediaExecution: {
+        async submit(input) {
+          received = { prompt: input.prompt, operation: input.operation };
+          return { jobId: 'job-configured-1', status: 'QUEUED', family: 'image-generation', operation: input.operation };
+        },
+      },
+      discoverHarnesses: async () => harnesses,
+      discoverLocal: async () => ({ backends: [] }),
+    });
+    const response = await studio.handle('media-generate', post({
+      confirm: true, surface: 'image', operation: 'text-to-image', prompt: 'configured provider request', outputMimeType: 'image/png',
+    }));
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({
+      format: 'furypipe-studio-media-submission/v1', jobId: 'job-configured-1', status: 'QUEUED', executionAuthority: false,
+    });
+    expect(received).toEqual({ prompt: 'configured provider request', operation: 'text-to-image' });
+    expect((await studio.handle('media-generate', post({
+      surface: 'image', operation: 'text-to-image', prompt: 'missing confirmation', outputMimeType: 'image/png',
+    }))).status).toBe(400);
   });
 
   it('projects injected observability evidence without adding execution authority', async () => {
@@ -324,6 +370,54 @@ describe('Studio API', () => {
     expect(calls[0]?.slice(-2)).toEqual(['auth','login']);
   });
 
+  it('binds durable media inspection, cleanup planning, preview and export to the Studio routes', async () => {
+    const mediaEngine = {
+      list: async () => [],
+      inspectOutputs: async () => ({
+        format: 'furypipe-media-generation-output-inspection/v1',
+        jobId: 'fpg_job_00000000-0000-0000-0000-000000000000',
+        status: 'VERIFIED',
+        outputReferences: [{
+          artifactId: 'media_artifact', version: 1,
+          storageHandle: 'furypipe-recovery/v1/sha256/' + 'a'.repeat(64),
+          mediaSha256: 'a'.repeat(64), mimeType: 'image/png', byteLength: 3,
+          status: 'VERIFIED',
+          storage: { exists: true, digestMatches: true, bytes: 3 },
+          artifact: { status: 'VERIFIED', projectId: 'studio-test' },
+          provenance: { requestDigestSha256: 'b'.repeat(64), planDigestSha256: 'c'.repeat(64) },
+        }],
+        executionAuthorized: false,
+      } as const),
+      planOutputCleanup: async () => ({
+        format: 'furypipe-media-generation-output-cleanup-plan/v1',
+        jobId: 'fpg_job_00000000-0000-0000-0000-000000000000',
+        candidates: [], deletionPerformed: false,
+        cleanupAuthorized: false, executionAuthorized: false,
+        reason: 'IMMUTABLE_REFERENCES_MUST_BE_REPAIRED_OR_RECONCILED_BEFORE_DELETION',
+      } as const),
+      readOutput: async () => ({
+        bytes: Uint8Array.from([1, 2, 3]), mimeType: 'image/png',
+        mediaSha256: 'a'.repeat(64), byteLength: 3, artifactId: 'media_artifact', version: 1,
+      }),
+    };
+    const studio = createStudioApi({ projectRoot: process.cwd(), evalHistoryDir: evalHistoryRoot, mediaJobEngine: mediaEngine });
+    const inspectionResponse = await studio.handle('media-job-inspect', post({ jobId: 'fpg_job_00000000-0000-0000-0000-000000000000' }));
+    expect(inspectionResponse.status).toBe(200);
+    const inspection = await inspectionResponse.json() as { status: string; outputReferences: { previewUrl: string; exportUrl: string }[]; retrieval: string };
+    expect(inspection).toMatchObject({ status: 'VERIFIED', retrieval: 'durable-job-reference-validated' });
+    expect(inspection.outputReferences[0]).toMatchObject({ previewUrl: expect.stringContaining('artifactId=media_artifact'), exportUrl: expect.stringContaining('download=1') });
+
+    const cleanupResponse = await studio.handle('media-job-cleanup-plan', post({ jobId: 'fpg_job_00000000-0000-0000-0000-000000000000' }));
+    expect(cleanupResponse.status).toBe(200);
+    expect(await cleanupResponse.json()).toMatchObject({ deletionPerformed: false, cleanupAuthorized: false });
+
+    const outputResponse = await studio.handle('media-job-output', new Request('http://127.0.0.1/api/studio/media/jobs/output?jobId=fpg_job_00000000-0000-0000-0000-000000000000&artifactId=media_artifact&version=1'));
+    expect(outputResponse.status).toBe(200);
+    expect(outputResponse.headers.get('content-type')).toBe('image/png');
+    expect(outputResponse.headers.get('x-furypipe-execution-authorized')).toBe('false');
+    expect(new Uint8Array(await outputResponse.arrayBuffer())).toEqual(Uint8Array.from([1, 2, 3]));
+  });
+
   it('previews Fury Autopilot instructions without granting execution authority', async () => {
     const res = await api('http://127.0.0.1:11434').handle('autopilot-preview', post({ objective: 'Implement a production API fix with tests', effort:'xhigh', responseStyle: 'auto' }));
     expect(res.status).toBe(200);
@@ -365,12 +459,32 @@ describe('Studio API', () => {
       authority:string;
       execution:string;
       executionAuthorized:boolean;
+      historyRunId:string;
       overall:{f1:number;successRate:number};
     };
     expect(body.authority).toBe('evaluation-only');
     expect(body.execution).toMatch(/^NOT_EXECUTED/u);
     expect(body.executionAuthorized).toBe(false);
+    expect(body.historyRunId).toMatch(/^eval_[A-Za-z0-9_-]{16,128}$/u);
     expect(body.overall).toMatchObject({ f1:1, successRate:1 });
+
+    const historyResponse = await studio.handle('eval-history', new Request('http://127.0.0.1/api/studio/eval/history.json'));
+    expect(historyResponse.status).toBe(200);
+    const history = await historyResponse.json() as { runs: { runId: string; executionAuthorized: boolean }[]; executionAuthorized: boolean };
+    expect(history.executionAuthorized).toBe(false);
+    expect(history.runs.map((run) => run.runId)).toContain(body.historyRunId);
+
+    const comparisonResponse = await studio.handle('eval-compare', post({
+      baselineRunId: body.historyRunId,
+      dataset: {
+        format: 'furypipe-eval-dataset/v1',
+        id: 'studio-routing',
+        version: '1.0.0',
+        cases: [{ id: 'case-1', domain: 'routing', objective: 'Review repository security.', expected: ['security-skill'], observed: [], success: false }],
+      },
+    }));
+    expect(comparisonResponse.status).toBe(200);
+    expect(await comparisonResponse.json()).toMatchObject({ format: 'furypipe-eval-comparison/v1', executionAuthorized: false });
 
     expect((await studio.handle('eval', post({ dataset:{ format:'wrong' } }))).status).toBe(422);
   });

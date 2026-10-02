@@ -1,3 +1,7 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -438,6 +442,58 @@ describe('Fury Kernel conversation foundation', () => {
     const second = kernel.openConversation();
     expect(second.conversationId).not.toBe(firstId);
     expect(kernel.activeConversationCount()).toBe(1);
+  });
+
+  it('recovers completed conversations and terminalizes accepted turns after a process restart', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'furypipe-kernel-persistence-'));
+    const stateFile = join(root, 'kernel.json');
+    try {
+      let now = 100;
+      const first = createFuryKernelConversationStore({
+        now: () => now,
+        stateFile,
+      });
+      const completedId = first.openConversation().conversationId;
+      const completedTurn = first.submitUserMessage({
+        conversationId: completedId,
+        messageId: 'persisted-user',
+        content: 'persist this conversation',
+      });
+      now = 110;
+      first.completeTurn({
+        conversationId: completedId,
+        turnId: completedTurn.turn.turnId,
+        messageId: 'persisted-assistant',
+        content: 'persisted response',
+      });
+
+      const activeId = first.openConversation().conversationId;
+      const activeTurn = first.submitUserMessage({
+        conversationId: activeId,
+        messageId: 'in-flight-user',
+        content: 'must not resume after restart',
+      });
+
+      now = 200;
+      const restarted = createFuryKernelConversationStore({ now: () => now, stateFile });
+      expect(restarted.inspectConversation(completedId).messages.at(-1)).toMatchObject({
+        role: 'assistant',
+        content: 'persisted response',
+      });
+      const recovered = restarted.inspectConversation(activeId);
+      expect(recovered.activeTurnId).toBeUndefined();
+      expect(recovered).toMatchObject({
+        turns: [{
+          turnId: activeTurn.turn.turnId,
+          status: 'failed',
+          failureCode: 'recovered-process-restart',
+          completedAt: 200,
+        }],
+      });
+      expect(restarted.inFlightTurnCount()).toBe(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('refuses to close a conversation while a turn is active', () => {

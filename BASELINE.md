@@ -435,3 +435,20 @@ Baseline d'intégration : `v5-production-hardening` / `bc92bef794df25b2a7c541846
 | Service Ollama temporaire | PASS nettoyage | démarré uniquement pour l’acceptation locale puis arrêté; `127.0.0.1:11434` inaccessible après clôture |
 | Worktree concurrent | PRÉSERVÉ / ORIGINE_INCONNUE | changements `validation-command`, `corepack.cmd` et rapport Playwright non touchés et non commités |
 | Publication / mutation externe | NOT EXECUTED | aucun merge, tag, GitHub Release, npm publish, deploy, provider payant ou appel API payant |
+
+## FuryPipe Local Gates — 2026-10-02 — exact-head Windows validation repair
+
+Cette entrée complète les précédentes sans les remplacer. La preuve détaillée
+est dans [`docs/evidence/FURYPIPE_LOCAL_GATES_2026-10-02.md`](docs/evidence/FURYPIPE_LOCAL_GATES_2026-10-02.md).
+
+| Vérification | Résultat | Preuve |
+|---|---|---|
+| HEAD source avant ce patch | PASS | `6f250b6acbf511d99e19b2637adb167a83af381e` |
+| Resolver pnpm Windows | PASS | `corepack.cmd` avec `shell:true` ; le chemin précédent échouait `EINVAL` ; test ciblé `3/3` |
+| Suite locale | PASS | `359` fichiers ; `3 638` PASS ; `6` ignorés ; `3 644` total |
+| Typecheck / lint / build | PASS | hosted MCP inclus ; ESLint `--max-warnings 0` ; dist `0.16.0` |
+| Package / clean-room / rollback | PASS | tarball `4038f2d166b4c09efa08aba55faaadff17e8479cfb7942854cb377f7e7ae3058` ; upgrade/rollback lié à `6f250b6a` |
+| FuryBench | PASS après rerun | 3 rounds, 25 échantillons par métrique, seuil p95 `×1,25` ; premier run instable conservé comme observation |
+| Audit / SBOM | PASS borné | aucune vulnérabilité prod connue ; CycloneDX `305` composants / `356` edges ; signature `UNSIGNED` |
+| Externes | NOT VERIFIED | provider/OAuth/hosted MCP/OpenClaw/Figma, humain/client et production non exécutés |
+| Publication | NOT EXECUTED | PR reste Draft ; aucun merge, tag, release, npm publish ou deploy |

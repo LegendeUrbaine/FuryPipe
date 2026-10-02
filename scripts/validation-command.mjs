@@ -1,5 +1,10 @@
 /**
- * Resolve the project-declared pnpm through Corepack without invoking a shell.
+ * Resolve the project-declared pnpm through Corepack.
+ *
+ * Windows exposes Corepack as a `.cmd` shim. Node cannot execute that shim
+ * with `shell: false` (`spawnSync ... EINVAL`), so the Windows path must use
+ * the platform command shell. All arguments here are fixed validation
+ * arguments assembled by the repository scripts, not user input.
  */
 export function resolvePnpmCommand() {
   // Validation subprocesses must honor package.json#packageManager. Calling
@@ -9,7 +14,7 @@ export function resolvePnpmCommand() {
   return Object.freeze({
     executable: process.platform === 'win32' ? 'corepack.cmd' : 'corepack',
     prefixArgs: ['pnpm'],
-    shell: false,
+    shell: process.platform === 'win32',
   });
 }
 

@@ -12,4 +12,9 @@ describe('validation command resolution', () => {
     if (process.platform === 'win32') return;
     expect(resolvePnpmCommand()).toMatchObject({ executable: 'corepack', prefixArgs: ['pnpm'], shell: false });
   });
+
+  it('uses the command shell for the Windows Corepack cmd shim', () => {
+    if (process.platform !== 'win32') return;
+    expect(resolvePnpmCommand()).toMatchObject({ executable: 'corepack.cmd', prefixArgs: ['pnpm'], shell: true });
+  });
 });

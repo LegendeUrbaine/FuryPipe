@@ -848,6 +848,8 @@
     "vendor:ui": "node scripts/vendor-ui.mjs",
     "browser:webchat:qa": "node --import tsx/esm scripts/gateway-webchat-browser-qa.ts",
     "browser:studio:qa": "node --import tsx/esm scripts/studio-browser-qa.ts",
+    "browser:studio:composer:qa": "node --import tsx/esm scripts/studio-capability-composer-browser-qa.ts",
+    "validation:composer:live": "node --import tsx/esm scripts/studio-capability-composer-live-acceptance.ts",
     "bench:studio": "tsx scripts/furybench-studio.ts",
     "validation:supply-chain": "tsx scripts/supply-chain-evidence.ts",
     "browser:host:qa": "node --import tsx/esm scripts/browser-playwright-host-qa.ts"

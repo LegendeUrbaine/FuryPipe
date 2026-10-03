@@ -72,3 +72,24 @@ Automated browser and accessibility checks do not equal owner visual approval.
 The VNext-03 Composer card remains `HUMAN_VISUAL_GATE=MANUAL_REQUIRED` until
 the owner reviews the Simple/Expert Studio presentation. Screen-reader
 validation remains a separate manual gate.
+
+## Reproducible acceptance commands
+
+The live acceptance harness requires an already-installed local Ollama model;
+it never downloads one and records `NOT_EXECUTED` when the endpoint or model is
+unavailable. For the approved local `qwen3.5:latest` boundary, the execution
+request sends a bounded `max_tokens` value and disables Ollama reasoning output
+through the OpenAI-compatible `reasoning_effort: "none"` control so the final
+answer remains a bounded `content` value.
+
+```text
+npm run validation:composer:live
+npm run browser:studio:composer:qa
+```
+
+The dedicated browser harness captures the Composer state matrix in Chromium
+and runs the functional path in Chromium, Firefox and WebKit. Its 17 screenshots
+and JSON evidence remain local under
+`artifacts/studio-capability-composer-browser-qa-final/`; fixture tests remain
+separate from live Ollama evidence. The first slice still has no genuine
+multi-tool MCP execution or external mutation authority.

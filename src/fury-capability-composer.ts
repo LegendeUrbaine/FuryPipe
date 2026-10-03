@@ -367,12 +367,19 @@ export async function executeFuryCapabilityComposerLocal(input: {
   const userMessage = input.userMessage === undefined ? plan.objective : boundedText(input.userMessage, 'userMessage', 32_768);
   const endpoint = assertFuryLocalEndpoint(model.baseUrl);
   const target = new URL('v1/chat/completions', endpoint.href.endsWith('/') ? endpoint.href : `${endpoint.href}/`);
+  const completionRequest: Record<string, unknown> = {
+    model: model.id,
+    stream: false,
+    max_tokens: 256,
+    messages: [{ role: 'system', content: plan.prompt.text }, { role: 'user', content: userMessage }],
+    ...(model.backend === 'ollama' ? { reasoning_effort: 'none' } : {}),
+  };
   const response = await (input.fetchImpl ?? fetch)(target, {
     method: 'POST',
     redirect: 'manual',
     signal: AbortSignal.timeout(300_000),
     headers: { 'content-type': 'application/json', accept: 'application/json' },
-    body: JSON.stringify({ model: model.id, stream: false, messages: [{ role: 'system', content: plan.prompt.text }, { role: 'user', content: userMessage }] }),
+    body: JSON.stringify(completionRequest),
   });
   const responseText = await boundedResponseText(response);
   if (response.status !== 200) throw new FuryCapabilityComposerError('local-backend-error', `local backend answered HTTP ${response.status}`, 502);

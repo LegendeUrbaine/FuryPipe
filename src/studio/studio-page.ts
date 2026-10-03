@@ -406,6 +406,7 @@ a.opt{text-decoration:none}
 
 /* ---------- Pages ---------- */
 .card{background:linear-gradient(180deg,var(--b2),var(--b1));border:1px solid var(--line);border-radius:var(--r-lg);padding:20px 22px;margin-bottom:16px;box-shadow:0 1px 0 rgba(255,255,255,.035) inset,0 22px 48px -42px rgba(0,0,0,.95);min-width:0;overflow-x:auto;transition:border-color .18s,box-shadow .22s,transform .22s var(--ease-out)}
+.capability-composer-result{overflow-x:hidden}.capability-composer-result .reasons li{overflow-wrap:anywhere;word-break:break-word}
 @media (hover:hover) and (pointer:fine){main>section:not(.chat) .card:hover{border-color:rgba(255,122,40,.15);box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 28px 58px -42px rgba(0,0,0,.98),0 0 36px -28px rgba(255,90,0,.35);transform:translateY(-1px)}}
 .card h2{font:650 15px/1.3 var(--display);margin:0 0 14px;letter-spacing:-.01em}
 .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))}
@@ -445,7 +446,7 @@ legend{padding:0 6px;font-size:12.5px}
 ul.reasons{margin:8px 0 0;padding-left:18px;color:var(--ink-2)}
 pre{font:13px/1.6 var(--mono)}
 .tree{list-style:none;margin:0;padding:0;max-height:42vh;overflow:auto}
-.code-view{max-height:52vh;overflow:auto;white-space:pre;font:12.5px/1.6 var(--mono);background:#08080a;border:1px solid var(--line);border-radius:var(--r-md);padding:12px}
+.code-view{max-height:52vh;overflow:auto;white-space:pre;font:12.5px/1.6 var(--mono);background:#08080a;border:1px solid var(--line);border-radius:var(--r-md);padding:12px}.composer-expert-evidence-view{white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
 .code-view .add{color:var(--ok)}.code-view .del{color:var(--bad)}.code-view .hunk{color:var(--muted)}
 .linkish{background:none;border:1px solid transparent;color:var(--ink-2);padding:4px 8px;border-radius:8px;cursor:pointer;font-size:13.5px}.linkish:hover{background:var(--b4);color:var(--ink)}
 svg.flow{width:100%;height:auto;background:#07070a;border:1px solid var(--line);border-radius:var(--r-md)}
@@ -2678,19 +2679,19 @@ const SCRIPT = String.raw`
     );
     out.append(summary);
 
-    const stagesCard = el('div', { class: 'card' }, el('h2', { text: 'Composer stages' }));
+    const stagesCard = el('div', { class: 'card capability-composer-result', id: 'capability-composer-stages' }, el('h2', { text: 'Composer stages' }));
     const stages = el('ol', { class: 'reasons' });
     for (const stage of plan.stages) stages.append(el('li', { text: stage.id + ' · ' + stage.status + ' · ' + stage.reason + (stage.evidence.length ? ' [' + stage.evidence.join(', ') + ']' : '') }));
     stagesCard.append(stages, el('p', { class: 'muted', text: 'Every stage is inspectable. Planning metadata never grants execution authority.' }));
 
-    const capabilityCard = el('div', { class: 'card' }, el('h2', { text: 'Capability decision' }));
+    const capabilityCard = el('div', { class: 'card capability-composer-result', id: 'capability-composer-capabilities' }, el('h2', { text: 'Capability decision' }));
     const capabilityList = el('ul', { class: 'reasons' });
     for (const item of plan.selectedCapabilities) capabilityList.append(el('li', { text: 'Selected · ' + item.kind + '/' + item.id + ' · ' + item.reason }));
     for (const item of plan.blockedCapabilities) capabilityList.append(el('li', { class: 'bad', text: 'Blocked · ' + item.kind + '/' + item.id + ' · ' + item.reason }));
     if (!capabilityList.children.length) capabilityList.append(el('li', { class: 'muted', text: 'No capability selected; unavailable capabilities are not invented.' }));
     capabilityCard.append(capabilityList, el('p', { class: 'muted', text: 'MCP suggestions and Skill instructions remain advisory until their existing governed runtimes expose authority.' }));
 
-    const runtimeCard = el('div', { class: 'card' }, el('h2', { text: 'Local runtime boundary' }));
+    const runtimeCard = el('div', { class: 'card capability-composer-result', id: 'capability-composer-runtime' }, el('h2', { text: 'Local runtime boundary' }));
     const model = plan.runtime.model;
     runtimeCard.append(el('p', { text: model ? model.backend + ' · ' + model.id + ' · ' + model.protocol : 'NOT_CONFIGURED: no reachable openai-chat model' }));
     runtimeCard.append(el('p', { class: 'muted', text: plan.confirmation.reason }));
@@ -2702,8 +2703,8 @@ const SCRIPT = String.raw`
       execute.addEventListener('click', async () => {
         execute.disabled = true; runtimeCard.append(el('p', { class: 'status muted', text: 'Executing through the existing local boundary…' }));
         try {
-          const executed = await post('/api/studio/capability-composer/execute', { planDigest: plan.planDigestSha256, confirm: true });
-          runtimeCard.append(el('pre', { class: 'code-view', tabindex: '0', 'aria-label': 'Composer execution proof' }, document.createTextNode(JSON.stringify(executed.execution, null, 2))));
+          const executed = await post('/api/studio/capability-composer/execute', { planDigest: plan.planDigestSha256, confirm: confirm.checked });
+          runtimeCard.append(el('pre', { id: 'capability-composer-execution-proof', class: 'code-view', tabindex: '0', 'aria-label': 'Composer execution proof' }, document.createTextNode(JSON.stringify(executed.execution, null, 2))));
         } catch (error) {
           runtimeCard.append(el('p', { class: 'bad', text: 'Local execution refused: ' + error.message }));
           execute.disabled = false;
@@ -2712,8 +2713,8 @@ const SCRIPT = String.raw`
       runtimeCard.append(confirmLabel, execute);
     }
     out.append(el('div', { class: 'grid' }, stagesCard, capabilityCard), runtimeCard);
-    const details = el('details');
-    details.append(el('summary', { text: 'Expert evidence · raw Composer plan' }), el('pre', { class: 'code-view', tabindex: '0', 'aria-label': 'Raw capability composer plan' }, document.createTextNode(JSON.stringify(plan, null, 2))));
+    const details = el('details', { id: 'capability-composer-expert-evidence' });
+    details.append(el('summary', { text: 'Expert evidence · raw Composer plan' }), el('pre', { class: 'code-view composer-expert-evidence-view', tabindex: '0', 'aria-label': 'Raw capability composer plan' }, document.createTextNode(JSON.stringify(plan, null, 2))));
     out.append(details);
   }
 

@@ -1,5 +1,30 @@
 # FuryPipe VNext acceptance
 
+## Closure record — 2026-10-03
+
+Owner visual acceptance is recorded for the verified local VNext delivery.
+
+```text
+VNEXT-01 = COMPLETED ACCORDING TO RECORDED ACCEPTANCE
+VNEXT-02 = TECHNICALLY PASS
+FLUX BRAND = OWNER APPROVED
+HUMAN VISUAL GATE = OWNER APPROVED
+AUTOMATED UI GATE = PASS
+FURY TRACE = IMPLEMENTED
+SCREEN READER MANUAL TEST = NOT VERIFIED
+VNEXT-03 = AUTHORIZED TO START
+```
+
+Evidence boundary:
+
+- Owner approved FLUX identity, light sidebar contrast, 390 px Fury Trace,
+  Worker inspector and 1024 px Worker table presentation.
+- Automated browser evidence covers Chromium, Firefox and WebKit.
+- Screen-reader testing remains `MANUAL_REQUIRED` and is not claimed as
+  completed.
+- Publication and VNEXT-03 work remain separate from PR #238, whose head is
+  `603f85a86f8b3d1be78c97d76140882ef2cf47e8`.
+
 ## VNEXT-01 — état de preuve
 
 ### Critère principal

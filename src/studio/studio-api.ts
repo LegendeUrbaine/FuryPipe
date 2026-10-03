@@ -69,6 +69,7 @@ import { createFuryMediaStudioGallery, createFuryMediaStudioPreview, createFuryM
 import type { FuryMediaGenerationAdapter, FuryMediaGenerationMode } from '../media-generation-runtime.js';
 import type { FuryMediaGenerationJobEngine } from '../media-generation-job-engine.js';
 import { createRecoveryStore } from '../core/recovery-store.js';
+import type { RecoveryHandle, RecoveryStore } from '../core/recovery-store.js';
 import { createFuryEvalHistoryRepository, type FuryEvalHistoryRepository } from '../fury-eval-history.js';
 import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } from '../fury-video-timeline.js';
 import { createFuryObservabilityNotConfiguredSnapshot, type FuryObservabilityRegistry } from '../fury-observability.js';
@@ -80,6 +81,17 @@ import { LocalVideoEngine, VideoEngineError, type VideoLocalEngineOptions } from
 import { createVideoProviderRegistry } from '../video-providers.js';
 import { runVideoWorkflow, VideoWorkflowError } from '../video-workflow.js';
 import { createVideoHookVariants, createVideoRecipe, createVideoStoryboard, FURYCRAFT_VIDEO_PROFILE, lintFuryCraftPublicContent, type VideoCaptionStyle } from '../video-studio.js';
+import {
+  buildFuryCapabilityComposerPlan,
+  composerPlanToJson,
+  compileFuryCapabilityComposerIr,
+  executeFuryCapabilityComposerLocal,
+  FuryCapabilityComposerError,
+  verifyFuryCapabilityComposerPlan,
+  type FuryCapabilityComposerLocalModel,
+  type FuryCapabilityComposerPlan,
+  type FuryCapabilityComposerRouteSnapshot,
+} from '../fury-capability-composer.js';
 
 export const STUDIO_API_PREFIX = '/api/studio/';
 const MAX_POST_BYTES = 256 * 1024;
@@ -87,7 +99,7 @@ const CACHE_MS = 10_000;
 const WORKSPACE_TASK_ID = /^[a-z0-9][a-z0-9._-]{0,127}$/u;
 
 export type StudioRoute =
-  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'eval' | 'eval-history' | 'eval-compare' | 'headless' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
+  | 'harnesses' | 'local' | 'models' | 'hardware' | 'local-model-inspect' | 'local-model-recommend' | 'runtime-setup' | 'runtime-setup-status' | 'bindings' | 'graph' | 'graph-lifecycle' | 'graph-refresh' | 'blast-radius' | 'dispatch-preview' | 'autopilot-preview' | 'capability-composer-plan' | 'capability-composer-execute' | 'capability-composer-plans' | 'eval' | 'eval-history' | 'eval-compare' | 'headless' | 'extensions' | 'chat' | 'flow-preview' | 'flow-automation-preview'
   | 'runs' | 'run-start' | 'run-act' | 'run-trace' | 'skills' | 'skill-act' | 'skill-select' | 'skill-install' | 'skill-create' | 'skill-compare'
   | 'mcp' | 'mcp-add' | 'mcp-act' | 'mcp-probe' | 'mcp-decide'
   | 'knowledge' | 'knowledge-ingest' | 'knowledge-search'
@@ -120,6 +132,9 @@ const ROUTES: Readonly<Record<string, { route: StudioRoute; method: 'GET' | 'POS
   '/api/studio/blast-radius': { route: 'blast-radius', method: 'POST' },
   '/api/studio/dispatch-preview': { route: 'dispatch-preview', method: 'POST' },
   '/api/studio/autopilot/preview': { route: 'autopilot-preview', method: 'POST' },
+  '/api/studio/capability-composer/plan': { route: 'capability-composer-plan', method: 'POST' },
+  '/api/studio/capability-composer/execute': { route: 'capability-composer-execute', method: 'POST' },
+  '/api/studio/capability-composer/plans.json': { route: 'capability-composer-plans', method: 'GET' },
   '/api/studio/eval': { route: 'eval', method: 'POST' },
   '/api/studio/eval/history.json': { route: 'eval-history', method: 'GET' },
   '/api/studio/eval/compare': { route: 'eval-compare', method: 'POST' },
@@ -298,6 +313,10 @@ export interface StudioApiOptions {
   readonly evalHistory?: FuryEvalHistoryRepository;
   /** Root for default durable FuryEval history. */
   readonly evalHistoryDir?: string;
+  /** Durable Capability Composer plan/result store; defaults to a local RecoveryStore. */
+  readonly composerStore?: RecoveryStore;
+  /** Root for default Capability Composer persistence. */
+  readonly composerDir?: string;
   /** Provider-neutral media adapters observed by Studio; observation never grants execution authority. */
   readonly mediaAdapters?: readonly FuryMediaGenerationAdapter[];
   /** Optional durable media job projection; Studio only reads jobs and never submits from this route. */
@@ -465,6 +484,39 @@ export function createStudioApi(options: StudioApiOptions) {
     projectId: projectKey,
     now,
   });
+  const composerStore = options.composerStore ?? createRecoveryStore(
+    options.composerDir ?? path.join(os.homedir(), '.furypipe', 'studio', 'composer', projectKey),
+    { namespace: 'composer', maxObjectBytes: 2 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 },
+  );
+  const composerHandles = new Map<string, RecoveryHandle>();
+  const composerEncoder = new TextEncoder();
+  const composerMetadata = (kind: 'plan' | 'execution', digest: string) => ({
+    projectId: projectKey,
+    kind: `capability-composer-${kind}`,
+    digest,
+  });
+  const persistComposerObject = async (kind: 'plan' | 'execution', digest: string, value: unknown): Promise<RecoveryHandle> => {
+    const serialized = kind === 'plan' ? composerPlanToJson(value as FuryCapabilityComposerPlan) : JSON.stringify(value);
+    const bytes = composerEncoder.encode(serialized);
+    const handle = await composerStore.put(bytes, composerMetadata(kind, digest));
+    composerHandles.set(`${kind}:${digest}`, handle);
+    return handle;
+  };
+  const loadComposerObject = async <T>(kind: 'plan' | 'execution', digest: string): Promise<T | undefined> => {
+    const cachedHandle = composerHandles.get(`${kind}:${digest}`);
+    const handles = cachedHandle
+      ? [cachedHandle]
+      : await composerStore.list?.({ metadata: composerMetadata(kind, digest), limit: 4 }) ?? [];
+    const handle = handles.at(-1);
+    if (!handle) return undefined;
+    composerHandles.set(`${kind}:${digest}`, handle);
+    const bytes = await composerStore.get(handle);
+    return JSON.parse(Buffer.from(bytes).toString('utf8')) as T;
+  };
+  const listComposerPlans = async () => {
+    const handles = await composerStore.list?.({ metadata: { projectId: projectKey, kind: 'capability-composer-plan' }, limit: 100 }) ?? [];
+    return handles.map((handle) => ({ digest: String(handle.metadata?.digest ?? handle.digest), handle: handle.digest, bytes: handle.bytes, metadata: handle.metadata }));
+  };
   const artifactSummary = (artifact: FuryArtifact) => {
     const latest = artifact.versions.at(-1)!;
     return Object.freeze({
@@ -546,6 +598,63 @@ export function createStudioApi(options: StudioApiOptions) {
     id:job.id, runtime:job.runtime, state:job.state, startedAt:job.startedAt, next:job.next, ...(job.error ? { error:job.error } : {}),
   });
   const ledger = createFuryProofLedger();
+  const buildComposer = async (input: {
+    readonly objective: string;
+    readonly harnessId?: string;
+    readonly effort: FuryAutopilotEffort;
+    readonly responseStyle: StudioResponseStyle;
+    readonly customInstructions?: string;
+  }) => {
+    const [harnessDiscovery, localDiscovery] = await Promise.all([harnesses(), local()]);
+    // Composer stage 1 deliberately exposes only reachable OpenAI-compatible
+    // local backends to Model Fabric. No cloud catalog is admitted here.
+    const localBackends = localDiscovery.backends.filter((backend) => backend.reachable && backend.protocols.includes('openai-chat'));
+    const modelFabric = createModelFabricRegistry();
+    observeFuryLocalModelsInModelFabric(modelFabric, localBackends);
+    const compiled = await planStudioAutopilot({
+      objective: input.objective,
+      projectRoot: options.projectRoot,
+      skills,
+      mcp,
+      harnesses: harnessDiscovery,
+      modelFabric,
+      modelHealth: Object.fromEntries(localBackends.flatMap((backend) => backend.models
+        .filter((model) => model.modality !== 'embeddings')
+        .map((model) => [localModelCapabilityId(backend.kind, model.id), 'ready' as const]))),
+      selectModel: true,
+      effort: input.effort,
+      ...(input.harnessId ? { harnessId: input.harnessId } : {}),
+      responseStyle: input.responseStyle,
+      ...(input.customInstructions ? { customInstructions: input.customInstructions } : {}),
+    });
+    const selectedModel = compiled.models.selected[0];
+    const localModelRecord = selectedModel
+      ? localBackends.flatMap((backend) => backend.models
+        .filter((model) => model.modality !== 'embeddings' && localModelCapabilityId(backend.kind, model.id) === selectedModel.id)
+        .map((model) => ({ backend, model }))).sort((a, b) => a.backend.baseUrl.localeCompare(b.backend.baseUrl) || a.model.id.localeCompare(b.model.id))[0]
+      : undefined;
+    const localModel: FuryCapabilityComposerLocalModel | undefined = localModelRecord
+      ? { backend: localModelRecord.backend.kind, baseUrl: localModelRecord.backend.baseUrl, id: localModelRecord.model.id, capabilityId: selectedModel!.id, protocol: 'openai-chat' }
+      : undefined;
+    const objectiveDigestSha256 = createHash('sha256').update(input.objective.trim(), 'utf8').digest('hex');
+    const ir = compileFuryCapabilityComposerIr({ objective: input.objective, objectiveDigestSha256 });
+    const candidates = studioBindings(harnessDiscovery, localBackends);
+    const dispatch = planFuryDispatch({ ir, candidates, mode: 'LOCAL_ONLY', profile: 'PRIVATE' });
+    const route: FuryCapabilityComposerRouteSnapshot = {
+      blueprint: compiled.blueprint,
+      capabilityGraph: compiled.capabilityGraph,
+      capabilities: compiled.capabilities,
+      instructions: compiled.instructions,
+      skills: compiled.skills,
+      models: compiled.models,
+      mcp: compiled.mcp,
+      contextInspector: compiled.contextInspector,
+      prompt: compiled.prompt,
+    };
+    const plan = buildFuryCapabilityComposerPlan({ objective: input.objective, objectiveDigestSha256, route, ir, dispatch, ...(localModel ? { localModel } : {}) });
+    const handle = await persistComposerObject('plan', plan.planDigestSha256, plan);
+    return { plan, handle, candidates: candidates.map((candidate) => ({ id: candidate.id, harnessId: candidate.harnessId, provider: candidate.provider, model: candidate.model, locality: candidate.locality })) };
+  };
   const runSnapshot = (r: StudioRun) => ({
     runId: r.runId, intent: r.intent, startedAt: r.startedAt, status: r.status,
     ...(r.error ? { error: r.error } : {}),
@@ -768,6 +877,63 @@ export function createStudioApi(options: StudioApiOptions) {
               compiled,
               excludedSkills: compiled.skills.excluded,
               execution: 'NOT_EXECUTED: instructions compiled; tools, scripts and MCP execution remain separately governed',
+            });
+          }
+          case 'capability-composer-plan': {
+            const body = await readJson(request) as { objective?: unknown; harnessId?: unknown; effort?: unknown; responseStyle?: unknown; customInstructions?: unknown };
+            if (typeof body.objective !== 'string' || !body.objective.trim() || body.objective.length > 32_768 || body.objective.includes('\0')) {
+              return problem(400, 'invalid-input', 'objective is required (max 32768 characters)');
+            }
+            if (body.harnessId !== undefined && (typeof body.harnessId !== 'string' || body.harnessId.length > 128 || body.harnessId.includes('\0'))) {
+              return problem(400, 'invalid-input', 'harnessId must be bounded text');
+            }
+            if (body.customInstructions !== undefined && (typeof body.customInstructions !== 'string' || body.customInstructions.length > 4_000 || body.customInstructions.includes('\0'))) {
+              return problem(400, 'invalid-input', 'customInstructions must be bounded text');
+            }
+            const effort = typeof body.effort === 'string' && (FURY_AUTOPILOT_EFFORTS as readonly string[]).includes(body.effort)
+              ? body.effort as FuryAutopilotEffort
+              : 'auto';
+            const responseStyle = body.responseStyle === undefined ? 'caveman' : body.responseStyle;
+            if (typeof responseStyle !== 'string' || !(STUDIO_RESPONSE_STYLES as readonly string[]).includes(responseStyle)) {
+              return problem(400, 'invalid-input', 'responseStyle is unsupported');
+            }
+            const result = await buildComposer({
+              objective: body.objective,
+              ...(typeof body.harnessId === 'string' && body.harnessId ? { harnessId: body.harnessId } : {}),
+              effort,
+              responseStyle: responseStyle as StudioResponseStyle,
+              ...(typeof body.customInstructions === 'string' && body.customInstructions.trim() ? { customInstructions: body.customInstructions.trim() } : {}),
+            });
+            return json({
+              ...result,
+              authority: 'capability-composer-plan-only',
+              executionAuthorized: false,
+              execution: 'PLAN_ONLY: explicit confirmation is required before the existing local inference boundary can run',
+            });
+          }
+          case 'capability-composer-plans':
+            return json({ format: 'furypipe-capability-composer-plans/v1', plans: await listComposerPlans(), authority: 'persistence-inspection-only', executionAuthorized: false });
+          case 'capability-composer-execute': {
+            const body = await readJson(request) as { planDigest?: unknown; confirm?: unknown; userMessage?: unknown };
+            if (body.confirm !== true) return problem(400, 'confirmation-required', 'local capability composer execution requires confirm: true');
+            if (typeof body.planDigest !== 'string' || !/^[0-9a-f]{64}$/u.test(body.planDigest)) return problem(400, 'invalid-input', 'planDigest must be a sha256 digest');
+            if (body.userMessage !== undefined && (typeof body.userMessage !== 'string' || !body.userMessage.trim() || body.userMessage.length > 32_768 || body.userMessage.includes('\0'))) {
+              return problem(400, 'invalid-input', 'userMessage must be bounded text');
+            }
+            const plan = await loadComposerObject<FuryCapabilityComposerPlan>('plan', body.planDigest);
+            if (!plan || !verifyFuryCapabilityComposerPlan(plan)) return problem(404, 'unknown-plan', 'composer plan not found or integrity verification failed');
+            const execution = await executeFuryCapabilityComposerLocal({
+              plan,
+              confirm: true,
+              ledger,
+              ...(typeof body.userMessage === 'string' ? { userMessage: body.userMessage } : {}),
+            });
+            const resultHandle = await persistComposerObject('execution', `${execution.planDigestSha256}:${execution.outputDigestSha256}`.slice(0, 128), execution);
+            return json({
+              execution,
+              persistence: { handle: resultHandle.digest, planDigestSha256: execution.planDigestSha256, resultDigestSha256: execution.outputDigestSha256 },
+              authority: 'local-runtime-observation',
+              executionAuthorized: false,
             });
           }
           case 'eval': {
@@ -1664,6 +1830,7 @@ export function createStudioApi(options: StudioApiOptions) {
           }
         }
       } catch (error) {
+        if (error instanceof FuryCapabilityComposerError) return problem(error.status, error.code, error.message);
         const status = (error as { status?: number }).status;
         if (status) return problem(status, status === 503 ? 'discovery-failed' : status === 409 ? 'not-runnable' : 'invalid-request', (error as Error).message);
         if (error instanceof FuryIrError) return problem(422, 'invalid-ir', error.message);

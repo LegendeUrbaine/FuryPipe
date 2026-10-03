@@ -31,6 +31,8 @@ export interface StudioAutopilotInput {
   readonly modelFabric?: ModelFabricRegistry;
   readonly modelHealth?: Readonly<Record<string, 'ready' | 'degraded' | 'unavailable' | 'unknown' | 'blocked'>>;
   readonly selectedModelCapabilityId?: string;
+  /** Composer-only opt-in: select one reachable model for a later governed runtime boundary. */
+  readonly selectModel?: boolean;
   readonly effort?: FuryAutopilotEffort;
   readonly responseStyle?: StudioResponseStyle;
   readonly customInstructions?: string;
@@ -85,13 +87,22 @@ export async function planStudioAutopilot(input:StudioAutopilotInput){
     index:capabilityIndex,
     ...(input.harnessId?{hostCompatibility:[input.harnessId]}:{}),
     ...(explicitRequests.length?{explicitRequests}:{}),
-    availablePermissions:[],
+    availablePermissions:input.selectModel?['provider-inference']:[],
+    ...(input.selectModel?{requiredFamilies:['model']}:{}),
     options:{
       maxSelected:5,
-      maxSelectedByKind:{skill:4,agent:1,provider:0,plugin:0,'mcp-server':0,'mcp-tool':0,model:0},
+      maxSelectedByKind:{skill:4,agent:1,provider:0,plugin:0,'mcp-server':0,'mcp-tool':0,model:input.selectModel?1:0},
     },
   });
   const selectedSkillCapabilities=capabilitySelection.selected.filter((item)=>item.kind==='skill');
+  const selectedModelCapabilities=Object.freeze(capabilitySelection.selected
+    .filter((item)=>item.kind==='model')
+    .map((item)=>Object.freeze({
+      id:item.id,
+      score:item.score,
+      reason:item.reason,
+      executionAuthorized:false as const,
+    })));
   const governedModelCandidates=Object.freeze(capabilitySelection.blocked
     .filter((item)=>item.kind==='model'&&item.relevanceScore>0)
     .sort((a,b)=>Number(b.requestedExplicitly)-Number(a.requestedExplicitly)||b.score-a.score||a.id.localeCompare(b.id))
@@ -100,6 +111,7 @@ export async function planStudioAutopilot(input:StudioAutopilotInput){
       id:item.id,
       score:item.score,
       reason:`Model Fabric ranked this model but executable selection was blocked: ${item.reason}.`,
+      executionAuthorized:false as const,
     })));
   const mcpSourceById=new Map(mcpView.sources.map((source)=>[source.sourceId,source] as const));
   const governedMcpCandidates=Object.freeze(capabilitySelection.blocked
@@ -400,6 +412,7 @@ export async function planStudioAutopilot(input:StudioAutopilotInput){
       executionAuthorized:false as const,
     }),
     models:Object.freeze({
+      selected:selectedModelCapabilities,
       suggested:governedModelCandidates,
       executionAuthorized:false as const,
     }),

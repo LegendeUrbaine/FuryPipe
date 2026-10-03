@@ -2665,6 +2665,58 @@ const SCRIPT = String.raw`
     out.append(el('div', { class: 'card' }, el('h2', { text: 'Prompt pipeline' }), el('p', { text: plan.promptPipeline.join(' → ') }), el('p', { class: 'muted', text: 'Preview only. This route does not authorize tools, writes, network calls or external actions.' })));
   }
 
+  function renderCapabilityComposer(result) {
+    const out = $('#autopilot-out'); out.replaceChildren();
+    const plan = result.plan;
+    const summary = el('div', { class: 'autopilot-summary' });
+    const stat = (title, value) => el('div', { class: 'autopilot-stat' }, el('b', { text: title }), el('span', { text: value }));
+    summary.append(
+      stat('Composer state', plan.state),
+      stat('Selected', String(plan.selectedCapabilities.length)),
+      stat('Dispatch', plan.dispatch.status),
+      stat('FuryEval F1', String(plan.evaluation.overall.f1)),
+    );
+    out.append(summary);
+
+    const stagesCard = el('div', { class: 'card' }, el('h2', { text: 'Composer stages' }));
+    const stages = el('ol', { class: 'reasons' });
+    for (const stage of plan.stages) stages.append(el('li', { text: stage.id + ' · ' + stage.status + ' · ' + stage.reason + (stage.evidence.length ? ' [' + stage.evidence.join(', ') + ']' : '') }));
+    stagesCard.append(stages, el('p', { class: 'muted', text: 'Every stage is inspectable. Planning metadata never grants execution authority.' }));
+
+    const capabilityCard = el('div', { class: 'card' }, el('h2', { text: 'Capability decision' }));
+    const capabilityList = el('ul', { class: 'reasons' });
+    for (const item of plan.selectedCapabilities) capabilityList.append(el('li', { text: 'Selected · ' + item.kind + '/' + item.id + ' · ' + item.reason }));
+    for (const item of plan.blockedCapabilities) capabilityList.append(el('li', { class: 'bad', text: 'Blocked · ' + item.kind + '/' + item.id + ' · ' + item.reason }));
+    if (!capabilityList.children.length) capabilityList.append(el('li', { class: 'muted', text: 'No capability selected; unavailable capabilities are not invented.' }));
+    capabilityCard.append(capabilityList, el('p', { class: 'muted', text: 'MCP suggestions and Skill instructions remain advisory until their existing governed runtimes expose authority.' }));
+
+    const runtimeCard = el('div', { class: 'card' }, el('h2', { text: 'Local runtime boundary' }));
+    const model = plan.runtime.model;
+    runtimeCard.append(el('p', { text: model ? model.backend + ' · ' + model.id + ' · ' + model.protocol : 'NOT_CONFIGURED: no reachable openai-chat model' }));
+    runtimeCard.append(el('p', { class: 'muted', text: plan.confirmation.reason }));
+    if (plan.state === 'READY_FOR_CONFIRMATION' && model) {
+      const confirm = el('input', { type: 'checkbox' });
+      const confirmLabel = el('label', {}, confirm, document.createTextNode(' I confirm this local inference request'));
+      const execute = el('button', { type: 'button', class: 'secondary', disabled: 'disabled', text: 'Execute confirmed local route' });
+      confirm.addEventListener('change', () => { execute.disabled = !confirm.checked; });
+      execute.addEventListener('click', async () => {
+        execute.disabled = true; runtimeCard.append(el('p', { class: 'status muted', text: 'Executing through the existing local boundary…' }));
+        try {
+          const executed = await post('/api/studio/capability-composer/execute', { planDigest: plan.planDigestSha256, confirm: true });
+          runtimeCard.append(el('pre', { class: 'code-view', tabindex: '0', 'aria-label': 'Composer execution proof' }, document.createTextNode(JSON.stringify(executed.execution, null, 2))));
+        } catch (error) {
+          runtimeCard.append(el('p', { class: 'bad', text: 'Local execution refused: ' + error.message }));
+          execute.disabled = false;
+        }
+      });
+      runtimeCard.append(confirmLabel, execute);
+    }
+    out.append(el('div', { class: 'grid' }, stagesCard, capabilityCard), runtimeCard);
+    const details = el('details');
+    details.append(el('summary', { text: 'Expert evidence · raw Composer plan' }), el('pre', { class: 'code-view', tabindex: '0', 'aria-label': 'Raw capability composer plan' }, document.createTextNode(JSON.stringify(plan, null, 2))));
+    out.append(details);
+  }
+
   $('#autopilot-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const status = $('#autopilot-status'); const out = $('#autopilot-out');
@@ -2680,6 +2732,23 @@ const SCRIPT = String.raw`
       status.textContent = result.execution;
     } catch (e) {
       status.textContent = 'Autopilot unavailable: ' + e.message;
+    }
+  });
+
+  $('#capability-composer-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const status = $('#capability-composer-status');
+    status.textContent = 'Composing governed local route…';
+    try {
+      const result = await post('/api/studio/capability-composer/plan', {
+        objective: $('#capability-composer-objective').value,
+        effort: $('#autopilot-effort').value,
+        responseStyle: 'caveman',
+      });
+      renderCapabilityComposer(result);
+      status.textContent = result.execution + ' · ' + result.plan.planDigestSha256.slice(0, 16);
+    } catch (error) {
+      status.textContent = 'Composer unavailable: ' + error.message;
     }
   });
 
@@ -3416,6 +3485,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
       <div><label for="autopilot-harness">Runtime</label><select id="autopilot-harness"><option value="">Any</option>${FURY_HARNESS_REGISTRY.map((h) => `<option value="${h.id}">${escapeHtml(h.displayName)}</option>`).join('')}</select></div><button type="submit">Build route</button></div></form><p id="autopilot-status" class="status muted" role="status"></p></div>
     <div class="card"><h2>Automatic, not uncontrolled</h2><ul class="reasons"><li>Relevant SKILL.md instructions are loaded progressively and checksummed.</li><li>MCP tools are selected by intent but still obey trust and per-tool policy.</li><li>Visual context compression is used only when the request benefits from it.</li><li>Mutation, network and external actions still require the existing FuryPipe gates.</li></ul></div>
   </div>
+  <div class="card composer-card"><div class="row"><div><h2>Fury Capability Composer</h2><p class="muted">Compose une route réelle au-dessus de Capability Autopilot, FuryIR et FuryDispatcher. Modèle local uniquement. MCP/Skills restent inspectables et gouvernés.</p></div><span class="badge">VNEXT-03 · PLAN FIRST</span></div><form id="capability-composer-form"><label for="capability-composer-objective">Builder request</label><textarea id="capability-composer-objective" required maxlength="32768" placeholder="e.g. Analyse cette demande avec les capacités locales disponibles et explique le résultat"></textarea><div class="row"><button type="submit">Compose local route</button><span class="muted">Execution requires explicit confirmation after the route is inspectable.</span></div></form><p id="capability-composer-status" class="status muted" role="status"></p></div>
   <div id="autopilot-out" aria-live="polite"></div>
 </section>
 <section data-view="media" class="media-workspace" aria-labelledby="h-media" hidden><h1 id="h-media">Media Studio</h1><p class="lead">FuryImage, FuryVideo and FuryAudio share the governed media runtime. Studio previews are always local and bounded; a real provider job appears only when a host configures the runtime and you explicitly confirm it.</p>

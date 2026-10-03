@@ -445,6 +445,10 @@
       "types": "./dist/fury-eval.d.ts",
       "import": "./dist/fury-eval.js"
     },
+    "./fury-capability-composer": {
+      "types": "./dist/fury-capability-composer.d.ts",
+      "import": "./dist/fury-capability-composer.js"
+    },
     "./fury-eval-history": {
       "types": "./dist/fury-eval-history.d.ts",
       "import": "./dist/fury-eval-history.js"

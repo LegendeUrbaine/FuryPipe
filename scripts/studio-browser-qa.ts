@@ -5,7 +5,7 @@
 // engine through navigation, keyboard focus, the 404 view, chat streaming,
 // dispatch preview, graph, empty and error states and a narrow viewport.
 // Console errors (including CSP violations) fail the run.
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { execFileSync } from 'node:child_process';
 import type { AddressInfo } from 'node:net';
@@ -23,6 +23,7 @@ import { createMemoryVNextStore } from '../src/memory-vnext.js';
 import { createFurySkillHub } from '../src/fury-skill-hub.js';
 import { createStudioApi, studioApiRoute } from '../src/studio/studio-api.js';
 import { studioHtmlResponse } from '../src/studio/studio-page.js';
+import { buildFuryRunTrace, type FuryRunTraceInput } from '../src/fury-trace.js';
 import { LocalVideoEngine } from '../src/video-local-engine.js';
 
 const HOST = '127.0.0.1';
@@ -89,12 +90,25 @@ const harnesses: FuryHarnessDiscovery = {
   })),
 };
 
-async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: string, projectRoot: string, run: string): Promise<{ server: Server; origin: string }> {
+interface StudioQaServer {
+  readonly server: Server;
+  readonly origin: string;
+  corruptTraceFor(runId: string): void;
+  clearTraceCorruption(): void;
+}
+
+async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: string, projectRoot: string, run: string): Promise<StudioQaServer> {
   // State is per engine run: one engine's actions (trust, pins, chats, memory) must not leak into the next.
   const state = `${mode}-${run}`;
   const local = (): FuryLocalBackendStatus[] => mode === 'empty'
     ? [{ kind: 'ollama', baseUrl: 'http://127.0.0.1:11434', reachable: false, protocols: [], models: [], error: 'unreachable' }]
     : [{ kind: 'ollama', baseUrl: backendUrl, reachable: true, version: '0.14.2', protocols: ['native', 'openai-chat', 'anthropic-messages'], models: [{ backend: 'ollama', baseUrl: backendUrl, id: 'qwen2.5-coder:7b', sizeBytes: 4_700_000_000, parameterSize: '7.6B', quantization: 'Q4_K_M' }, { backend: 'ollama', baseUrl: backendUrl, id: 'llama3.2:3b', sizeBytes: 2_000_000_000 }] }];
+  let corruptTraceRunId: string | undefined;
+  const traceBuilder = (input: FuryRunTraceInput) => {
+    if (input.runId !== corruptTraceRunId || !input.result) return buildFuryRunTrace(input);
+    const replay = { ...input.result.replay, entries: input.result.replay.entries.map((entry, index) => index === 0 ? { ...entry, data: { ...entry.data, qaIntegrityProbe: 'corrupted' } } : entry) };
+    return buildFuryRunTrace({ ...input, result: { ...input.result, replay } });
+  };
   const api = createStudioApi({
     projectRoot,
     // Isolated hub state: QA never touches the operator's ~/.furypipe.
@@ -120,6 +134,7 @@ async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: strin
       if (assignment.role === 'implementer') writeFileSync(path.join(worktree, 'src', 'auth', 'login.ts'), 'export const createSession = () => "flux-qa";\n');
       return { ok: true, receipts: [] };
     },
+    traceBuilder,
   });
   let origin = '';
   const server = createServer((req, res) => {
@@ -133,7 +148,7 @@ async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: strin
     })().catch(() => { res.statusCode = 500; res.end(); });
   });
   origin = `http://${HOST}:${await listen(server)}`;
-  return { server, origin };
+  return { server, origin, corruptTraceFor: (runId) => { corruptTraceRunId = runId; }, clearTraceCorruption: () => { corruptTraceRunId = undefined; } };
 }
 
 async function setMode(page: Page, mode: string): Promise<void> {
@@ -522,9 +537,10 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     });
     await openReadyTrace(page);
     await page.locator('#run-trace-status').filter({ hasText: 'Trace READY' }).waitFor();
-    assert(await page.locator('.trace-rail-node').count() >= 6, `${name}: trace execution rail missing`);
-    await page.locator('.trace-rail-node').filter({ hasText: 'Worker' }).first().click();
-    await page.locator('.trace-detail[data-state="selected"]').waitFor();
+    assert(await page.locator('.trace-stage').count() === 7, `${name}: trace execution flow missing stages`);
+    await page.locator('.trace-stage').filter({ hasText: 'Workers' }).first().click();
+    await page.locator('.trace-inspector .trace-fields').waitFor();
+    assert(await page.locator('.trace-inspector').textContent().then((text) => /Identifier/u.test(text ?? '')), `${name}: trace inspector omitted identifier`);
 
     await page.goto(`${origins.normal}/#/automations`);
     await page.locator('#flow-form button[type=submit]').click();
@@ -590,112 +606,41 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
   }
 }
 
-// Visual evidence: the key surfaces at desktop, narrow desktop and phone widths.
-async function captureScreens(type: BrowserType, origins: Record<'normal' | 'empty' | 'error', string>): Promise<string[]> {
-  const dir = path.join(OUT, 'screens-flux-vnext-02');
-  mkdirSync(dir, { recursive: true });
-  const browser = await type.launch();
-  const shots: string[] = [];
+// Final visual evidence uses actual Flux assets and one exact local run. No status is inferred from elapsed time.
+async function captureScreens(type: BrowserType, servers: Record<'normal' | 'empty' | 'error', StudioQaServer>): Promise<string[]> {
+  const dir = path.join(OUT, 'screens-flux-vnext-02-final');
+  rmSync(dir, { recursive: true, force: true }); mkdirSync(dir, { recursive: true });
+  const browser = await type.launch(); const shots: string[] = [];
+  const asset = (file: string, mime: string) => `data:${mime};base64,${readFileSync(path.resolve(file)).toString('base64')}`;
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', reducedMotion: 'reduce' });
     const page = await context.newPage();
-    const shot = async (file: string, settle = true): Promise<void> => {
-      if (settle) await page.waitForTimeout(150);
-      await page.screenshot({ path: path.join(dir, file) });
-      shots.push(file);
-    };
-    await page.goto(`${origins.normal}/#/chat`);
-    await page.locator('#model-button').filter({ hasText: 'Fury Auto' }).waitFor();
-    await shot('01-new-chat-1440.png');
-    await page.locator('#model-button').click();
-    await page.locator('#model-pop [role=option]').first().waitFor();
-    await page.keyboard.press('Escape');
-    await page.locator('#attach-input').setInputFiles({ name: 'notes.md', mimeType: 'text/markdown', buffer: Buffer.from('# Notes\nShip the Studio rework.\n') });
-    await page.locator('#chat-input').fill('Summarise these notes in one line');
-    await page.locator('#attach-tray .att').waitFor();
-    await page.locator('#chat-send').click();
-    await page.locator('#chat-log .msg:not(.user)').filter({ hasText: 'Hello from a local model.' }).waitFor();
-    await shot('04-conversation.png');
-    await page.goto(`${origins.normal}/#/workspace`);
-    await page.locator('#workspace-title').filter({ hasText: 'QA chromium workspace' }).waitFor();
-    await page.locator('#workspace-summary').filter({ hasText: '1 artifact(s)' }).waitFor();
-    await page.locator('#workspace-task-list .badge').filter({ hasText: 'SUCCEEDED' }).waitFor();
-    await shot('05b-workspace-vnext-01.png');
-    await page.goto(`${origins.normal}/#/chat`);
-    await page.locator('#route-chip').filter({ hasText: 'llama3.2:3b' }).waitFor();
-    await page.locator('#route-chip').click();
-    await page.locator('#route-pop').waitFor();
-    await shot('05-why-this-route.png');
-    await page.keyboard.press('Escape');
-    await page.goto(`${origins.normal}/#/models`);
-    await page.locator('#backends .model-row').first().waitFor();
-    await shot('06-models.png');
-    await page.goto(`${origins.normal}/#/media`);
-    await page.locator('#media-surfaces .card').filter({ hasText: 'FuryImage Studio' }).waitFor();
-    await shot('06b-media-studio-preview.png');
-    await page.goto(`${origins.normal}/#/video`);
-    await page.locator('#video-doctor-status').filter({ hasText: 'READY' }).waitFor();
-    await shot('06c-video-studio.png');
-    await page.goto(`${origins.normal}/#/settings`);
-    await shot('07-settings.png');
-    await setMode(page, 'expert');
-    await page.goto(`${origins.normal}/#/mission`);
-    await page.locator('section[data-view="mission"] h1').waitFor();
-    await shot('08-expert-mission-control.png');
-    // A third disposable run proves the complete visible lifecycle. The
-    // executor is the bounded local fixture passed to the real run pipeline.
-    await page.locator('#run-intent').fill('Capture a verified Flux trace');
-    await page.locator('#run-files').fill('src/auth/login.ts');
-    await page.locator('#run-confirm').check();
-    await shot('15-mission-before-execution.png');
-    await page.locator('#run-form button[type=submit]').click();
-    await page.locator('#runs .card').first().waitFor();
-    await shot('16-mission-running.png', false);
-    await page.waitForFunction(() => [...document.querySelectorAll('#runs .card h2')].some((node) => !/running/u.test(node.textContent ?? '')));
-    await shot('17-mission-completed.png');
-    await openReadyTrace(page);
-    await page.locator('#run-trace-status').filter({ hasText: 'Trace READY' }).waitFor();
-    await shot('18-fury-trace-ready.png');
-    await page.locator('.trace-node[data-kind="worker"]').first().click();
-    await page.locator('.trace-detail[data-state="selected"]').waitFor();
-    await shot('19-fury-trace-worker.png');
-    await page.locator('.trace-node[data-kind="receipt"]').first().click();
-    await shot('20-fury-trace-receipt.png');
-    await page.locator('.trace-node[data-kind="judge"]').first().click();
-    await shot('21-fury-trace-judge-proof.png');
-    // Browser-level Ctrl+K can be intercepted by the browser chrome in CI.
-    // Dispatch the same bubbling DOM KeyboardEvent to verify FuryPipe's handler.
-    await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true })));
-    await page.locator('#palette-overlay').waitFor({ state: 'visible' });
-    await page.locator('#palette-list [role=option]').first().waitFor();
-    await shot('09-command-palette.png');
-    await page.keyboard.press('Escape');
-    await page.goto(`${origins.empty}/#/chat`);
-    await page.locator('#chat-empty').waitFor({ state: 'visible' });
-    await page.setViewportSize({ width: 1024, height: 768 });
-    await page.goto(`${origins.normal}/#/chat`);
-    await page.locator('#chat-list button.conv').first().waitFor();
-    await shot('11-chat-1024.png');
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto(`${origins.normal}/#/chat`);
-    await page.locator('#model-button').waitFor();
-    await shot('12-chat-390.png');
-    await page.locator('#side-open').click();
-    await shot('13-drawer-390.png');
-    await context.close();
-    const light = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', colorScheme: 'light', reducedMotion: 'reduce' });
-    const lp = await light.newPage();
-    await lp.goto(`${origins.normal}/#/settings`);
-    await lp.locator('input[name="pref-theme"][value="system"]').check({ force: true });
-    await lp.goto(`${origins.normal}/#/chat`);
-    await lp.locator('#model-button').filter({ hasText: 'Fury Auto' }).waitFor();
-    await lp.waitForTimeout(150);
-    await lp.screenshot({ path: path.join(dir, '14-new-chat-light-system.png') });
-    shots.push('14-new-chat-light-system.png');
-  } finally {
-    await browser.close();
-  }
-  assert(shots.length === 21, `expected 21 visual evidence screenshots, received ${shots.length}`);
+    const shot = async (file: string): Promise<void> => { await page.screenshot({ path: path.join(dir, file) }); shots.push(file); };
+    const brand = async (file: string, background: string, body: string): Promise<void> => { await page.setContent(`<main style="min-height:100vh;display:grid;place-items:center;margin:0;background:${background};font:16px Inter,Arial;color:#fff">${body}</main>`); await shot(file); };
+    await brand('01-flux-primary-symbol.png', '#0b0b0f', `<img alt="FuryPipe Flux primary symbol" style="width:min(62vw,520px)" src="${asset('assets/branding/flux/master/furypipe-flux-symbol.svg', 'image/svg+xml')}">`);
+    await brand('02-flux-wordmark-dark.png', '#0b0b0f', `<img alt="FuryPipe Flux wordmark dark" style="width:min(80vw,860px)" src="${asset('assets/branding/flux/variants/furypipe-logo-dark.svg', 'image/svg+xml')}">`);
+    await brand('03-flux-wordmark-light.png', '#fff', `<img alt="FuryPipe Flux wordmark light" style="width:min(80vw,860px)" src="${asset('assets/branding/flux/variants/furypipe-logo-light.svg', 'image/svg+xml')}">`);
+    await brand('04-flux-app-icon-favicon.png', '#0b0b0f', `<div style="display:flex;align-items:center;gap:72px"><img alt="FuryPipe app icon" style="width:300px" src="${asset('assets/branding/flux/icons/app-icon-512.png', 'image/png')}"><img alt="FuryPipe favicon" style="width:96px;image-rendering:auto" src="${asset('assets/branding/flux/icons/favicon-64.png', 'image/png')}"></div>`);
+    await page.goto(`${servers.normal.origin}/#/chat`); await page.locator('#model-button').filter({ hasText: 'Fury Auto' }).waitFor(); await shot('05-studio-dark-1440.png');
+    const light = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', colorScheme: 'light', reducedMotion: 'reduce' }); const lightPage = await light.newPage();
+    await lightPage.goto(`${servers.normal.origin}/#/settings`); await lightPage.evaluate(() => localStorage.setItem('furypipe.studio.theme', 'system')); await lightPage.reload(); await lightPage.waitForFunction(() => document.documentElement.dataset.theme === 'system'); await lightPage.goto(`${servers.normal.origin}/#/chat`); await lightPage.locator('#model-button').waitFor(); await lightPage.screenshot({ path: path.join(dir, '06-studio-light-1440.png') }); shots.push('06-studio-light-1440.png'); await light.close();
+    await page.setViewportSize({ width: 390, height: 844 }); await page.goto(`${servers.normal.origin}/#/chat`); await page.locator('#model-button').waitFor(); await shot('07-studio-mobile-390.png'); await page.locator('#side-open').click(); await shot('08-studio-mobile-nav-390.png');
+    await page.setViewportSize({ width: 1440, height: 900 }); await page.goto(`${servers.normal.origin}/#/mission`); await setMode(page, 'expert'); await page.locator('#run-form').waitFor(); await page.locator('#run-intent').fill('Capture a verified Flux final trace'); await page.locator('#run-files').fill('src/auth/login.ts'); await page.locator('#run-confirm').check(); await shot('09-mission-before-run.png');
+    await page.locator('#run-form button[type=submit]').click(); await page.waitForFunction(() => Boolean(document.querySelector('#run-status')?.getAttribute('data-run-id'))); const runId = await page.locator('#run-status').getAttribute('data-run-id'); assert(runId, 'visual evidence runId was not bound');
+    await page.locator(`#runs .card[data-run-id="${runId}"]`).waitFor(); await page.waitForFunction((id) => new RegExp(id + ' — running', 'u').test(document.querySelector(`#runs .card[data-run-id="${id}"] h2`)?.textContent ?? ''), runId); await shot('10-mission-running-bound.png');
+    await page.waitForFunction((id) => !/running/u.test(document.querySelector(`#runs .card[data-run-id="${id}"] h2`)?.textContent ?? ''), runId); await shot('11-mission-terminal-bound.png');
+    const openTrace = async () => { const button = page.locator(`#runs .card[data-run-id="${runId}"] button[aria-label="Inspect Fury Trace for ${runId}"]`); await button.waitFor({ state: 'visible' }); await button.click(); };
+    const showTrace = async () => { await page.evaluate(() => document.querySelector('#run-trace-panel')?.scrollIntoView({ block: 'start' })); };
+    await openTrace(); await page.locator('#run-trace-status').filter({ hasText: 'Trace READY' }).waitFor(); await showTrace(); await shot('12-trace-ready-complete.png');
+    await page.locator('.trace-node[data-kind="worker"]').first().click(); await page.locator('.trace-inspector .trace-fields').waitFor(); await showTrace(); await shot('13-trace-worker-inspector.png');
+    await page.locator('.trace-node[data-kind="receipt"]').first().click(); await showTrace(); await shot('14-trace-receipt-inspector.png');
+    await page.locator('.trace-node[data-kind="judge"]').first().click(); await showTrace(); await shot('15-trace-furyjudge-proof.png');
+    servers.normal.corruptTraceFor(runId); await openTrace(); await page.locator('#run-trace-status').filter({ hasText: 'Trace INVALID' }).waitFor(); await showTrace(); await shot('16-trace-invalid-genuine.png'); servers.normal.clearTraceCorruption();
+    await openTrace(); await page.locator('#run-trace-status').filter({ hasText: 'Trace READY' }).waitFor(); await page.setViewportSize({ width: 390, height: 844 }); await showTrace(); await shot('17-trace-ready-390.png'); await page.setViewportSize({ width: 1440, height: 900 }); await showTrace(); await shot('18-trace-ready-1440.png');
+    await page.setViewportSize({ width: 1024, height: 768 }); await page.goto(`${servers.normal.origin}/#/mission`); await page.locator('#run-form').waitFor(); await shot('19-mission-1024.png');
+    const dark = asset(path.join(dir, '05-studio-dark-1440.png'), 'image/png'); const lightImage = asset(path.join(dir, '06-studio-light-1440.png'), 'image/png'); await page.setViewportSize({ width: 1440, height: 900 }); await page.setContent(`<main style="margin:0;background:#111;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px"><img alt="Studio dark actual capture" style="width:100%" src="${dark}"><img alt="Studio light actual capture" style="width:100%" src="${lightImage}"></main>`); await shot('20-studio-dark-light-comparison.png');
+  } finally { await browser.close(); }
+  assert(shots.length === 20, `expected 20 final visual evidence screenshots, received ${shots.length}`);
   return shots;
 }
 
@@ -732,7 +677,7 @@ async function main(): Promise<void> {
       const error = await startStudio('error', backend.baseUrl, project, run);
       servers.push(normal.server, empty.server, error.server);
       results.push(await runEngine(engine, type, { normal: normal.origin, empty: empty.origin, error: error.origin }));
-      if (engine === 'chromium' && process.env.FURYPIPE_STUDIO_QA_SCREENS !== '0') results[results.length - 1]!.screens = await captureScreens(type, { normal: normal.origin, empty: empty.origin, error: error.origin });
+      if (engine === 'chromium' && process.env.FURYPIPE_STUDIO_QA_SCREENS !== '0') results[results.length - 1]!.screens = await captureScreens(type, { normal, empty, error });
       console.log(`✓ studio ${engine}`);
     }
   } finally {

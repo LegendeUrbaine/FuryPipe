@@ -72,7 +72,7 @@ import { createRecoveryStore } from '../core/recovery-store.js';
 import { createFuryEvalHistoryRepository, type FuryEvalHistoryRepository } from '../fury-eval-history.js';
 import { createFuryVideoTimelinePreview, type FuryVideoTimelineProjectInput } from '../fury-video-timeline.js';
 import { createFuryObservabilityNotConfiguredSnapshot, type FuryObservabilityRegistry } from '../fury-observability.js';
-import { buildFuryRunTrace } from '../fury-trace.js';
+import { buildFuryRunTrace, type FuryRunTrace, type FuryRunTraceInput } from '../fury-trace.js';
 import { createFuryMemoryTimeMachine, type FuryMemorySnapshot } from '../fury-memory-time-machine.js';
 import { createFuryMarketplaceCatalog, type FuryMarketplaceCatalog } from '../fury-marketplace.js';
 import { executeFuryHeadless, FuryHeadlessError } from '../fury-headless.js';
@@ -268,6 +268,8 @@ export interface StudioApiOptions {
   readonly now?: () => number;
   /** Task executor for real runs; defaults to the structured-CLI harness runner. */
   readonly executor?: FuryTaskExecutor;
+  /** Test seam for trace-projection integrity cases. Production uses buildFuryRunTrace. */
+  readonly traceBuilder?: (input: FuryRunTraceInput) => FuryRunTrace;
   /** Where writer and integration worktrees are created (default: OS temp dir). */
   readonly worktreeRoot?: string;
   /** Skills Hub; defaults to one keyed by project under ~/.furypipe/studio/skill-hub. */
@@ -395,6 +397,7 @@ function gitHead(cwd: string): Promise<string> {
 
 export function createStudioApi(options: StudioApiOptions) {
   const now = options.now ?? Date.now;
+  const traceBuilder = options.traceBuilder ?? buildFuryRunTrace;
   const cache = new Map<string, { at: number; value: Promise<unknown> }>();
   const cached = <T>(key: string, load: () => Promise<T>): Promise<T> => {
     const hit = cache.get(key);
@@ -1285,7 +1288,7 @@ export function createStudioApi(options: StudioApiOptions) {
             if (!runId || runId.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(runId)) return problem(400, 'invalid-input', 'runId must be a bounded run identifier');
             const run = runs.get(runId);
             if (!run) return problem(404, 'unknown-run', 'run not found');
-            return json(buildFuryRunTrace({
+            return json(traceBuilder({
               runId: run.runId,
               runStatus: run.status,
               ...(run.result ? { result: run.result } : {}),

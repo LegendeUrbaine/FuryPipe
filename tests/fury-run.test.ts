@@ -11,6 +11,7 @@ import { verifyFuryReplay, type FuryWorkerBinding } from '../src/fury-mission-co
 import { planFuryTask } from '../src/fury-planner.js';
 import { createFuryProofLedger } from '../src/fury-proof.js';
 import { runFuryTask, type FuryTaskExecutor } from '../src/fury-run.js';
+import { buildFuryRunTrace } from '../src/fury-trace.js';
 
 const roots: string[] = [];
 afterEach(() => {
@@ -77,6 +78,18 @@ describe('FuryRun end to end (fake harness, real git)', () => {
     expect(new Set([seenWorktrees.get('impl-src-auth'), seenWorktrees.get('impl-src-ui'), seenWorktrees.get('tests')]).size).toBe(3);
     expect(result.bundle.filesModified).toEqual(['src/auth/login.ts', 'src/ui/form.ts', 'tests/login.test.ts']);
     expect(verifyFuryReplay(result.replay).ok).toBe(true);
+    const trace = buildFuryRunTrace({ runId: 'r1', runStatus: result.status, result });
+    expect(trace.status).toBe('READY');
+    expect(trace.replayIntegrity.status).toBe('PASS');
+    expect(trace.nodes.some((node) => node.kind === 'event' && node.source.replaySeq === 1)).toBe(true);
+    expect(trace.evidence.some((item) => item.subject === 'test:r1')).toBe(true);
+    expect(trace.edges.some((edge) => edge.kind === 'reports' && edge.source?.receiptId)).toBe(true);
+    const tampered = buildFuryRunTrace({
+      runId: 'r1', runStatus: result.status,
+      result: { ...result, replay: { ...result.replay, entries: result.replay.entries.map((entry, index) => index === 0 ? { ...entry, type: 'TAMPERED' } : entry) } },
+    });
+    expect(tampered.status).toBe('INVALID');
+    expect(tampered.replayIntegrity.status).toBe('FAIL');
     expect(git(s.repoRoot, 'rev-parse', 'main')).toBe(s.baseSha);
   }, 120_000);
 

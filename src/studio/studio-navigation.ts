@@ -21,6 +21,7 @@ export interface StudioNavigationSection {
 }
 
 export const STUDIO_PRIMARY_NAVIGATION = Object.freeze([
+  { view: 'workspace', label: 'Workspace', level: 'simple' },
   { view: 'chat', label: 'Chat', level: 'simple' },
   { view: 'video', label: 'Video', level: 'power' },
   { view: 'cowork', label: 'Work', level: 'power' },

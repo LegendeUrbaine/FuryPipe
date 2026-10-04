@@ -45,4 +45,15 @@ describe('FuryPipe Local information architecture', () => {
     expect(html).toContain('pattern="[a-z][a-z0-9._\\-]{0,63}"');
     expect(contentSecurityPolicy).toContain("media-src 'self'");
   });
+
+  it('exposes the Composer progressive-disclosure and confirmation anchors', () => {
+    const html = renderStudioHtml().html;
+
+    expect(html).toContain('aria-describedby="capability-composer-intro capability-composer-status"');
+    expect(html).toContain('capability-composer-route-summary');
+    expect(html).toContain('capability-composer-capability-details');
+    expect(html).toContain('capability-composer-confirmation-explainer');
+    expect(html).toContain('capability-composer-execution-raw');
+    expect(html).toContain('capability-composer-receipts');
+  });
 });

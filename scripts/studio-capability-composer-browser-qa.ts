@@ -158,6 +158,24 @@ async function screenshot(page: Page, filename: string, locator?: string): Promi
   await target.screenshot({ path: path.join(OUT, 'screens', filename) });
 }
 
+async function assertResponsiveBoundary(page: Page, label: string): Promise<void> {
+  const result = await page.evaluate(() => {
+    const viewport = window.innerWidth;
+    const clipped = [...document.querySelectorAll('#autopilot-out button, #autopilot-out input, #autopilot-out summary, #autopilot-out .composer-field')]
+      .filter((element) => { const rect = element.getBoundingClientRect(); return rect.width > 0 && (rect.left < -1 || rect.right > viewport + 1); })
+      .map((element) => element.id || element.textContent?.trim().slice(0, 40) || element.tagName);
+    return { scrollWidth: document.documentElement.scrollWidth, viewport, clipped };
+  });
+  assert(result.scrollWidth <= result.viewport + 1, `${label}: Composer has horizontal overflow ${result.scrollWidth}/${result.viewport}`);
+  assert(result.clipped.length === 0, `${label}: Composer control or field clipped: ${result.clipped.join(', ')}`);
+}
+
+async function setDetails(page: Page, selector: string, open: boolean): Promise<void> {
+  const details = page.locator(selector);
+  const current = await details.evaluate((element) => (element as HTMLDetailsElement).open);
+  if (current !== open) await details.locator('summary').click();
+}
+
 async function runEngine(name: string, type: BrowserType, normal: ComposerQaServer, empty: ComposerQaServer, capture: boolean): Promise<JsonRecord> {
   const browser = await type.launch();
   const consoleErrors: string[] = [];
@@ -176,35 +194,55 @@ async function runEngine(name: string, type: BrowserType, normal: ComposerQaServ
     assert(await page.locator('#capability-composer-objective').isEditable(), `${name}: Simple objective input inaccessible`);
     if (capture) await screenshot(page, '01-composer-initial-simple-1440.png');
 
-    await setMode(page, 'expert');
-    if (capture) await screenshot(page, '02-composer-initial-expert-1440.png');
     await fillObjective(page);
-    if (capture) await screenshot(page, '03-composer-request-entered.png');
+    if (capture) await screenshot(page, '02-composer-objective-entered.png');
+    await setMode(page, 'expert');
     const planBefore = await submitAndReadPlan(page);
     assert(planBefore.state === 'READY_FOR_CONFIRMATION', `${name}: expected live plan READY_FOR_CONFIRMATION, got ${String(planBefore.state)}`);
-    if (capture) await screenshot(page, '04-composer-generated-plan.png');
-    if (capture) await screenshot(page, '05-composer-selected-local-model.png', '#capability-composer-runtime');
-    if (capture) await screenshot(page, '06-composer-skill-mcp-advisory.png', '#capability-composer-capabilities');
-    if (capture) await screenshot(page, '07-composer-compatibility-authority.png', '#capability-composer-stages');
-    if (capture) await screenshot(page, '08-composer-capability-explanation.png', '#capability-composer-capabilities');
-    const checkbox = page.locator('#capability-composer-runtime input[type="checkbox"]');
-    const execute = page.locator('#capability-composer-runtime button').last();
+    await assertResponsiveBoundary(page, name);
+    if (capture) await screenshot(page, '03-composer-generated-route-summary.png', '#capability-composer-route-summary');
+    if (capture) await screenshot(page, '04-composer-compact-stages.png', '#capability-composer-stages');
+    if (capture) await screenshot(page, '05-composer-selected-capabilities.png', '#capability-composer-capabilities');
+    await setDetails(page, '#capability-composer-capability-details', true);
+    if (capture) await screenshot(page, '06-composer-advanced-capability-details.png', '#capability-composer-capabilities');
+    await setDetails(page, '#capability-composer-capability-details', false);
+    const checkbox = page.locator('#capability-composer-confirm');
+    const execute = page.locator('#capability-composer-execute');
     assert(await checkbox.isVisible() && !(await checkbox.isChecked()), `${name}: confirmation checkbox state invalid`);
     assert(await execute.isDisabled(), `${name}: execute control was not gated before confirmation`);
-    if (capture) await screenshot(page, '09-composer-confirmation-required.png', '#capability-composer-runtime');
-
-    await execute.evaluate((element) => { const button = element as HTMLButtonElement; button.disabled = false; button.click(); });
-    await page.locator('#capability-composer-runtime .bad').filter({ hasText: 'Local execution refused' }).waitFor({ timeout: 30_000 });
-    if (capture) await screenshot(page, '10-composer-execution-denied-without-confirmation.png', '#capability-composer-runtime');
-
+    if (capture) await screenshot(page, '07-composer-confirmation-unchecked.png', '#capability-composer-runtime');
+    const denied = await page.evaluate(async (planDigest) => {
+      const response = await fetch('/api/studio/capability-composer/execute', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ planDigest }) });
+      return { status: response.status, body: await response.json() };
+    }, planBefore.planDigestSha256);
+    const deniedBody = asRecord(denied.body);
+    const deniedError = asRecord(deniedBody.error);
+    assert(denied.status === 400 && deniedError.code === 'confirmation-required', `${name}: server confirmation denial failed: ${denied.status} ${String(deniedError.code)}`);
+    assert(await execute.isDisabled() && !(await checkbox.isChecked()), `${name}: denied probe changed the confirmation UI state`);
     await checkbox.check();
+    assert(await checkbox.isChecked() && !(await execute.isDisabled()), `${name}: confirmation did not unlock execution`);
+    if (capture) await screenshot(page, '08-composer-confirmation-checked.png', '#capability-composer-runtime');
+    await page.route('**/api/studio/capability-composer/execute', async (route) => { await new Promise((resolve) => setTimeout(resolve, 1_500)); await route.continue(); });
     await execute.click();
-    await page.locator('#capability-composer-execution-proof').waitFor({ timeout: 300_000 });
+    await page.locator('#capability-composer-execution-status').filter({ hasText: 'pending' }).waitFor({ timeout: 5_000 });
+    if (capture) await screenshot(page, '09-composer-execution-pending.png', '#capability-composer-runtime');
+    await page.locator('#capability-composer-result-card').waitFor({ state: 'visible', timeout: 300_000 });
+    await page.unroute('**/api/studio/capability-composer/execute');
+    await page.locator('#capability-composer-execution-proof').waitFor({ state: 'attached', timeout: 30_000 });
     const execution = JSON.parse((await page.locator('#capability-composer-execution-proof').textContent()) ?? '{}') as JsonRecord;
     assert(execution.status === 'COMPLETED', `${name}: live Composer execution was not COMPLETED`);
     assert(execution.output === EXPECTED_OUTPUT, `${name}: live Composer output was not the bounded acceptance result`);
-    if (capture) await screenshot(page, '11-composer-confirmed-local-execution.png');
-    if (capture) await screenshot(page, '12-composer-real-result-proof-receipts.png', '#capability-composer-execution-proof');
+    const resultText = await page.locator('#capability-composer-result-card').textContent() || '';
+    assert(resultText.includes('ACCEPT'), `${name}: structured result does not expose FuryProof ACCEPT`);
+    assert(resultText.includes('Durable result persisted') && !resultText.includes('Persistence not reported'), `${name}: structured result did not expose top-level persistence evidence`);
+    if (capture) await screenshot(page, '10-composer-genuine-ollama-result.png', '#capability-composer-result-card');
+    await page.locator('#capability-composer-result-card').scrollIntoViewIfNeeded();
+    if (capture) await screenshot(page, '11-composer-professional-result-card.png');
+    if (capture) await screenshot(page, '12-composer-structured-receipt-inspector.png', '#capability-composer-receipts');
+    await setDetails(page, '#capability-composer-execution-raw', false);
+    if (capture) await screenshot(page, '13-composer-raw-json-collapsed.png', '#capability-composer-execution-raw');
+    await setDetails(page, '#capability-composer-execution-raw', true);
+    if (capture) await screenshot(page, '14-composer-raw-json-expanded.png', '#capability-composer-execution-raw');
 
     const missingContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark', locale: 'en-US', reducedMotion: 'reduce' });
     const missingPage = await missingContext.newPage();
@@ -215,12 +253,13 @@ async function runEngine(name: string, type: BrowserType, normal: ComposerQaServ
     const missingRaw = await missingPage.locator('#capability-composer-expert-evidence pre').textContent();
     const missingPlan = JSON.parse(missingRaw ?? '{}') as JsonRecord;
     assert(missingPlan.state === 'NOT_CONFIGURED', `${name}: missing provider state was ${String(missingPlan.state)}`);
-    if (capture) await screenshot(missingPage, '13-composer-not-configured.png');
+    if (capture) await screenshot(missingPage, '15-composer-not-configured.png');
     await missingContext.close();
 
     if (capture) {
-      await page.locator('#capability-composer-stages').scrollIntoViewIfNeeded();
-      await screenshot(page, '14-composer-dark-1440.png');
+      await setDetails(page, '#capability-composer-execution-raw', false);
+      await page.locator('#capability-composer-route-summary').scrollIntoViewIfNeeded();
+      await screenshot(page, '16-composer-dark-1440.png');
       const lightContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'light', locale: 'en-US', reducedMotion: 'reduce' });
       const lightPage = await lightContext.newPage();
       await lightPage.goto(`${normal.origin}/#/settings`, { waitUntil: 'load' });
@@ -228,22 +267,44 @@ async function runEngine(name: string, type: BrowserType, normal: ComposerQaServ
       await lightPage.reload({ waitUntil: 'load' });
       await lightPage.goto(`${normal.origin}/#/autopilot`, { waitUntil: 'load' });
       await fillAndPlan(lightPage);
-      await lightPage.locator('#capability-composer-stages').scrollIntoViewIfNeeded();
-      await screenshot(lightPage, '15-composer-light-1440.png');
+      await setMode(lightPage, 'expert');
+      await lightPage.locator('#capability-composer-route-summary').scrollIntoViewIfNeeded();
+      await screenshot(lightPage, '17-composer-light-1440.png');
       await lightContext.close();
 
-      const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', locale: 'en-US', reducedMotion: 'reduce' });
-      const mobilePage = await mobileContext.newPage();
-      await mobilePage.goto(`${normal.origin}/#/autopilot`, { waitUntil: 'load' });
-      await fillAndPlan(mobilePage);
-      assert(await mobilePage.evaluate(() => document.documentElement.scrollWidth - window.innerWidth <= 1), 'Composer mobile page has horizontal overflow');
-      await mobilePage.locator('#capability-composer-stages').scrollIntoViewIfNeeded();
-      await screenshot(mobilePage, '16-composer-mobile-390.png');
-      await mobilePage.locator('#capability-composer-expert-evidence summary').click();
-      await mobilePage.locator('#capability-composer-expert-evidence').scrollIntoViewIfNeeded();
-      await screenshot(mobilePage, '17-composer-mobile-details-expanded-390.png');
-      await mobileContext.close();
+      const frenchContext = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark', locale: 'fr-FR', reducedMotion: 'reduce' });
+      const frenchPage = await frenchContext.newPage();
+      await frenchPage.goto(`${normal.origin}/#/autopilot`, { waitUntil: 'load' });
+      await frenchPage.waitForFunction(() => document.documentElement.lang === 'fr');
+      await fillAndPlan(frenchPage);
+      const frenchPrimary = await frenchPage.locator('#capability-composer-route-summary, #capability-composer-runtime').allTextContents();
+      const frenchText = frenchPrimary.join(' ');
+      assert(frenchText.includes('Résumé du routage') && frenchText.includes('Confirmation explicite'), `${name}: French Composer labels were not applied`);
+      assert(!frenchText.includes('confirm:true'), `${name}: raw confirmation flag leaked into French primary UX`);
+      await frenchContext.close();
     }
+    const mobileContext = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', locale: 'en-US', reducedMotion: 'reduce' });
+    const mobilePage = await mobileContext.newPage();
+    await mobilePage.goto(`${normal.origin}/#/autopilot`, { waitUntil: 'load' });
+    const mobilePlan = await fillAndPlan(mobilePage);
+    assert(mobilePlan.state === 'READY_FOR_CONFIRMATION', `${name}: mobile plan state was ${String(mobilePlan.state)}`);
+    await assertResponsiveBoundary(mobilePage, `${name} mobile route`);
+    await mobilePage.locator('#capability-composer-route-summary').scrollIntoViewIfNeeded();
+    if (capture) await screenshot(mobilePage, '18-composer-mobile-route-summary-390.png');
+    const mobileCheckbox = mobilePage.locator('#capability-composer-confirm');
+    const mobileExecute = mobilePage.locator('#capability-composer-execute');
+    await mobileCheckbox.check();
+    assert(await mobileCheckbox.isChecked() && !(await mobileExecute.isDisabled()), `${name}: mobile confirmation control inaccessible`);
+    await mobilePage.locator('#capability-composer-runtime').scrollIntoViewIfNeeded();
+    if (capture) await screenshot(mobilePage, '19-composer-mobile-confirmation-390.png');
+    if (capture) {
+      await mobileExecute.click();
+      await mobilePage.locator('#capability-composer-result-card').waitFor({ state: 'visible', timeout: 300_000 });
+      await assertResponsiveBoundary(mobilePage, `${name} mobile result`);
+      await mobilePage.locator('#capability-composer-result-card').scrollIntoViewIfNeeded();
+      await screenshot(mobilePage, '20-composer-mobile-result-evidence-390.png');
+    }
+    await mobileContext.close();
     assert(consoleErrors.length === 0, `${name}: console errors: ${consoleErrors.join(' | ')}`);
     return { engine: name, status: 'PASS', consoleErrors: 0, liveModel: LIVE_MODEL, planState: planBefore.state, executionStatus: execution.status };
   } finally {
@@ -286,7 +347,7 @@ async function main(): Promise<void> {
     status: 'PASS',
     sourceCommit: process.env.FURYPIPE_SOURCE_COMMIT ?? 'not-bound',
     liveModel: LIVE_MODEL,
-    captures: 17,
+    captures: 20,
     screenshotDirectory: path.join(OUT, 'screens'),
     engines: results,
     fixtureEvidence: 'SEPARATE: tests/fury-capability-composer.test.ts',

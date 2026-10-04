@@ -567,7 +567,10 @@ details.adv>div{padding:0 18px 16px}
 .memory-graph-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface-2);min-height:220px}.memory-graph-wrap svg{display:block;width:100%;min-width:620px;height:auto}.memory-edge{stroke:var(--line-strong);stroke-width:1.2}.memory-node{fill:var(--surface-3);stroke:var(--line-strong);stroke-width:1.2}.memory-node.active{stroke:var(--accent)}.memory-node.scope{fill:var(--surface)}.memory-label{fill:var(--text);font-size:11px}.memory-small{fill:var(--muted);font-size:9px}
 .set-row-stack{align-items:flex-start}.set-row-stack>div:last-child{min-width:min(520px,100%);flex:1}.set-row-stack textarea{min-height:92px}
 .effort-select{width:auto;min-width:96px;max-width:132px;height:34px;padding:0 9px;border-radius:9px;font-size:12px;background:var(--surface-2);border:1px solid var(--line);color:var(--text)}
-.autopilot-grid{align-items:start}.autopilot-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}.autopilot-stat{padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.autopilot-stat b{display:block;margin-bottom:4px}.autopilot-stat span{font-size:12px;color:var(--muted)}
+  .autopilot-grid{align-items:start}.autopilot-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}.autopilot-stat{padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.autopilot-stat b{display:block;margin-bottom:4px}.autopilot-stat span{font-size:12px;color:var(--muted)}
+  .composer-card,.composer-route-summary,.composer-stages,.composer-capabilities,.composer-runtime,.composer-result-card{overflow:hidden}.composer-card{border-color:rgba(255,122,40,.24);background:linear-gradient(145deg,rgba(255,106,26,.055),transparent 38%),linear-gradient(180deg,var(--b2),var(--b1))}.composer-card-header,.composer-result-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.composer-card-header h2,.composer-result-header h2{margin-bottom:6px}.composer-card-header p,.composer-result-header p{margin:0;max-width:72ch}.composer-route-grid,.composer-result-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}.composer-field{min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.018)}.composer-field dt{color:var(--muted);font:650 10px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase}.composer-field dd{margin:6px 0 0;color:var(--ink);font-size:13px;overflow-wrap:anywhere;word-break:break-word}.composer-field dd.composer-technical{font-family:var(--mono);font-size:11.5px}.composer-digest{font:600 11px/1.4 var(--mono);overflow-wrap:anywhere;word-break:break-word}.composer-stage-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;list-style:none;margin:14px 0 0;padding:0}.composer-stages{grid-column:1/-1}.composer-stage-list li{min-width:0;margin:0}.composer-stage-list details{height:100%;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.016)}.composer-stage-list details[open]{border-color:var(--o-line);background:rgba(255,106,26,.035)}.composer-stage-list summary{display:flex;align-items:center;gap:8px;min-height:52px;padding:10px 11px;cursor:pointer;list-style:none}.composer-stage-list summary::-webkit-details-marker{display:none}.composer-stage-list summary strong{min-width:0;flex:1;color:var(--ink);font-size:12px;overflow-wrap:anywhere}.composer-stage-number{display:grid;place-items:center;width:22px;height:22px;flex:none;border:1px solid var(--line-2);border-radius:7px;color:var(--o-hot);font:700 10px/1 var(--mono)}.composer-stage-list .badge{height:20px;padding:0 6px;font-size:10px}.composer-stage-body{padding:0 11px 11px}.composer-stage-body p{margin:0;color:var(--ink-2);font-size:12px;line-height:1.45}.composer-stage-evidence{display:block;margin-top:8px;color:var(--muted);font:11px/1.45 var(--mono);overflow-wrap:anywhere;word-break:break-word}.composer-capability-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}.composer-capability-group{min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.014)}.composer-capability-group h3{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;font:650 12px/1.3 var(--font);color:var(--ink)}.composer-capability-group h3 .badge{height:20px;padding:0 7px;font-size:10px}.composer-capability-list{display:grid;gap:7px;list-style:none;margin:0;padding:0}.composer-capability-list li{min-width:0;padding:8px 9px;border-radius:9px;background:rgba(255,255,255,.018);color:var(--ink-2);font-size:12px;line-height:1.4;overflow-wrap:anywhere;word-break:break-word}.composer-capability-list li strong{display:block;color:var(--ink);font-size:12px}.composer-capability-list li small{display:block;margin-top:3px;color:var(--muted);font-size:11px}.composer-advanced{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.012)}.composer-advanced>summary{padding:12px 14px;cursor:pointer;color:var(--ink-2);font:600 12px/1.3 var(--font);list-style:none}.composer-advanced>summary::-webkit-details-marker{display:none}.composer-advanced[open]>summary{border-bottom:1px solid var(--line)}.composer-advanced-body{padding:0 14px 14px}.composer-runtime-model{font:650 13px/1.4 var(--mono);overflow-wrap:anywhere;word-break:break-word}.composer-confirmation{margin-top:16px;padding:14px;border:1px solid var(--o-line);border-radius:13px;background:linear-gradient(135deg,rgba(255,106,26,.09),rgba(255,255,255,.018))}.composer-confirmation-copy{margin:0 0 12px;color:var(--ink-2);font-size:13px;line-height:1.5}.composer-confirmation-label{display:flex;align-items:flex-start;gap:8px;margin:0;color:var(--ink);font-size:13px;line-height:1.45}.composer-confirmation-label input{flex:none;margin-top:2px}.composer-confirmation .composer-actions{margin-top:12px}.composer-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px}.composer-actions button{min-width:0}.composer-execution-status{margin:10px 0 0;min-height:1.5em}.composer-result-card{margin-top:16px;border-color:rgba(95,217,154,.3);background:linear-gradient(145deg,rgba(95,217,154,.055),transparent 34%),linear-gradient(180deg,var(--b2),var(--b1))}.composer-result-output{margin:14px 0 0;padding:14px;border-left:3px solid var(--ok);border-radius:0 11px 11px 0;background:rgba(95,217,154,.055);color:var(--ink);font-size:15px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.composer-receipt-list{display:grid;gap:8px;list-style:none;margin:14px 0 0;padding:0}.composer-receipt-list li{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.014)}.composer-receipt-list strong{display:block;color:var(--ink);font-size:12px}.composer-receipt-list small{display:block;margin-top:3px;color:var(--muted);font:11px/1.4 var(--mono);overflow-wrap:anywhere;word-break:break-word}.composer-receipt-list .badge{flex:none}.composer-result-actions{margin-top:14px}.composer-result-actions button{height:34px;padding:0 11px;font-size:12px}.composer-execution-proof{max-height:46vh}.composer-expert-evidence-view{max-height:52vh}body[data-mode="simple"] .composer-expert-only{display:none!important}
+  @media (max-width:860px){.composer-route-grid,.composer-result-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.composer-stage-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media (max-width:520px){.composer-card-header,.composer-result-header{display:block}.composer-card-header .badge,.composer-result-header .badge{margin-top:10px}.composer-route-grid,.composer-result-grid,.composer-capability-groups{grid-template-columns:1fr}.composer-stage-list{grid-template-columns:1fr 1fr;gap:7px}.composer-stage-list summary{min-height:58px;padding:9px}.composer-stage-list summary strong{font-size:11px}.composer-stage-list .badge{font-size:9px}.composer-confirmation{padding:12px}.composer-actions{align-items:stretch}.composer-actions button{flex:1 1 100%;width:100%}.composer-receipt-list li{display:block}.composer-receipt-list .badge{display:inline-flex;margin-top:8px}.composer-result-output{font-size:14px}}
 .extension-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.extension-card{margin:0}.extension-meta{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.extension-card .risk-RESTRICTED{color:var(--danger)}.creator-name{font-size:24px;font-weight:750;letter-spacing:-.02em}.support-brand{display:flex;align-items:center;gap:11px;margin-bottom:14px}.support-brand-mark{width:48px;height:48px;flex:none;filter:drop-shadow(0 0 12px rgba(255,106,26,.26))}.support-brand .wordmark{font-size:24px;font-weight:700}.brand-tagline{margin:0;color:var(--muted);font:650 10px/1 var(--font);letter-spacing:.28em;text-transform:uppercase}.voice-listening{box-shadow:0 0 0 3px rgba(255,122,26,.18);color:var(--accent)}.support-btn{display:inline-flex;align-items:center;gap:8px}
 @media (max-width:860px){.effort-select{max-width:104px}.extension-grid{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
@@ -876,7 +879,64 @@ const SCRIPT = String.raw`
     'EXTERNAL ACTION': 'ACTION EXTERNE',
     'ALLOW': 'AUTORISER',
     'ASK': 'DEMANDER',
-    'DENY': 'REFUSER'
+    'DENY': 'REFUSER',
+    'Route summary': 'Résumé du routage',
+    'Ready for confirmation': 'Prêt pour confirmation',
+    'Route blocked': 'Routage bloqué',
+    'Local runtime not configured': 'Runtime local non configuré',
+    'Selected capabilities': 'Capacités sélectionnées',
+    'Suggested': 'Suggérées',
+    'Unavailable': 'Indisponibles',
+    'Unverified': 'Non vérifiées',
+    'Policy blocked': 'Bloquées par la politique',
+    'No additional suggestions in this route.': 'Aucune suggestion supplémentaire dans ce routage.',
+    'No capability selected.': 'Aucune capacité sélectionnée.',
+    'Local only': 'Local uniquement',
+    'Advisory only': 'Conseil uniquement',
+    'Explicit confirmation': 'Confirmation explicite',
+    'Permission boundary': 'Limite de permission',
+    'Compact execution flow': 'Flux d’exécution compact',
+    'Expand a stage for its reason and evidence.': 'Développez une étape pour voir sa raison et ses preuves.',
+    'Local inference is ready. Review this route, then approve one request.': 'L’inférence locale est prête. Vérifiez ce routage, puis approuvez une requête.',
+    'I approve one local inference request': 'J’approuve une requête d’inférence locale',
+    'Waiting for explicit confirmation. No request has been submitted.': 'En attente de confirmation explicite. Aucune requête n’a été soumise.',
+    'Ready to submit one local request.': 'Prêt à soumettre une requête locale.',
+    'Execution pending. One confirmed request is in flight.': 'Exécution en attente. Une requête confirmée est en cours.',
+    'Execute confirmed local route': 'Exécuter le routage local confirmé',
+    'Request pending…': 'Requête en attente…',
+    'Execution result': 'Résultat de l’exécution',
+    'Execution completed': 'Exécution terminée',
+    'Execution was not proven': 'Exécution non prouvée',
+    'Readable output': 'Sortie lisible',
+    'FuryProof judgement': 'Verdict FuryProof',
+    'Receipts': 'Reçus',
+    'Persistence': 'Persistance',
+    'Authority': 'Autorité',
+    'Durable result persisted': 'Résultat persistant enregistré',
+    'Persistence not reported': 'Persistance non signalée',
+    'Structured receipts and digests': 'Reçus structurés et digests',
+    'Copy result digest': 'Copier le digest du résultat',
+    'Download raw JSON': 'Télécharger le JSON brut',
+    'Expert evidence · raw execution JSON': 'Preuves Expert · JSON brut de l’exécution',
+    'Expert evidence · raw Composer plan': 'Preuves Expert · plan Composer brut',
+    'No bounded output returned.': 'Aucune sortie bornée retournée.',
+    'Execution refused before local inference: ': 'Exécution refusée avant l’inférence locale : ',
+    'No model is configured on this machine. Local execution stays unavailable.': 'Aucun modèle n’est configuré sur cette machine. L’exécution locale reste indisponible.',
+    'Skills and MCP remain advisory; no tool was invoked by this route.': 'Les Skills et MCP restent consultatifs ; aucun outil n’a été appelé par ce routage.',
+    'Planning metadata never grants execution authority.': 'Les métadonnées de planification n’accordent jamais d’autorité d’exécution.',
+    'Review the governed route before any local request is submitted.': 'Vérifiez le routage gouverné avant de soumettre une requête locale.',
+    'No stage explanation returned.': 'Aucune explication d’étape retournée.',
+    'No stage evidence returned.': 'Aucune preuve d’étape retournée.',
+    'No receipt returned.': 'Aucun reçu retourné.',
+    'Not configured': 'Non configuré',
+    'stages': 'étapes',
+    'withheld': 'retenues',
+    'selected; blocked entries stay visible in Expert.': 'sélectionnée(s) ; les entrées bloquées restent visibles dans Expert.',
+    'Structured result from the governed local boundary.': 'Résultat structuré de la limite locale gouvernée.',
+    'Local inference sends this objective to the selected loopback model. Review the route, then approve one request.': 'L’inférence locale envoie cet objectif au modèle loopback sélectionné. Vérifiez le routage, puis approuvez une requête.',
+    'Builder request': 'Demande de construction',
+    'Compose local route': 'Composer un routage local',
+    'Execution requires explicit confirmation after the route is inspectable.': 'L’exécution exige une confirmation explicite après inspection du routage.'
   });
   function detectedLanguage() {
     const langs = [...(Array.isArray(navigator.languages) ? navigator.languages : []), navigator.language, Intl.DateTimeFormat().resolvedOptions().locale, SERVER_LANGUAGE].filter(Boolean);
@@ -2668,54 +2728,190 @@ const SCRIPT = String.raw`
 
   function renderCapabilityComposer(result) {
     const out = $('#autopilot-out'); out.replaceChildren();
-    const plan = result.plan;
-    const summary = el('div', { class: 'autopilot-summary' });
-    const stat = (title, value) => el('div', { class: 'autopilot-stat' }, el('b', { text: title }), el('span', { text: value }));
-    summary.append(
-      stat('Composer state', plan.state),
-      stat('Selected', String(plan.selectedCapabilities.length)),
-      stat('Dispatch', plan.dispatch.status),
-      stat('FuryEval F1', String(plan.evaluation.overall.f1)),
+    const plan = result.plan || {};
+    const route = plan.route || {};
+    const selected = Array.isArray(plan.selectedCapabilities) ? plan.selectedCapabilities : [];
+    const blocked = Array.isArray(plan.blockedCapabilities) ? plan.blockedCapabilities : [];
+    const stages = Array.isArray(plan.stages) ? plan.stages : [];
+    const model = plan.runtime && plan.runtime.model;
+    const selectedModel = model || (route.models && Array.isArray(route.models.selected) ? route.models.selected[0] : undefined);
+    const suggested = route.models && Array.isArray(route.models.suggested) ? route.models.suggested : [];
+    const shortDigest = (value) => value ? String(value).slice(0, 16) + '…' : '—';
+    const text = (value) => translated(value);
+    const badge = (value, tone = 'muted') => el('span', { class: 'badge ' + tone, text: String(value) });
+    const stat = (title, value, tone = 'muted') => el('div', { class: 'autopilot-stat' }, el('b', { text: text(title) }), el('span', { class: tone, text: String(value) }));
+    const field = (label, value, className = '') => el('div', { class: 'composer-field' }, el('dt', { text: text(label) }), el('dd', { class: className, text: String(value ?? '—') }));
+    const stateTone = plan.state === 'READY_FOR_CONFIRMATION' ? 'warn' : plan.state === 'BLOCKED' ? 'bad' : 'muted';
+    const stateLabel = plan.state === 'READY_FOR_CONFIRMATION' ? text('Ready for confirmation') : plan.state === 'BLOCKED' ? text('Route blocked') : text('Local runtime not configured');
+    const summary = el('div', { class: 'autopilot-summary', id: 'capability-composer-summary' },
+      stat('Route status', stateLabel, stateTone),
+      stat('Selected capabilities', selected.length, selected.length ? 'ok' : 'muted'),
+      stat('Dispatch', plan.dispatch && plan.dispatch.status ? plan.dispatch.status : '—'),
+      stat('FuryEval F1', plan.evaluation && plan.evaluation.overall ? plan.evaluation.overall.f1 : '—', 'ok'),
     );
-    out.append(summary);
 
-    const stagesCard = el('div', { class: 'card capability-composer-result', id: 'capability-composer-stages' }, el('h2', { text: 'Composer stages' }));
-    const stages = el('ol', { class: 'reasons' });
-    for (const stage of plan.stages) stages.append(el('li', { text: stage.id + ' · ' + stage.status + ' · ' + stage.reason + (stage.evidence.length ? ' [' + stage.evidence.join(', ') + ']' : '') }));
-    stagesCard.append(stages, el('p', { class: 'muted', text: 'Every stage is inspectable. Planning metadata never grants execution authority.' }));
+    const routeModel = selectedModel ? selectedModel.id : text('Not configured');
+    const routeSummary = el('section', { class: 'card capability-composer-result composer-route-summary', id: 'capability-composer-route-summary', 'aria-labelledby': 'capability-composer-route-title' },
+      el('div', { class: 'composer-card-header' },
+        el('div', {}, el('h2', { id: 'capability-composer-route-title', text: text('Route summary') }), el('p', { class: 'muted', text: text('Review the governed route before any local request is submitted.') })),
+        badge(plan.state || 'UNKNOWN', stateTone),
+      ),
+      el('dl', { class: 'composer-route-grid' },
+        field('Local model', routeModel, 'composer-technical'),
+        field('Privacy boundary', text('Local only')),
+        field('Skills / MCP', text('Advisory only')),
+        field('Permission boundary', text('Explicit confirmation')),
+      ),
+      el('p', { class: 'muted', text: text('Skills and MCP remain advisory; no tool was invoked by this route.') }),
+    );
 
-    const capabilityCard = el('div', { class: 'card capability-composer-result', id: 'capability-composer-capabilities' }, el('h2', { text: 'Capability decision' }));
-    const capabilityList = el('ul', { class: 'reasons' });
-    for (const item of plan.selectedCapabilities) capabilityList.append(el('li', { text: 'Selected · ' + item.kind + '/' + item.id + ' · ' + item.reason }));
-    for (const item of plan.blockedCapabilities) capabilityList.append(el('li', { class: 'bad', text: 'Blocked · ' + item.kind + '/' + item.id + ' · ' + item.reason }));
-    if (!capabilityList.children.length) capabilityList.append(el('li', { class: 'muted', text: 'No capability selected; unavailable capabilities are not invented.' }));
-    capabilityCard.append(capabilityList, el('p', { class: 'muted', text: 'MCP suggestions and Skill instructions remain advisory until their existing governed runtimes expose authority.' }));
+    const stageCard = el('section', { class: 'card capability-composer-result composer-stages', id: 'capability-composer-stages', 'aria-labelledby': 'capability-composer-stages-title' },
+      el('div', { class: 'composer-card-header' },
+        el('div', {}, el('h2', { id: 'capability-composer-stages-title', text: text('Compact execution flow') }), el('p', { class: 'muted', text: text('Expand a stage for its reason and evidence.') })),
+        badge(stages.length + ' ' + text('stages'), 'muted'),
+      ),
+    );
+    const stageList = el('ol', { class: 'composer-stage-list' });
+    stages.forEach((stage, index) => {
+      const stageTone = stage.status === 'PASS' || stage.status === 'READY' ? 'ok' : stage.status === 'REQUIRED' ? 'warn' : stage.status === 'BLOCKED' ? 'bad' : 'muted';
+      const evidence = Array.isArray(stage.evidence) ? stage.evidence : [];
+      const detail = el('details', { class: 'composer-stage-detail' },
+        el('summary', {}, el('span', { class: 'composer-stage-number', text: String(index + 1).padStart(2, '0') }), el('strong', { text: stage.id || 'stage' }), badge(stage.status || 'UNKNOWN', stageTone)),
+        el('div', { class: 'composer-stage-body' },
+          el('p', { text: stage.reason || text('No stage explanation returned.') }),
+          evidence.length ? el('code', { class: 'composer-stage-evidence', text: evidence.join(' · ') }) : null,
+        ),
+      );
+      stageList.append(el('li', {}, detail));
+    });
+    if (!stages.length) stageList.append(el('li', { class: 'muted', text: text('No stage evidence returned.') }));
+    stageCard.append(stageList, el('p', { class: 'muted', text: text('Planning metadata never grants execution authority.') }));
 
-    const runtimeCard = el('div', { class: 'card capability-composer-result', id: 'capability-composer-runtime' }, el('h2', { text: 'Local runtime boundary' }));
-    const model = plan.runtime.model;
-    runtimeCard.append(el('p', { text: model ? model.backend + ' · ' + model.id + ' · ' + model.protocol : 'NOT_CONFIGURED: no reachable openai-chat model' }));
-    runtimeCard.append(el('p', { class: 'muted', text: plan.confirmation.reason }));
-    if (plan.state === 'READY_FOR_CONFIRMATION' && model) {
-      const confirm = el('input', { type: 'checkbox' });
-      const confirmLabel = el('label', {}, confirm, document.createTextNode(' I confirm this local inference request'));
-      const execute = el('button', { type: 'button', class: 'secondary', disabled: 'disabled', text: 'Execute confirmed local route' });
-      confirm.addEventListener('change', () => { execute.disabled = !confirm.checked; });
+    const classifyBlocked = (item) => {
+      const reason = String(item.reason || '');
+      if (reason.startsWith('health-')) return 'unavailable';
+      if (reason.startsWith('trust-')) return 'unverified';
+      return 'policy';
+    };
+    const unavailable = blocked.filter((item) => classifyBlocked(item) === 'unavailable');
+    const unverified = blocked.filter((item) => classifyBlocked(item) === 'unverified');
+    const policyBlocked = blocked.filter((item) => classifyBlocked(item) === 'policy');
+    const capabilityGroup = (title, items, tone) => {
+      const list = el('ul', { class: 'composer-capability-list' });
+      if (!items.length) list.append(el('li', { class: 'muted', text: title === 'Suggested' ? text('No additional suggestions in this route.') : text('No capability selected.') }));
+      for (const item of items.slice(0, 24)) list.append(el('li', {}, el('strong', { text: String(item.kind || 'capability') + ' / ' + String(item.id || 'unknown') }), el('small', { text: String(item.reason || 'No reason returned.') })));
+      return el('div', { class: 'composer-capability-group' }, el('h3', {}, el('span', { text: text(title) }), badge(items.length, tone)), list);
+    };
+    const capabilityDetails = el('details', { id: 'capability-composer-capability-details', class: 'composer-advanced composer-expert-only' },
+      el('summary', { text: text('Advanced capability details') }),
+      el('div', { class: 'composer-advanced-body' },
+        el('div', { class: 'composer-capability-groups' },
+          capabilityGroup('Selected capabilities', selected, 'ok'),
+          capabilityGroup('Suggested', suggested, 'muted'),
+          capabilityGroup('Unavailable', unavailable, 'warn'),
+          capabilityGroup('Unverified', unverified, 'warn'),
+          capabilityGroup('Policy blocked', policyBlocked, 'bad'),
+        ),
+      ),
+    );
+    const capabilityCard = el('section', { class: 'card capability-composer-result composer-capabilities', id: 'capability-composer-capabilities', 'aria-labelledby': 'capability-composer-capabilities-title' },
+      el('div', { class: 'composer-card-header' },
+        el('div', {}, el('h2', { id: 'capability-composer-capabilities-title', text: text('Selected capabilities') }), el('p', { class: 'muted', text: selected.length ? String(selected.length) + ' ' + text('selected; blocked entries stay visible in Expert.') : text('No capability selected.') })),
+        badge(blocked.length + ' ' + text('withheld'), blocked.length ? 'warn' : 'muted'),
+      ),
+      el('div', { class: 'composer-capability-groups' }, capabilityGroup('Selected capabilities', selected, selected.length ? 'ok' : 'muted'), capabilityGroup('Suggested', suggested, 'muted')),
+      el('p', { class: 'muted', text: text('Skills and MCP remain advisory; no tool was invoked by this route.') }),
+      capabilityDetails,
+    );
+
+    const runtimeCard = el('section', { class: 'card capability-composer-result composer-runtime', id: 'capability-composer-runtime', 'aria-labelledby': 'capability-composer-runtime-title' },
+      el('div', { class: 'composer-card-header' },
+        el('div', {}, el('h2', { id: 'capability-composer-runtime-title', text: text('Local runtime boundary') }), el('p', { class: 'muted', text: text('Only the existing loopback inference boundary can receive this request.') })),
+        badge(plan.runtime && plan.runtime.state ? plan.runtime.state : 'NOT_CONFIGURED', model ? 'ok' : 'warn'),
+      ),
+      el('p', { class: 'composer-runtime-model', text: model ? String(model.backend) + ' · ' + String(model.id) + ' · ' + String(model.protocol) : 'NOT_CONFIGURED' }),
+    );
+    const resultSlot = el('div', { id: 'capability-composer-execution-result' });
+    const confirmationStatus = el('p', { id: 'capability-composer-execution-status', class: 'status muted composer-execution-status', role: 'status', 'aria-live': 'polite', text: text('Waiting for explicit confirmation. No request has been submitted.') });
+    const renderExecutionResult = (execution, persistence) => {
+      resultSlot.replaceChildren();
+      const completed = execution && execution.status === 'COMPLETED';
+      const judgement = execution && execution.judgement ? execution.judgement : {};
+      const proofBundle = execution && execution.proofBundle ? execution.proofBundle : {};
+      const receipts = execution && Array.isArray(execution.receipts) ? execution.receipts : [];
+      const raw = JSON.stringify(execution, null, 2);
+      const resultCard = el('section', { class: 'card composer-result-card', id: 'capability-composer-result-card', 'aria-labelledby': 'capability-composer-result-title' },
+        el('div', { class: 'composer-result-header' },
+          el('div', {}, el('h2', { id: 'capability-composer-result-title', text: completed ? text('Execution completed') : text('Execution was not proven') }), el('p', { class: 'muted', text: text('Structured result from the governed local boundary.') })),
+          badge(String(execution && execution.status || 'UNKNOWN'), completed ? 'ok' : 'warn'),
+        ),
+        el('div', { class: 'composer-result-grid' },
+          field('Model', execution && execution.model ? execution.model.id : routeModel, 'composer-technical'),
+          field('FuryProof judgement', judgement.verdict || 'UNPROVEN', judgement.verdict === 'ACCEPT' ? 'ok' : 'warn'),
+          field('Receipts', receipts.length),
+          field('Persistence', persistence ? text('Durable result persisted') : text('Persistence not reported')),
+        ),
+        el('p', { class: 'composer-result-output', 'aria-label': text('Readable output'), text: execution && execution.output ? execution.output : text('No bounded output returned.') }),
+      );
+      const receiptDetails = el('details', { id: 'capability-composer-receipts', class: 'composer-advanced', open: 'open' }, el('summary', { text: text('Structured receipts and digests') }));
+      const receiptBody = el('div', { class: 'composer-advanced-body' });
+      const receiptList = el('ul', { class: 'composer-receipt-list' });
+      for (const receipt of receipts) receiptList.append(el('li', {}, el('div', {}, el('strong', { text: String(receipt.kind || 'RECEIPT') }), el('small', { text: String(receipt.subject || 'subject unavailable') + ' · digest ' + shortDigest(receipt.evidenceDigest) })), badge(String(receipt.outcome || 'unknown'), receipt.outcome === 'pass' ? 'ok' : 'warn')));
+      if (!receipts.length) receiptList.append(el('li', { class: 'muted', text: text('No receipt returned.') }));
+      receiptBody.append(receiptList, el('dl', { class: 'composer-result-grid' }, field('Output digest', shortDigest(execution && execution.outputDigestSha256), 'composer-digest'), field('Bundle digest', shortDigest(proofBundle.bundleDigest), 'composer-digest'), field('Durable handle', persistence ? shortDigest(persistence.handle) : '—', 'composer-digest'), field('Authority', execution && execution.executionAuthority === false ? 'false · plan-only' : 'unknown', 'composer-technical')));
+      receiptDetails.append(receiptBody);
+      resultCard.append(receiptDetails);
+      const resultActions = el('div', { class: 'composer-actions composer-result-actions' });
+      const digest = String(proofBundle.bundleDigest || execution.outputDigestSha256 || '');
+      const copy = el('button', { type: 'button', class: 'secondary' }, el('span', { text: text('Copy result digest') }));
+      copy.disabled = !digest;
+      copy.addEventListener('click', () => copyText(digest, copy));
+      const download = el('button', { type: 'button', class: 'secondary', text: text('Download raw JSON') });
+      download.addEventListener('click', () => { const url = URL.createObjectURL(new Blob([raw], { type: 'application/json' })); const link = document.createElement('a'); link.href = url; link.download = 'furypipe-composer-execution.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 0); });
+      resultActions.append(copy, download);
+      resultCard.append(resultActions);
+      const rawDetails = el('details', { id: 'capability-composer-execution-raw', class: 'composer-advanced composer-expert-only' }, el('summary', { text: text('Expert evidence · raw execution JSON') }), el('pre', { id: 'capability-composer-execution-proof', class: 'code-view composer-execution-proof', tabindex: '0', 'aria-label': 'Raw Composer execution JSON', text: raw }));
+      resultCard.append(rawDetails);
+      resultSlot.append(resultCard);
+    };
+    if (model && plan.state === 'READY_FOR_CONFIRMATION') {
+      const confirmation = el('div', { class: 'composer-confirmation' });
+      const confirm = el('input', { id: 'capability-composer-confirm', type: 'checkbox', 'aria-describedby': 'capability-composer-confirmation-explainer' });
+      const confirmLabel = el('label', { for: 'capability-composer-confirm', class: 'composer-confirmation-label' }, confirm, document.createTextNode(' ' + text('I approve one local inference request')));
+      const explainer = el('p', { id: 'capability-composer-confirmation-explainer', class: 'composer-confirmation-copy', text: text('Local inference is ready. Review this route, then approve one request.') });
+      const execute = el('button', { id: 'capability-composer-execute', type: 'button', class: 'secondary', disabled: 'disabled', 'aria-describedby': 'capability-composer-confirmation-explainer', text: text('Execute confirmed local route') });
+      let pending = false;
+      confirm.addEventListener('change', () => { if (pending) return; execute.disabled = !confirm.checked; confirmationStatus.className = 'status ' + (confirm.checked ? 'ok' : 'muted') + ' composer-execution-status'; confirmationStatus.textContent = confirm.checked ? text('Ready to submit one local request.') : text('Waiting for explicit confirmation. No request has been submitted.'); });
       execute.addEventListener('click', async () => {
-        execute.disabled = true; runtimeCard.append(el('p', { class: 'status muted', text: 'Executing through the existing local boundary…' }));
+        if (pending || !confirm.checked) return;
+        const confirmed = confirm.checked === true;
+        if (!confirmed) { execute.disabled = true; return; }
+        pending = true; execute.disabled = true; confirm.disabled = true; execute.textContent = text('Request pending…'); confirmationStatus.className = 'status warn composer-execution-status'; confirmationStatus.textContent = text('Execution pending. One confirmed request is in flight.');
         try {
-          const executed = await post('/api/studio/capability-composer/execute', { planDigest: plan.planDigestSha256, confirm: confirm.checked });
-          runtimeCard.append(el('pre', { id: 'capability-composer-execution-proof', class: 'code-view', tabindex: '0', 'aria-label': 'Composer execution proof' }, document.createTextNode(JSON.stringify(executed.execution, null, 2))));
+          const executed = await post('/api/studio/capability-composer/execute', { planDigest: plan.planDigestSha256, confirm: confirmed });
+          renderExecutionResult(executed.execution, executed.persistence);
+          confirmationStatus.className = 'status ok composer-execution-status'; confirmationStatus.textContent = completedExecutionMessage(executed.execution);
+          const pageStatus = $('#capability-composer-status'); if (pageStatus) pageStatus.textContent = text('Execution completed') + ' · ' + shortDigest(plan.planDigestSha256);
         } catch (error) {
-          runtimeCard.append(el('p', { class: 'bad', text: 'Local execution refused: ' + error.message }));
-          execute.disabled = false;
+          const message = error instanceof Error ? error.message : String(error);
+          confirmationStatus.className = 'status bad composer-execution-status'; confirmationStatus.textContent = text('Execution refused before local inference: ') + message;
+          resultSlot.replaceChildren();
+        } finally {
+          pending = false; confirm.disabled = false; execute.disabled = !confirm.checked; execute.textContent = text('Execute confirmed local route');
         }
       });
-      runtimeCard.append(confirmLabel, execute);
+      confirmation.append(explainer, confirmLabel, el('div', { class: 'composer-actions' }, execute), confirmationStatus);
+      runtimeCard.append(el('p', { class: 'muted', text: text('Local inference sends this objective to the selected loopback model. Review the route, then approve one request.') }), confirmation);
+    } else {
+      runtimeCard.append(el('p', { class: 'status warn', role: 'status', text: text('No model is configured on this machine. Local execution stays unavailable.') }));
     }
-    out.append(el('div', { class: 'grid' }, stagesCard, capabilityCard), runtimeCard);
-    const details = el('details', { id: 'capability-composer-expert-evidence' });
-    details.append(el('summary', { text: 'Expert evidence · raw Composer plan' }), el('pre', { class: 'code-view composer-expert-evidence-view', tabindex: '0', 'aria-label': 'Raw capability composer plan' }, document.createTextNode(JSON.stringify(plan, null, 2))));
-    out.append(details);
+
+    const planDetails = el('details', { id: 'capability-composer-expert-evidence', class: 'composer-advanced composer-expert-only' }, el('summary', { text: text('Expert evidence · raw Composer plan') }), el('pre', { class: 'code-view composer-expert-evidence-view', tabindex: '0', 'aria-label': 'Raw capability composer plan', text: JSON.stringify(plan, null, 2) }));
+    out.append(summary, routeSummary, el('div', { class: 'grid' }, stageCard, capabilityCard), runtimeCard, resultSlot, planDetails);
+  }
+
+  function completedExecutionMessage(execution) {
+    return execution && execution.status === 'COMPLETED' ? translated('Execution completed') + ' · FuryProof ' + String(execution.judgement && execution.judgement.verdict || 'UNPROVEN') : translated('Execution was not proven');
   }
 
   $('#autopilot-form').addEventListener('submit', async (ev) => {
@@ -3486,7 +3682,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
       <div><label for="autopilot-harness">Runtime</label><select id="autopilot-harness"><option value="">Any</option>${FURY_HARNESS_REGISTRY.map((h) => `<option value="${h.id}">${escapeHtml(h.displayName)}</option>`).join('')}</select></div><button type="submit">Build route</button></div></form><p id="autopilot-status" class="status muted" role="status"></p></div>
     <div class="card"><h2>Automatic, not uncontrolled</h2><ul class="reasons"><li>Relevant SKILL.md instructions are loaded progressively and checksummed.</li><li>MCP tools are selected by intent but still obey trust and per-tool policy.</li><li>Visual context compression is used only when the request benefits from it.</li><li>Mutation, network and external actions still require the existing FuryPipe gates.</li></ul></div>
   </div>
-  <div class="card composer-card"><div class="row"><div><h2>Fury Capability Composer</h2><p class="muted">Compose une route réelle au-dessus de Capability Autopilot, FuryIR et FuryDispatcher. Modèle local uniquement. MCP/Skills restent inspectables et gouvernés.</p></div><span class="badge">VNEXT-03 · PLAN FIRST</span></div><form id="capability-composer-form"><label for="capability-composer-objective">Builder request</label><textarea id="capability-composer-objective" required maxlength="32768" placeholder="e.g. Analyse cette demande avec les capacités locales disponibles et explique le résultat"></textarea><div class="row"><button type="submit">Compose local route</button><span class="muted">Execution requires explicit confirmation after the route is inspectable.</span></div></form><p id="capability-composer-status" class="status muted" role="status"></p></div>
+  <div class="card composer-card"><div class="composer-card-header"><div><h2>Fury Capability Composer</h2><p id="capability-composer-intro" class="muted">Compose une route réelle au-dessus de Capability Autopilot, FuryIR et FuryDispatcher. Modèle local uniquement. MCP/Skills restent inspectables et gouvernés.</p></div><span class="badge">VNEXT-03 · PLAN FIRST</span></div><form id="capability-composer-form" aria-describedby="capability-composer-intro capability-composer-status"><label for="capability-composer-objective">Builder request</label><textarea id="capability-composer-objective" required maxlength="32768" placeholder="e.g. Analyse cette demande avec les capacités locales disponibles et explique le résultat"></textarea><div class="row"><button type="submit">Compose local route</button><span class="muted">Execution requires explicit confirmation after the route is inspectable.</span></div></form><p id="capability-composer-status" class="status muted" role="status"></p></div>
   <div id="autopilot-out" aria-live="polite"></div>
 </section>
 <section data-view="media" class="media-workspace" aria-labelledby="h-media" hidden><h1 id="h-media">Media Studio</h1><p class="lead">FuryImage, FuryVideo and FuryAudio share the governed media runtime. Studio previews are always local and bounded; a real provider job appears only when a host configures the runtime and you explicitly confirm it.</p>

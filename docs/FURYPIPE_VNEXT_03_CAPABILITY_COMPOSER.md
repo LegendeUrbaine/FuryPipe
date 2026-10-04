@@ -88,8 +88,14 @@ npm run browser:studio:composer:qa
 ```
 
 The dedicated browser harness captures the Composer state matrix in Chromium
-and runs the functional path in Chromium, Firefox and WebKit. Its 17 screenshots
-and JSON evidence remain local under
+and runs the functional path in Chromium, Firefox and WebKit. The current UX
+acceptance packet contains 20 dedicated screenshots covering Simple/Expert
+disclosure, route summary, compact stages, grouped capabilities, confirmation
+unchecked/checked/pending, genuine Ollama output, structured FuryProof receipts,
+raw evidence disclosure, NOT_CONFIGURED, dark/light desktop and 390px mobile
+route/confirmation/result states. JSON evidence remains local under
 `artifacts/studio-capability-composer-browser-qa-final/`; fixture tests remain
-separate from live Ollama evidence. The first slice still has no genuine
-multi-tool MCP execution or external mutation authority.
+separate from live Ollama evidence. The browser card now renders the API's
+top-level persistence handle as structured evidence; raw execution JSON stays
+inside Expert disclosure. The first slice still has no genuine multi-tool MCP
+execution or external mutation authority.

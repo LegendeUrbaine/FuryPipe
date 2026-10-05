@@ -569,6 +569,7 @@ details.adv>div{padding:0 18px 16px}
 .effort-select{width:auto;min-width:96px;max-width:132px;height:34px;padding:0 9px;border-radius:9px;font-size:12px;background:var(--surface-2);border:1px solid var(--line);color:var(--text)}
   .autopilot-grid{align-items:start}.autopilot-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:14px 0}.autopilot-stat{padding:13px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2)}.autopilot-stat b{display:block;margin-bottom:4px}.autopilot-stat span{font-size:12px;color:var(--muted)}
   .composer-card,.composer-route-summary,.composer-stages,.composer-capabilities,.composer-runtime,.composer-result-card{overflow:hidden}.composer-card{border-color:rgba(255,122,40,.24);background:linear-gradient(145deg,rgba(255,106,26,.055),transparent 38%),linear-gradient(180deg,var(--b2),var(--b1))}.composer-card-header,.composer-result-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.composer-card-header h2,.composer-result-header h2{margin-bottom:6px}.composer-card-header p,.composer-result-header p{margin:0;max-width:72ch}.composer-route-grid,.composer-result-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}.composer-field{min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.018)}.composer-field dt{color:var(--muted);font:650 10px/1.2 var(--mono);letter-spacing:.08em;text-transform:uppercase}.composer-field dd{margin:6px 0 0;color:var(--ink);font-size:13px;overflow-wrap:anywhere;word-break:break-word}.composer-field dd.composer-technical{font-family:var(--mono);font-size:11.5px}.composer-digest{font:600 11px/1.4 var(--mono);overflow-wrap:anywhere;word-break:break-word}.composer-stage-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;list-style:none;margin:14px 0 0;padding:0}.composer-stages{grid-column:1/-1}.composer-stage-list li{min-width:0;margin:0}.composer-stage-list details{height:100%;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.016)}.composer-stage-list details[open]{border-color:var(--o-line);background:rgba(255,106,26,.035)}.composer-stage-list summary{display:flex;align-items:center;gap:8px;min-height:52px;padding:10px 11px;cursor:pointer;list-style:none}.composer-stage-list summary::-webkit-details-marker{display:none}.composer-stage-list summary strong{min-width:0;flex:1;color:var(--ink);font-size:12px;overflow-wrap:anywhere}.composer-stage-number{display:grid;place-items:center;width:22px;height:22px;flex:none;border:1px solid var(--line-2);border-radius:7px;color:var(--o-hot);font:700 10px/1 var(--mono)}.composer-stage-list .badge{height:20px;padding:0 6px;font-size:10px}.composer-stage-body{padding:0 11px 11px}.composer-stage-body p{margin:0;color:var(--ink-2);font-size:12px;line-height:1.45}.composer-stage-evidence{display:block;margin-top:8px;color:var(--muted);font:11px/1.45 var(--mono);overflow-wrap:anywhere;word-break:break-word}.composer-capability-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}.composer-capability-group{min-width:0;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.014)}.composer-capability-group h3{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px;font:650 12px/1.3 var(--font);color:var(--ink)}.composer-capability-group h3 .badge{height:20px;padding:0 7px;font-size:10px}.composer-capability-list{display:grid;gap:7px;list-style:none;margin:0;padding:0}.composer-capability-list li{min-width:0;padding:8px 9px;border-radius:9px;background:rgba(255,255,255,.018);color:var(--ink-2);font-size:12px;line-height:1.4;overflow-wrap:anywhere;word-break:break-word}.composer-capability-list li strong{display:block;color:var(--ink);font-size:12px}.composer-capability-list li small{display:block;margin-top:3px;color:var(--muted);font-size:11px}.composer-advanced{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.012)}.composer-advanced>summary{padding:12px 14px;cursor:pointer;color:var(--ink-2);font:600 12px/1.3 var(--font);list-style:none}.composer-advanced>summary::-webkit-details-marker{display:none}.composer-advanced[open]>summary{border-bottom:1px solid var(--line)}.composer-advanced-body{padding:0 14px 14px}.composer-runtime-model{font:650 13px/1.4 var(--mono);overflow-wrap:anywhere;word-break:break-word}.composer-confirmation{margin-top:16px;padding:14px;border:1px solid var(--o-line);border-radius:13px;background:linear-gradient(135deg,rgba(255,106,26,.09),rgba(255,255,255,.018))}.composer-confirmation-copy{margin:0 0 12px;color:var(--ink-2);font-size:13px;line-height:1.5}.composer-confirmation-label{display:flex;align-items:flex-start;gap:8px;margin:0;color:var(--ink);font-size:13px;line-height:1.45}.composer-confirmation-label input{flex:none;margin-top:2px}.composer-confirmation .composer-actions{margin-top:12px}.composer-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px}.composer-actions button{min-width:0}.composer-execution-status{margin:10px 0 0;min-height:1.5em}.composer-result-card{margin-top:16px;border-color:rgba(95,217,154,.3);background:linear-gradient(145deg,rgba(95,217,154,.055),transparent 34%),linear-gradient(180deg,var(--b2),var(--b1))}.composer-result-output{margin:14px 0 0;padding:14px;border-left:3px solid var(--ok);border-radius:0 11px 11px 0;background:rgba(95,217,154,.055);color:var(--ink);font-size:15px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}.composer-receipt-list{display:grid;gap:8px;list-style:none;margin:14px 0 0;padding:0}.composer-receipt-list li{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.014)}.composer-receipt-list strong{display:block;color:var(--ink);font-size:12px}.composer-receipt-list small{display:block;margin-top:3px;color:var(--muted);font:11px/1.4 var(--mono);overflow-wrap:anywhere;word-break:break-word}.composer-receipt-list .badge{flex:none}.composer-result-actions{margin-top:14px}.composer-result-actions button{height:34px;padding:0 11px;font-size:12px}.composer-execution-proof{max-height:46vh}.composer-expert-evidence-view{max-height:52vh}body[data-mode="simple"] .composer-expert-only{display:none!important}
+  .composer-state-grid{margin-top:10px}.composer-state-grid .composer-field{background:rgba(255,106,26,.035)}
   @media (max-width:860px){.composer-route-grid,.composer-result-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.composer-stage-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:520px){.composer-card-header,.composer-result-header{display:block}.composer-card-header .badge,.composer-result-header .badge{margin-top:10px}.composer-route-grid,.composer-result-grid,.composer-capability-groups{grid-template-columns:1fr}.composer-stage-list{grid-template-columns:1fr 1fr;gap:7px}.composer-stage-list summary{min-height:58px;padding:9px}.composer-stage-list summary strong{font-size:11px}.composer-stage-list .badge{font-size:9px}.composer-confirmation{padding:12px}.composer-actions{align-items:stretch}.composer-actions button{flex:1 1 100%;width:100%}.composer-receipt-list li{display:block}.composer-receipt-list .badge{display:inline-flex;margin-top:8px}.composer-result-output{font-size:14px}}
 .extension-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}.extension-card{margin:0}.extension-meta{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}.extension-card .risk-RESTRICTED{color:var(--danger)}.creator-name{font-size:24px;font-weight:750;letter-spacing:-.02em}.support-brand{display:flex;align-items:center;gap:11px;margin-bottom:14px}.support-brand-mark{width:48px;height:48px;flex:none;filter:drop-shadow(0 0 12px rgba(255,106,26,.26))}.support-brand .wordmark{font-size:24px;font-weight:700}.brand-tagline{margin:0;color:var(--muted);font:650 10px/1 var(--font);letter-spacing:.28em;text-transform:uppercase}.voice-listening{box-shadow:0 0 0 3px rgba(255,122,26,.18);color:var(--accent)}.support-btn{display:inline-flex;align-items:center;gap:8px}
@@ -884,6 +885,12 @@ const SCRIPT = String.raw`
     'Ready for confirmation': 'Prêt pour confirmation',
     'Route blocked': 'Routage bloqué',
     'Local runtime not configured': 'Runtime local non configuré',
+    'INITIAL PLAN': 'PLAN INITIAL',
+    'Not started': 'Non démarrée',
+    'Completed': 'Terminée',
+    'Execution unavailable': 'Exécution indisponible',
+    'Execution blocked': 'Exécution bloquée',
+    'Not applicable': 'Non applicable',
     'Selected capabilities': 'Capacités sélectionnées',
     'Suggested': 'Suggérées',
     'Unavailable': 'Indisponibles',
@@ -2741,8 +2748,17 @@ const SCRIPT = String.raw`
     const badge = (value, tone = 'muted') => el('span', { class: 'badge ' + tone, text: String(value) });
     const stat = (title, value, tone = 'muted') => el('div', { class: 'autopilot-stat' }, el('b', { text: text(title) }), el('span', { class: tone, text: String(value) }));
     const field = (label, value, className = '') => el('div', { class: 'composer-field' }, el('dt', { text: text(label) }), el('dd', { class: className, text: String(value ?? '—') }));
+    const stateField = (label, id, value, className = '') => {
+      const labelNode = el('dt', { id: id + '-label', text: text(label) });
+      const valueNode = el('dd', { id, class: className, text: String(value ?? '—') });
+      return { node: el('div', { class: 'composer-field' }, labelNode, valueNode), labelNode, valueNode };
+    };
     const stateTone = plan.state === 'READY_FOR_CONFIRMATION' ? 'warn' : plan.state === 'BLOCKED' ? 'bad' : 'muted';
     const stateLabel = plan.state === 'READY_FOR_CONFIRMATION' ? text('Ready for confirmation') : plan.state === 'BLOCKED' ? text('Route blocked') : text('Local runtime not configured');
+    const unavailableTone = plan.state === 'BLOCKED' ? 'bad' : 'warn';
+    const planStateView = stateField('PLAN', 'capability-composer-plan-state', stateLabel, stateTone);
+    const executionStateView = stateField('EXECUTION', 'capability-composer-execution-state', plan.state === 'READY_FOR_CONFIRMATION' ? text('Not started') : plan.state === 'BLOCKED' ? text('Execution blocked') : text('Execution unavailable'), plan.state === 'READY_FOR_CONFIRMATION' ? 'muted' : unavailableTone);
+    const proofStateView = stateField('FURYPROOF', 'capability-composer-proof-state', plan.state === 'READY_FOR_CONFIRMATION' ? text('Not started') : text('Not applicable'), plan.state === 'READY_FOR_CONFIRMATION' ? 'muted' : unavailableTone);
     const summary = el('div', { class: 'autopilot-summary', id: 'capability-composer-summary' },
       stat('Route status', stateLabel, stateTone),
       stat('Selected capabilities', selected.length, selected.length ? 'ok' : 'muted'),
@@ -2762,6 +2778,7 @@ const SCRIPT = String.raw`
         field('Skills / MCP', text('Advisory only')),
         field('Permission boundary', text('Explicit confirmation')),
       ),
+      el('dl', { class: 'composer-route-grid composer-state-grid', id: 'capability-composer-state' }, planStateView.node, executionStateView.node, proofStateView.node),
       el('p', { class: 'muted', text: text('Skills and MCP remain advisory; no tool was invoked by this route.') }),
     );
 
@@ -2833,7 +2850,20 @@ const SCRIPT = String.raw`
     );
     const resultSlot = el('div', { id: 'capability-composer-execution-result' });
     const confirmationStatus = el('p', { id: 'capability-composer-execution-status', class: 'status muted composer-execution-status', role: 'status', 'aria-live': 'polite', text: text('Waiting for explicit confirmation. No request has been submitted.') });
+    const updateExecutionState = (execution) => {
+      const judgement = execution && execution.judgement ? execution.judgement : {};
+      const verdict = String(judgement.verdict || 'UNPROVEN');
+      const completed = execution && execution.status === 'COMPLETED';
+      planStateView.labelNode.textContent = text('INITIAL PLAN');
+      planStateView.valueNode.textContent = stateLabel;
+      planStateView.valueNode.className = stateTone;
+      executionStateView.valueNode.textContent = completed ? text('Completed') : text('Execution was not proven') + ' · ' + verdict;
+      executionStateView.valueNode.className = completed ? 'ok' : 'bad';
+      proofStateView.valueNode.textContent = verdict;
+      proofStateView.valueNode.className = verdict === 'ACCEPT' ? 'ok' : 'bad';
+    };
     const renderExecutionResult = (execution, persistence) => {
+      updateExecutionState(execution);
       resultSlot.replaceChildren();
       const completed = execution && execution.status === 'COMPLETED';
       const judgement = execution && execution.judgement ? execution.judgement : {};
@@ -2890,8 +2920,10 @@ const SCRIPT = String.raw`
         try {
           const executed = await post('/api/studio/capability-composer/execute', { planDigest: plan.planDigestSha256, confirm: confirmed });
           renderExecutionResult(executed.execution, executed.persistence);
-          confirmationStatus.className = 'status ok composer-execution-status'; confirmationStatus.textContent = completedExecutionMessage(executed.execution);
-          const pageStatus = $('#capability-composer-status'); if (pageStatus) pageStatus.textContent = text('Execution completed') + ' · ' + shortDigest(plan.planDigestSha256);
+          const completed = executed.execution && executed.execution.status === 'COMPLETED';
+          const outcome = completedExecutionMessage(executed.execution);
+          confirmationStatus.className = 'status ' + (completed ? 'ok' : 'bad') + ' composer-execution-status'; confirmationStatus.textContent = outcome;
+          const pageStatus = $('#capability-composer-status'); if (pageStatus) pageStatus.textContent = outcome + ' · ' + shortDigest(plan.planDigestSha256);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           confirmationStatus.className = 'status bad composer-execution-status'; confirmationStatus.textContent = text('Execution refused before local inference: ') + message;

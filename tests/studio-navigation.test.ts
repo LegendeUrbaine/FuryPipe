@@ -55,5 +55,10 @@ describe('FuryPipe Local information architecture', () => {
     expect(html).toContain('capability-composer-confirmation-explainer');
     expect(html).toContain('capability-composer-execution-raw');
     expect(html).toContain('capability-composer-receipts');
+    expect(html).toContain('capability-composer-plan-state');
+    expect(html).toContain('capability-composer-execution-state');
+    expect(html).toContain('capability-composer-proof-state');
+    expect(html).toContain('INITIAL PLAN');
+    expect(html).toContain('Execution was not proven');
   });
 });

@@ -68,10 +68,27 @@ provider credential is added by the Composer.
 
 ## Acceptance boundary
 
-Automated browser and accessibility checks do not equal owner visual approval.
-The VNext-03 Composer card remains `HUMAN_VISUAL_GATE=MANUAL_REQUIRED` until
-the owner reviews the Simple/Expert Studio presentation. Screen-reader
-validation remains a separate manual gate.
+The owner supplied the final VNext-03 visual acceptance directive for the
+Composer presentation. The automated browser packet below is supporting
+evidence, not a replacement for that owner decision. Screen-reader validation
+remains a separate manual gate.
+
+The visible Composer state matrix is deliberately explicit:
+
+```text
+before execution:
+  PLAN       / Ready for confirmation
+  EXECUTION  / Not started
+  FURYPROOF  / Not started
+
+after execution:
+  INITIAL PLAN / Ready for confirmation
+  EXECUTION    / Completed
+  FURYPROOF    / ACCEPT (or the actual returned FuryJudge verdict)
+```
+
+The initial plan value is retained after execution. A non-accepted FuryJudge
+result is rendered as the returned verdict and is not rewritten as success.
 
 ## Reproducible acceptance commands
 
@@ -88,14 +105,23 @@ npm run browser:studio:composer:qa
 ```
 
 The dedicated browser harness captures the Composer state matrix in Chromium
-and runs the functional path in Chromium, Firefox and WebKit. The current UX
-acceptance packet contains 20 dedicated screenshots covering Simple/Expert
-disclosure, route summary, compact stages, grouped capabilities, confirmation
-unchecked/checked/pending, genuine Ollama output, structured FuryProof receipts,
-raw evidence disclosure, NOT_CONFIGURED, dark/light desktop and 390px mobile
-route/confirmation/result states. JSON evidence remains local under
-`artifacts/studio-capability-composer-browser-qa-final/`; fixture tests remain
-separate from live Ollama evidence. The browser card now renders the API's
-top-level persistence handle as structured evidence; raw execution JSON stays
-inside Expert disclosure. The first slice still has no genuine multi-tool MCP
-execution or external mutation authority.
+and runs the functional path in Chromium, Firefox and WebKit. The final packet
+contains 22 dedicated screenshots covering Simple/Expert disclosure, route
+summary before execution, compact stages, grouped capabilities, confirmation
+unchecked/checked/pending, genuine Ollama output, structured FuryProof
+receipts, raw evidence disclosure, a genuine `NOT_CONFIGURED` runtime card
+with no execute/confirm controls, dark/light desktop and 390px mobile
+route/confirmation/result/state views. The final four-file owner packet is:
+
+```text
+artifacts/vnext03-final-exact-head/furypipe-vnext-03-final-corrections-evidence.zip
+```
+
+Its four intended files are the genuine `NOT_CONFIGURED` card, the pre-
+execution state matrix, the completed execution state matrix and the mobile
+completed execution state matrix. JSON evidence remains local under the same
+artifact directory; fixture tests remain separate from live Ollama evidence.
+The browser card renders the API's top-level persistence handle as structured
+evidence, while raw execution JSON stays inside Expert disclosure. The first
+slice still has no genuine multi-tool MCP execution or external mutation
+authority.

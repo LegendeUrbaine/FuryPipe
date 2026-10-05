@@ -199,6 +199,9 @@ async function runEngine(name: string, type: BrowserType, normal: ComposerQaServ
     await setMode(page, 'expert');
     const planBefore = await submitAndReadPlan(page);
     assert(planBefore.state === 'READY_FOR_CONFIRMATION', `${name}: expected live plan READY_FOR_CONFIRMATION, got ${String(planBefore.state)}`);
+    assert((await page.locator('#capability-composer-plan-state').textContent())?.trim() === 'Ready for confirmation', `${name}: visible plan state was not READY_FOR_CONFIRMATION`);
+    assert((await page.locator('#capability-composer-execution-state').textContent())?.trim() === 'Not started', `${name}: visible execution state was not Not started before execution`);
+    assert((await page.locator('#capability-composer-proof-state').textContent())?.trim() === 'Not started', `${name}: visible FuryProof state was not Not started before execution`);
     await assertResponsiveBoundary(page, name);
     if (capture) await screenshot(page, '03-composer-generated-route-summary.png', '#capability-composer-route-summary');
     if (capture) await screenshot(page, '04-composer-compact-stages.png', '#capability-composer-stages');
@@ -235,10 +238,15 @@ async function runEngine(name: string, type: BrowserType, normal: ComposerQaServ
     const resultText = await page.locator('#capability-composer-result-card').textContent() || '';
     assert(resultText.includes('ACCEPT'), `${name}: structured result does not expose FuryProof ACCEPT`);
     assert(resultText.includes('Durable result persisted') && !resultText.includes('Persistence not reported'), `${name}: structured result did not expose top-level persistence evidence`);
+    assert((await page.locator('#capability-composer-plan-state').textContent())?.trim() === 'Ready for confirmation', `${name}: immutable plan state changed after execution`);
+    assert((await page.locator('#capability-composer-plan-state-label').textContent())?.trim() === 'INITIAL PLAN', `${name}: plan label did not distinguish initial plan after execution`);
+    assert((await page.locator('#capability-composer-execution-state').textContent())?.trim() === 'Completed', `${name}: visible execution state was not Completed`);
+    assert((await page.locator('#capability-composer-proof-state').textContent())?.trim() === 'ACCEPT', `${name}: visible FuryProof state was not ACCEPT`);
     if (capture) await screenshot(page, '10-composer-genuine-ollama-result.png', '#capability-composer-result-card');
     await page.locator('#capability-composer-result-card').scrollIntoViewIfNeeded();
     if (capture) await screenshot(page, '11-composer-professional-result-card.png');
     if (capture) await screenshot(page, '12-composer-structured-receipt-inspector.png', '#capability-composer-receipts');
+    if (capture) await screenshot(page, '21-composer-final-execution-state.png', '#capability-composer-state');
     await setDetails(page, '#capability-composer-execution-raw', false);
     if (capture) await screenshot(page, '13-composer-raw-json-collapsed.png', '#capability-composer-execution-raw');
     await setDetails(page, '#capability-composer-execution-raw', true);
@@ -253,7 +261,13 @@ async function runEngine(name: string, type: BrowserType, normal: ComposerQaServ
     const missingRaw = await missingPage.locator('#capability-composer-expert-evidence pre').textContent();
     const missingPlan = JSON.parse(missingRaw ?? '{}') as JsonRecord;
     assert(missingPlan.state === 'NOT_CONFIGURED', `${name}: missing provider state was ${String(missingPlan.state)}`);
-    if (capture) await screenshot(missingPage, '15-composer-not-configured.png');
+    const missingRuntime = missingPage.locator('#capability-composer-runtime');
+    const missingRuntimeText = (await missingRuntime.textContent()) ?? '';
+    assert(missingRuntimeText.includes('NOT_CONFIGURED') && missingRuntimeText.includes('No model is configured on this machine. Local execution stays unavailable.'), `${name}: NOT_CONFIGURED UI did not explain the unavailable local runtime`);
+    assert(await missingPage.locator('#capability-composer-execute').count() === 0 && await missingPage.locator('#capability-composer-confirm').count() === 0, `${name}: NOT_CONFIGURED UI exposed an executable confirmation control`);
+    assert((await missingPage.locator('#capability-composer-plan-state').textContent())?.trim() === 'Local runtime not configured', `${name}: NOT_CONFIGURED plan state was not visible in the UI`);
+    await missingRuntime.scrollIntoViewIfNeeded();
+    if (capture) await screenshot(missingPage, '15-composer-not-configured.png', '#capability-composer-runtime');
     await missingContext.close();
 
     if (capture) {
@@ -303,6 +317,10 @@ async function runEngine(name: string, type: BrowserType, normal: ComposerQaServ
       await assertResponsiveBoundary(mobilePage, `${name} mobile result`);
       await mobilePage.locator('#capability-composer-result-card').scrollIntoViewIfNeeded();
       await screenshot(mobilePage, '20-composer-mobile-result-evidence-390.png');
+      assert((await mobilePage.locator('#capability-composer-execution-state').textContent())?.trim() === 'Completed', `${name}: mobile visible execution state was not Completed`);
+      assert((await mobilePage.locator('#capability-composer-proof-state').textContent())?.trim() === 'ACCEPT', `${name}: mobile visible FuryProof state was not ACCEPT`);
+      await mobilePage.locator('#capability-composer-state').scrollIntoViewIfNeeded();
+      await screenshot(mobilePage, '22-composer-mobile-final-execution-state-390.png', '#capability-composer-state');
     }
     await mobileContext.close();
     assert(consoleErrors.length === 0, `${name}: console errors: ${consoleErrors.join(' | ')}`);
@@ -347,7 +365,7 @@ async function main(): Promise<void> {
     status: 'PASS',
     sourceCommit: process.env.FURYPIPE_SOURCE_COMMIT ?? 'not-bound',
     liveModel: LIVE_MODEL,
-    captures: 20,
+    captures: 22,
     screenshotDirectory: path.join(OUT, 'screens'),
     engines: results,
     fixtureEvidence: 'SEPARATE: tests/fury-capability-composer.test.ts',

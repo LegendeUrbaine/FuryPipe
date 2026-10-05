@@ -26,9 +26,9 @@ Principes retenus:
    l’action, le focus et le routage. Les halos restent secondaires.
 4. **Vérité locale.** Aucun contrôle visuel ne crée une capacité runtime. Les
    surfaces existantes restent reliées à leurs routes et à leurs API réelles.
-5. **Marque FuryPipe stable.** Le monogramme et le wordmark proviennent des
-   primitives centralisées et de la référence fournie:
-   `Image ChatGPT 27 sept. 2026, 15_27_59-1.png`.
+5. **Marque FuryPipe FORGE 03 stable.** Le monogramme et le wordmark
+   proviennent des primitives centralisées et de la planche propriétaire
+   `Guide de marque FuryPipe _ identité tech et design.png`.
 
 ## Palette et tokens
 
@@ -37,18 +37,18 @@ empilées pour séparer la page, la barre latérale, les cartes et les contrôle
 
 | Token | Valeur par défaut | Usage |
 |---|---|---|
-| `--b0` à `--b5` | `#050506` à `#25252c` | page, shell, cartes, lignes, hover, pressed |
-| `--ink` / `--ink-2` | `#f4f1ec` / `#c3bdb4` | texte principal et secondaire |
-| `--muted` / `--faint` | `#8b857c` / `#5d5953` | aide lisible / décoration non essentielle |
-| `--o-core` | `#ff6a1a` | action principale et signal Fury |
-| `--o-hot` | `#ff8a3d` | focus, icône active, texte accentué |
+| `--b0` à `--b5` | `#0B0D10`, `#121519`, `#2A2A2A` et dérivés | page, shell, cartes, lignes, hover, pressed |
+| `--ink` / `--ink-2` | `#F5F4F0` / `#E5E7EB` | texte principal et secondaire |
+| `--muted` / `--faint` | `#9CA3AF` / `#6B7280` en sombre; `#68717D` / `#8E969F` en clair | aide lisible / décoration non essentielle |
+| `--o-core` | `#FF6A00` | action principale et signal Fury |
+| `--o-hot` | `#FF6A00` en sombre; `#A84200` en clair | focus, icône active, texte accentué |
 | `--ok` / `--warn` / `--bad` | vert / ambre / rouge | états, jamais décoration |
 | rayons | `8 / 12 / 16 / 22px` | puces, contrôles, cartes, composer |
 | mouvement | `cubic-bezier(.16,1,.3,1)` | entrée, ouverture, feedback léger |
 
-Le rendu ne dépend d’aucune police, image, CDN ou ressource distante. La pile
-de polices système est volontaire pour garder le package installable hors
-réseau.
+Le rendu n'utilise aucune ressource distante. Les sous-ensembles IBM Plex
+Sans/Mono sont vendus sous `assets/fonts/ibm-plex/` et embarqués localement;
+les fallbacks système gardent le package lisible si un hôte bloque les fontes.
 
 ## Shell
 
@@ -64,6 +64,10 @@ Ordre fixe:
 6. navigation secondaire regroupée sous **Explore workspace**;
 7. conversations récentes;
 8. mode progressif et paramètres.
+
+En sidebar ouverte, l'identité est le wordmark complet seul. En sidebar
+repliée, seul le symbole FORGE reste visible. Le F du master n'est jamais
+supprimé; il n'est simplement pas préfixé une seconde fois dans le shell.
 
 La navigation secondaire est structurée en **Explore**, **Operate**,
 **Connect** et **System**. Elle ne disperse plus les routes dans une liste
@@ -150,4 +154,3 @@ Les captures automatisées sont une preuve de rendu machine. Elles ne ferment
 pas le verdict humain déjà déclaré `REWORK_REQUIRED`. Le prochain passage
 humain doit vérifier: cohérence des groupes, densité du shell, lisibilité du
 composer, drawer mobile, contraste et parcours clavier.
-

@@ -1,4 +1,4 @@
-# FuryPipe Studio — design system "Fury Lux" (2026)
+# FuryPipe Studio — design system FORGE 03 (2026)
 
 Source of truth: `src/studio/studio-page.ts` (CSS tokens, icons, markup and
 client script) plus `src/studio/studio-navigation.ts` (route groups and
@@ -24,7 +24,8 @@ reasoning: `docs/research/FURYPIPE_STUDIO_UI_MARKET_2026.md`.
 ## Constraints that shape the implementation
 
 - Zero-build, server-rendered page with vanilla JS. No React, Tailwind or
-  shadcn, and no external fonts, CDN or remote images.
+  shadcn, no remote fonts/CDN or remote images; IBM Plex is self-hosted and
+  embedded locally from the package assets.
 - CSP: `default-src 'none'`, with nonce for script and style,
   `connect-src 'self'` and `img-src 'self' data:`.
   - No inline handlers.
@@ -38,14 +39,14 @@ reasoning: `docs/research/FURYPIPE_STUDIO_UI_MARKET_2026.md`.
 
 | Token | Dark (default) | Role |
 |---|---|---|
-| `--b0` … `--b5` | `#050506` `#0a0a0c` `#0f0f12` `#15151a` `#1c1c22` `#25252c` | Layered blacks: page → sidebar → cards → rows → hover → pressed |
+| `--b0` … `--b5` | `#0B0D10` `#121519` `#2A2A2A` plus derived surfaces | Layered Deep Black / Graphite surfaces: page → sidebar → cards → rows → hover → pressed |
 | `--line`, `--line-2`, `--line-3` | white at 6.5 %, 11 %, 18 % | Hairlines, input borders, emphasis borders |
-| `--ink`, `--ink-2` | `#f4f1ec`, `#c3bdb4` | Primary text, secondary text |
-| `--muted` | `#8b857c` | Tertiary text (≥ 4.6:1 on every dark surface) |
-| `--faint` | `#5d5953` | Decorative only: separators, disabled controls. Never for readable text. |
-| `--o-core` | `#ff6a1a` | Fury core, primary button fill |
-| `--o-hot` | `#ff8a3d` | Orange text, focus ring, active nav bar |
-| `--o-deep` | `#d9480f` | Gradient depth |
+| `--ink`, `--ink-2` | `#F5F4F0`, `#E5E7EB` | Primary text, secondary text |
+| `--muted` | `#9CA3AF` dark / `#68717D` light | Tertiary readable text |
+| `--faint` | `#6B7280` dark / `#8E969F` light | Decorative only: separators, disabled controls. Never for readable text. |
+| `--o-core` | `#FF6A00` | FORGE Orange, primary button fill |
+| `--o-hot` | `#FF6A00` dark / `#A84200` light | Orange text, focus ring, active nav bar |
+| `--o-deep` | `#CC4F00` | Gradient depth derived from Fury Orange |
 | `--o-soft`, `--o-line`, `--o-glow` | orange at 12 %, 34 %, 32 % | Pressed tool background, accent border, focus glow |
 | `--ok`, `--warn`, `--bad` | `#5fd99a`, `#f5b547`, `#ff6b6b` | Status only |
 | Radii | 8 / 12 / 16 / 22 px | Chips / controls / cards / composer |
@@ -64,8 +65,10 @@ Measured contrast in the dark theme:
 | `--o-hot` on `--b4` | 7.2:1 |
 | Primary button text on `--o-core` | 6.7:1 |
 
-Typography uses system stacks (Inter if installed, then Segoe UI Variable,
-then system-ui). Monospace: JetBrains Mono → Cascadia → SF Mono.
+Typography loads the vendored IBM Plex Sans and IBM Plex Mono WOFF2 subsets
+from `assets/fonts/ibm-plex/` through local data URLs, then uses local system
+fallbacks. Browser proof must inspect `document.fonts.check()` and the
+computed family; a CSS name alone is not accepted as evidence.
 
 ## Components
 

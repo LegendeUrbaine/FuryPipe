@@ -78,3 +78,26 @@ of truth with a hand-maintained SHA.
 - No merge, release, tag, deployment or package publication was performed.
 - No branding redesign or new logo was introduced.
 - VNEXT-04 was not started.
+
+## Owner closure addendum — 2026-10-05
+
+The owner approved the final VNEXT-03 visual evidence and closed this slice
+before the FORGE 03 branding migration. This addendum records the closure
+without rewriting the historical FLUX evidence above.
+
+```text
+ENGINEERING = PASS
+VISUAL_OWNER_GATE = PASS
+EXACT_HEAD_CI = PASS
+SCREEN_READER = MANUAL_REQUIRED
+MERGE = NOT_EXECUTED
+DEPLOY = NOT_EXECUTED
+NPM_PUBLISH = NOT_EXECUTED
+```
+
+The verified VNEXT-03 integration point for the FORGE reconciliation is
+`497dd7447efc0a589780e49b416bacffd9d357e0`. Capability Composer behavior,
+live-Ollama evidence, `qwen3.5:latest`, explicit confirmation,
+`executionAuthority=false`, `cloudCalls=0`, `FuryProof=ACCEPT`, two receipts,
+durable persistence and genuine `NOT_CONFIGURED` remain historical evidence
+and are not reopened by the branding work.

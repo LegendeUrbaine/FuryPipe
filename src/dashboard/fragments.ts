@@ -10,6 +10,8 @@ import type { ModelFabricEntry } from '../core/model-fabric.js';
 import type { FuryPipeModelScopeMode, FuryPipeVisualPolicy } from '../core/applicability.js';
 import { createI18n } from '../i18n/index.js';
 import { CORE_CATALOGS } from '../i18n/catalogs.js';
+import { FURYPIPE_FAVICON_SVG, renderFuryPipeMonogramSvg, renderFuryPipeWordmarkHtml } from '../studio/studio-brand.js';
+import { IBM_PLEX_FONT_FACE_CSS } from '../studio/ibm-plex-fonts.js';
 import type {
   StatsPayload,
   RecentPayload,
@@ -1226,41 +1228,33 @@ export function renderStatsTableFragment(p: FullStatsPayload, locale = 'en'): st
 
 // ---- page shell -------------------------------------------------------------
 
-// FuryPipe favicon: three linked nodes on a midnight field. It mirrors the
-// FuryLink / Context Fabric identity rather than the historical warm-flame mark.
-const FAVICON =
-  "data:image/svg+xml," +
-  "%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E" +
-  "%3Crect%20x='1'%20y='1'%20width='30'%20height='30'%20rx='8'%20fill='%23050914'%20stroke='%231b3156'/%3E" +
-  "%3Cpath%20d='M8%2010h8l8%206-8%206H8'%20fill='none'%20stroke='%236f9dff'%20stroke-width='2.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E" +
-  "%3Ccircle%20cx='8'%20cy='10'%20r='2.4'%20fill='%23f6f0e4'/%3E" +
-  "%3Ccircle%20cx='24'%20cy='16'%20r='2.4'%20fill='%236f9dff'/%3E" +
-  "%3Ccircle%20cx='8'%20cy='22'%20r='2.4'%20fill='%23f6f0e4'/%3E%3C/svg%3E";
+const FAVICON = `data:image/svg+xml,${encodeURIComponent(FURYPIPE_FAVICON_SVG)}`;
+const DASHBOARD_MARK = renderFuryPipeMonogramSvg({ className: 'pulse-mark', tone: 'accent' });
+const DASHBOARD_WORDMARK = renderFuryPipeWordmarkHtml('dashboard-wordmark');
 
-const CSS = `
+const CSS = `${IBM_PLEX_FONT_FACE_CSS}
   :root {
-    --bg: #f4eee3; --surface: #fffaf1; --surface-2: #ece5d9;
-    --border: #dcd2c3; --border-strong: #cbbdac;
-    --ink: #10213a; --ink-2: #42526a; --muted: #7d8795;
-    --accent: #4f7cff; --accent-strong: #2f5ee8; --accent-ink: #244fc5; --accent-tint: #e8eeff;
+    --bg: #F5F4F0; --surface: #FFFFFF; --surface-2: #E5E7EB;
+    --border: #D7DBE0; --border-strong: #AEB6C0;
+    --ink: #0B0D10; --ink-2: #2A2A2A; --muted: #68717D;
+    --accent: #FF6A00; --accent-strong: #C74F00; --accent-ink: #9B3D00; --accent-tint: #FFF0E6;
     --good: #168a68; --good-tint: #e2f4ec; --bad: #c94f62; --bad-tint: #f8e7e9; --warn: #9a6a19; --warn-tint: #f5ecd8;
     --img: #4f7cff; --img-ink: #244fc5; --img-tint: #e8eeff;
     --txt: #168f91; --txt-ink: #0f696b; --txt-tint: #e2f3f1;
     --radius: 2px;
     --shadow: none;
-    --mono: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --mono: 'IBM Plex Mono', 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     color-scheme: light;
   }
-  /* FuryPipe midnight theme. Applied before first paint from the FuryPipe-owned
-     theme preference, then toggled by furyTheme(). Cobalt and teal accents are
-     lifted independently from the neutral navy/black surface stack. */
+  /* FuryPipe FORGE 03 theme. Applied before first paint from the FuryPipe-owned
+     theme preference, then toggled by furyTheme(). */
   :root[data-theme="dark"] {
-    --bg: #03060c; --surface: #07111f; --surface-2: #0c192b;
-    --border: #152641; --border-strong: #22395d;
-    --ink: #f4f1e9; --ink-2: #b8c5d8; --muted: #778ba7;
-    --accent: #6f9dff; --accent-strong: #4e7ff0; --accent-ink: #9ab8ff; --accent-tint: #10234a;
+    --bg: #0B0D10; --surface: #121519; --surface-2: #2A2A2A;
+    --border: #34383F; --border-strong: #4A4F57;
+    --ink: #F5F4F0; --ink-2: #E5E7EB; --muted: #9CA3AF;
+    --accent: #FF6A00; --accent-strong: #FF8533; --accent-ink: #FFB07A; --accent-tint: #3A1B09;
     --good: #32c39a; --good-tint: #0b2b25; --bad: #ef6d7b; --bad-tint: #32141c; --warn: #e0a94f; --warn-tint: #30230e;
-    --img: #6f9dff; --img-ink: #a8c2ff; --img-tint: #10234a;
+    --img: #FF6A00; --img-ink: #FFB07A; --img-tint: #3A1B09;
     --txt: #4ed2cf; --txt-ink: #88e7e2; --txt-tint: #0b292c;
     --shadow: none;
     color-scheme: dark;
@@ -1273,7 +1267,7 @@ const CSS = `
   html { scroll-behavior: smooth; }
   body { margin: 0; padding: 0 0 72px; color: var(--ink-2);
     background: var(--bg);
-    font: 14px/1.5 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font: 14px/1.5 'IBM Plex Sans', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased; }
   .workspace { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
   b, strong { color: var(--ink); }
@@ -1286,13 +1280,10 @@ const CSS = `
     background: var(--bg); backdrop-filter: none;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
   .brand { display: flex; align-items: center; gap: 12px; }
-  .pulse-mark { position: relative; width: 34px; height: 34px; border-radius: 2px;
-    background-image: none; background-color: var(--surface);
-    border: 1px solid var(--border-strong); box-shadow: none; flex: none; }
-  .pulse-mark::before, .pulse-mark::after { content: ''; position: absolute; top: 15px; width: 8px; height: 4px;
-    border-radius: 0; background: var(--accent); box-shadow: none; }
-  .pulse-mark::before { left: 5px; } .pulse-mark::after { right: 5px; }
-  .wordmark { font-size: 22px; font-weight: 800; color: var(--ink); letter-spacing: -0.03em; }
+  .pulse-mark { display: block; width: 34px; height: 34px; color: var(--ink); flex: none; }
+  .pulse-mark .forge-symbol-orange { fill: #FF6A00; }
+  .dashboard-wordmark { display: inline-flex; align-items: center; min-width: 0; line-height: 0; }
+  .dashboard-wordmark .wordmark-svg { display: block; width: 180px; height: auto; max-width: 100%; }
   .brand-kicker { margin-left: 8px; color: var(--accent-ink); font: 700 10px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
   .wordmark-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   /* Which machine is this? Two dashboards from two hosts look identical otherwise. */
@@ -1675,20 +1666,20 @@ const CSS = `
   .toast button { background: transparent; color: inherit; border: 0; cursor: pointer; font-size: 16px;
     line-height: 1; padding: 0; }
 
-  /* Control Plane V4 — Fury Instrument Panel.
+  /* Control Plane V4 — FuryPipe FORGE 03 instrument panel.
      Surfaces are deliberately sparse: canvas, section rail, raised inspector.
      Status is always written as text; colour reinforces but never carries state. */
   :root {
-    --canvas: #f4eee3; --surface: #fffaf1; --raised: #ece5d9;
-    --border: #dcd2c3; --border-strong: #cbbdac; --ink: #10213a;
-    --ink-2: #42526a; --muted: #778ba7; --accent: #4f7cff;
-    --accent-ink: #244fc5; --accent-tint: #e8eeff; --radius: 4px; --shadow: none;
+    --canvas: #F5F4F0; --surface: #FFFFFF; --raised: #E5E7EB;
+    --border: #D7DBE0; --border-strong: #AEB6C0; --ink: #0B0D10;
+    --ink-2: #2A2A2A; --muted: #68717D; --accent: #FF6A00;
+    --accent-ink: #9B3D00; --accent-tint: #FFF0E6; --radius: 4px; --shadow: none;
   }
   :root[data-theme="dark"] {
-    --canvas: #03060c; --surface: #07111f; --raised: #0c192b;
-    --border: #152641; --border-strong: #22395d; --ink: #f4f1e9;
-    --ink-2: #b8c5d8; --muted: #778ba7; --accent: #4f7cff;
-    --accent-ink: #9ab8ff; --accent-tint: #10213a; --shadow: none;
+    --canvas: #0B0D10; --surface: #121519; --raised: #2A2A2A;
+    --border: #34383F; --border-strong: #4A4F57; --ink: #F5F4F0;
+    --ink-2: #E5E7EB; --muted: #9CA3AF; --accent: #FF6A00;
+    --accent-ink: #FFB07A; --accent-tint: #3A1B09; --shadow: none;
   }
   html { scroll-padding-top: 112px; }
   body { background: var(--canvas); color: var(--ink-2); }
@@ -1696,9 +1687,8 @@ const CSS = `
   .workspace { width: min(1440px, calc(100% - 48px)); }
   .topbar { min-width: 0; margin: 0; padding: 18px 0 14px; gap: 14px; background: var(--canvas); backdrop-filter: none; }
   .brand, .wordmark-row, .wordmark, .tagline { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
-  .pulse-mark { width: 30px; height: 30px; border-radius: 2px; background: var(--surface); box-shadow: none; }
-  .pulse-mark::before, .pulse-mark::after { border-radius: 0; box-shadow: none; }
-  .wordmark { font-size: 20px; letter-spacing: -.025em; }
+  .pulse-mark { width: 30px; height: 30px; color: var(--ink); }
+  .dashboard-wordmark .wordmark-svg { width: 142px; }
   .brand-kicker { margin-left: 6px; color: var(--muted); letter-spacing: .1em; }
   .hostchip { border-radius: 2px; padding: 2px 6px; font-family: var(--mono); font-size: 10px; }
   .controls { gap: 5px; }
@@ -2044,10 +2034,10 @@ export function renderPage(port: number, hostLabel = '', locale = 'en'): string 
 
 <header class="topbar">
   <div class="brand">
-    <span class="pulse-mark"></span>
+    ${DASHBOARD_MARK}
     <div>
       <div class="wordmark-row">
-        <div class="wordmark">FuryPipe <span class="brand-kicker">Control Plane</span></div>
+        ${DASHBOARD_WORDMARK}<span class="brand-kicker">Control Plane</span>
         ${host ? `<span class="hostchip" title="${escapeHtml(t('dashboard.page.proxyHost'))}">${host}</span>` : ''}
       </div>
       <div class="tagline">${escapeHtml(dashboardT(activeLocale, 'dashboard.tagline'))}</div>

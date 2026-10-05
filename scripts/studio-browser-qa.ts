@@ -5,7 +5,7 @@
 // engine through navigation, keyboard focus, the 404 view, chat streaming,
 // dispatch preview, graph, empty and error states and a narrow viewport.
 // Console errors (including CSP violations) fail the run.
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { execFileSync } from 'node:child_process';
 import type { AddressInfo } from 'node:net';
@@ -25,6 +25,7 @@ import { createStudioApi, studioApiRoute } from '../src/studio/studio-api.js';
 import { studioHtmlResponse } from '../src/studio/studio-page.js';
 import { buildFuryRunTrace, type FuryRunTraceInput } from '../src/fury-trace.js';
 import { LocalVideoEngine } from '../src/video-local-engine.js';
+import { IBM_PLEX_FONT_FACE_CSS } from '../src/studio/ibm-plex-fonts.js';
 
 const HOST = '127.0.0.1';
 const OUT = path.resolve(process.env.FURYPIPE_VALIDATION_OUTPUT_DIR?.trim() || 'artifacts/studio-browser-qa');
@@ -131,7 +132,7 @@ async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: strin
     // calling a paid provider. It writes only a QA fixture in a temporary repo.
     executor: async ({ assignment, worktree }) => {
       await new Promise((resolve) => setTimeout(resolve, 80));
-      if (assignment.role === 'implementer') writeFileSync(path.join(worktree, 'src', 'auth', 'login.ts'), 'export const createSession = () => "flux-qa";\n');
+      if (assignment.role === 'implementer') writeFileSync(path.join(worktree, 'src', 'auth', 'login.ts'), 'export const createSession = () => "forge-qa";\n');
       return { ok: true, receipts: [] };
     },
     traceBuilder,
@@ -190,13 +191,32 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
 
     await page.goto(`${origins.normal}/`, { waitUntil: 'load' });
     assert(await page.title() === 'Chat · FuryPipe Studio', `${name}: title ${await page.title()}`);
-    assert(await page.locator('a.brand[data-brand="furypipe"] svg[data-brand="furypipe-flux-symbol"]').count() === 1, `${name}: Flux sidebar mark missing`);
-    assert(await page.locator('link[rel="icon"][type="image/svg+xml"]').count() === 1, `${name}: favicon missing`);
-    assert(!(await page.content()).includes('fury-ring'), `${name}: legacy non-brand ring remains in shell`);
     assert(await page.evaluate(() => document.activeElement === document.body), `${name}: focus moved on first load`);
     // Keyboard: skip link is the first tab stop and moves focus to main.
     await page.keyboard.press('Tab');
     assert(await page.evaluate(() => document.activeElement?.className) === 'skip', `${name}: skip link is not first tab stop`);
+    const sidebarBrand = page.locator('a.brand[data-brand="furypipe"]');
+    assert(await sidebarBrand.locator('[data-brand="furypipe-forge-wordmark"] svg.wordmark-svg').count() === 1, `${name}: expanded sidebar wordmark missing`);
+    assert(await sidebarBrand.locator('svg[data-brand="furypipe-forge-symbol"]').count() === 1, `${name}: collapsed sidebar symbol missing`);
+    assert(await sidebarBrand.locator('.brand-expanded').isVisible(), `${name}: expanded sidebar lockup is not visible`);
+    assert(!(await sidebarBrand.locator('.brand-collapsed').isVisible()), `${name}: collapsed symbol leaked into expanded sidebar`);
+    await page.locator('#side-collapse').click();
+    await page.waitForFunction(() => document.querySelector('#app')?.getAttribute('data-collapsed') === 'true');
+    assert(await sidebarBrand.locator('.brand-collapsed').isVisible(), `${name}: collapsed sidebar symbol is not visible`);
+    assert(!(await sidebarBrand.locator('.brand-expanded').isVisible()), `${name}: full wordmark remained visible in collapsed sidebar`);
+    await page.locator('#side-collapse').click();
+    await page.waitForFunction(() => document.querySelector('#app')?.getAttribute('data-collapsed') === 'false');
+    await page.evaluate(async () => { await document.fonts.ready; });
+    const fontProof = await page.evaluate(() => ({
+      sansLoaded: document.fonts.check('16px "IBM Plex Sans"'),
+      monoLoaded: document.fonts.check('16px "IBM Plex Mono"'),
+      bodyFamily: getComputedStyle(document.body).fontFamily,
+      loadedFamilies: [...document.fonts].filter((font) => font.status === 'loaded').map((font) => font.family),
+    }));
+    assert(fontProof.sansLoaded && fontProof.monoLoaded, `${name}: self-hosted IBM Plex font faces did not load: ${JSON.stringify(fontProof)}`);
+    assert(fontProof.bodyFamily.includes('IBM Plex Sans'), `${name}: computed body family omitted IBM Plex Sans: ${fontProof.bodyFamily}`);
+    assert(await page.locator('link[rel="icon"][type="image/svg+xml"]').count() === 1, `${name}: favicon missing`);
+    assert(!(await page.content()).includes('fury-ring'), `${name}: legacy non-brand ring remains in shell`);
 
     // Chat streams from the local backend; Fury Auto routes and the route chip shows locality.
     await page.locator('#chat-form').waitFor({ state: 'visible' });
@@ -600,42 +620,52 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     // Expected: 503 discovery-failed (error-state server), 409 not-runnable / web search not configured, 403 web SSRF refusal.
     const unexpected = errors.filter((e) => !/Failed to load resource: the server responded with a status of (503|409|403|422)/u.test(e));
     assert(unexpected.length === 0, `${name}: console errors: ${unexpected.join(' | ')}`);
-    return { engine: name, status: 'PASS', dispatchRows: rows, consoleErrors: 0 };
+    return { engine: name, status: 'PASS', dispatchRows: rows, consoleErrors: 0, computedFontProof: fontProof };
   } finally {
     await browser.close();
   }
 }
 
-// Final visual evidence uses actual Flux assets and one exact local run. No status is inferred from elapsed time.
+// Final visual evidence uses actual FORGE 03 assets and one exact local run. No status is inferred from elapsed time.
 async function captureScreens(type: BrowserType, servers: Record<'normal' | 'empty' | 'error', StudioQaServer>): Promise<string[]> {
-  const dir = path.join(OUT, 'screens-flux-vnext-02-final');
+  const dir = path.join(OUT, 'screens-forge-vnext-03-final');
   rmSync(dir, { recursive: true, force: true }); mkdirSync(dir, { recursive: true });
   const browser = await type.launch(); const shots: string[] = [];
   const asset = (file: string, mime: string) => `data:${mime};base64,${readFileSync(path.resolve(file)).toString('base64')}`;
+  const fontStyle = `<style>${IBM_PLEX_FONT_FACE_CSS}body{margin:0;font-family:"IBM Plex Sans",sans-serif}</style>`;
+  const withFonts = (body: string): string => `<!doctype html><html><head>${fontStyle}</head><body>${body}</body></html>`;
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', reducedMotion: 'reduce' });
     const page = await context.newPage();
     const shot = async (file: string): Promise<void> => { await page.screenshot({ path: path.join(dir, file) }); shots.push(file); };
-    const brand = async (file: string, background: string, body: string): Promise<void> => { await page.setContent(`<main style="min-height:100vh;display:grid;place-items:center;margin:0;background:${background};font:16px Inter,Arial;color:#fff">${body}</main>`); await shot(file); };
-    await brand('01-flux-primary-symbol.png', '#0b0b0f', `<img alt="FuryPipe Flux primary symbol" style="width:min(62vw,520px)" src="${asset('assets/branding/flux/master/furypipe-flux-symbol.svg', 'image/svg+xml')}">`);
-    await brand('02-flux-wordmark-dark.png', '#0b0b0f', `<img alt="FuryPipe Flux wordmark dark" style="width:min(80vw,860px)" src="${asset('assets/branding/flux/variants/furypipe-logo-dark.svg', 'image/svg+xml')}">`);
-    await brand('03-flux-wordmark-light.png', '#fff', `<img alt="FuryPipe Flux wordmark light" style="width:min(80vw,860px)" src="${asset('assets/branding/flux/variants/furypipe-logo-light.svg', 'image/svg+xml')}">`);
-    await brand('04-flux-app-icon-favicon.png', '#0b0b0f', `<div style="display:flex;align-items:center;gap:72px"><img alt="FuryPipe app icon" style="width:300px" src="${asset('assets/branding/flux/icons/app-icon-512.png', 'image/png')}"><img alt="FuryPipe favicon" style="width:96px;image-rendering:auto" src="${asset('assets/branding/flux/icons/favicon-64.png', 'image/png')}"></div>`);
+    const brand = async (file: string, background: string, body: string): Promise<void> => { await page.setContent(withFonts(`<main style="min-height:100vh;display:grid;place-items:center;margin:0;background:${background};font:16px 'IBM Plex Sans',Arial;color:#fff">${body}</main>`)); await shot(file); };
+    await brand('01-forge-primary-symbol.png', '#0B0D10', `<img alt="FuryPipe FORGE 03 primary symbol" style="width:min(62vw,520px)" src="${asset('assets/branding/forge/master/furypipe-forge-symbol.svg', 'image/svg+xml')}">`);
+    await brand('02-forge-wordmark-dark.png', '#0B0D10', `<img alt="FuryPipe FORGE 03 wordmark dark" style="width:min(80vw,860px)" src="${asset('assets/branding/forge/variants/furypipe-logo-dark.svg', 'image/svg+xml')}">`);
+    await brand('03-forge-wordmark-light.png', '#F5F4F0', `<img alt="FuryPipe FORGE 03 wordmark light" style="width:min(80vw,860px)" src="${asset('assets/branding/forge/variants/furypipe-logo-light.svg', 'image/svg+xml')}">`);
+    await brand('04-forge-app-icon-favicon.png', '#0B0D10', `<div style="display:flex;align-items:center;gap:72px"><img alt="FuryPipe FORGE 03 app icon" style="width:300px" src="${asset('assets/branding/forge/icons/app-icon-512.png', 'image/png')}"><img alt="FuryPipe FORGE 03 favicon" style="width:96px;image-rendering:auto" src="${asset('assets/branding/forge/icons/favicon-64.png', 'image/png')}"></div>`);
     await page.goto(`${servers.normal.origin}/#/chat`); await page.locator('#model-button').filter({ hasText: 'Fury Auto' }).waitFor(); await shot('05-studio-dark-1440.png');
+    const openSidebarBrand = page.locator('a.brand[data-brand="furypipe"]');
+    assert(await openSidebarBrand.locator('.brand-expanded').isVisible(), 'visual evidence expanded sidebar wordmark is not visible');
+    assert(!(await openSidebarBrand.locator('.brand-collapsed').isVisible()), 'visual evidence collapsed symbol leaked into open sidebar');
+    await shot('07-studio-sidebar-open-no-duplicate-f.png');
+    await page.locator('#side-collapse').click(); await page.waitForFunction(() => document.querySelector('#app')?.getAttribute('data-collapsed') === 'true');
+    assert(await openSidebarBrand.locator('.brand-collapsed').isVisible(), 'visual evidence collapsed sidebar symbol is not visible');
+    await shot('08-studio-sidebar-collapsed.png');
+    await page.locator('#side-collapse').click(); await page.waitForFunction(() => document.querySelector('#app')?.getAttribute('data-collapsed') === 'false');
     const light = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US', colorScheme: 'light', reducedMotion: 'reduce' }); const lightPage = await light.newPage();
     await lightPage.goto(`${servers.normal.origin}/#/settings`); await lightPage.evaluate(() => localStorage.setItem('furypipe.studio.theme', 'system')); await lightPage.reload(); await lightPage.waitForFunction(() => document.documentElement.dataset.theme === 'system'); await lightPage.goto(`${servers.normal.origin}/#/chat`); await lightPage.locator('#model-button').waitFor(); await lightPage.screenshot({ path: path.join(dir, '06-studio-light-1440.png') }); shots.push('06-studio-light-1440.png'); await light.close();
-    await page.setViewportSize({ width: 390, height: 844 }); await page.goto(`${servers.normal.origin}/#/chat`); await page.locator('#model-button').waitFor(); await shot('07-studio-mobile-390.png'); await page.locator('#side-open').click(); await shot('08-studio-mobile-nav-390.png');
-    await page.setViewportSize({ width: 1440, height: 900 }); await page.goto(`${servers.normal.origin}/#/mission`); await setMode(page, 'expert'); await page.locator('#run-form').waitFor(); await page.locator('#run-intent').fill('Capture a verified Flux final trace'); await page.locator('#run-files').fill('src/auth/login.ts'); await page.locator('#run-confirm').check(); await shot('09-mission-before-run.png');
+    await page.setViewportSize({ width: 390, height: 844 }); await page.goto(`${servers.normal.origin}/#/chat`); await page.locator('#model-button').waitFor(); await shot('09-studio-mobile-390.png'); await page.locator('#side-open').click(); await shot('10-studio-mobile-nav-390.png');
+    await page.setViewportSize({ width: 1440, height: 900 }); await page.goto(`${servers.normal.origin}/#/mission`); await setMode(page, 'expert'); await page.locator('#run-form').waitFor(); await page.locator('#run-intent').fill('Capture a verified FORGE 03 final trace'); await page.locator('#run-files').fill('src/auth/login.ts'); await page.locator('#run-confirm').check(); await shot('13-mission-before-run.png');
     await page.locator('#run-form button[type=submit]').click(); await page.waitForFunction(() => Boolean(document.querySelector('#run-status')?.getAttribute('data-run-id'))); const runId = await page.locator('#run-status').getAttribute('data-run-id'); assert(runId, 'visual evidence runId was not bound');
-    await page.locator(`#runs .card[data-run-id="${runId}"]`).waitFor(); await page.waitForFunction((id) => new RegExp(id + ' — running', 'u').test(document.querySelector(`#runs .card[data-run-id="${id}"] h2`)?.textContent ?? ''), runId); await shot('10-mission-running-bound.png');
-    await page.waitForFunction((id) => !/running/u.test(document.querySelector(`#runs .card[data-run-id="${id}"] h2`)?.textContent ?? ''), runId); await shot('11-mission-terminal-bound.png');
+    await page.locator(`#runs .card[data-run-id="${runId}"]`).waitFor(); await page.waitForFunction((id) => new RegExp(id + ' — running', 'u').test(document.querySelector(`#runs .card[data-run-id="${id}"] h2`)?.textContent ?? ''), runId); await shot('13b-mission-running-bound.png');
+    await page.waitForFunction((id) => !/running/u.test(document.querySelector(`#runs .card[data-run-id="${id}"] h2`)?.textContent ?? ''), runId); await shot('13c-mission-terminal-bound.png');
     const openTrace = async () => { const button = page.locator(`#runs .card[data-run-id="${runId}"] button[aria-label="Inspect Fury Trace for ${runId}"]`); await button.waitFor({ state: 'attached' }); await button.scrollIntoViewIfNeeded(); await button.click(); };
     const showTrace = async () => { await page.evaluate(() => document.querySelector('#run-trace-panel')?.scrollIntoView({ block: 'start' })); };
-    await openTrace(); await page.locator('#run-trace-status').filter({ hasText: 'Trace READY' }).waitFor(); await showTrace(); await shot('12-trace-ready-complete.png');
-    await page.locator('.trace-node[data-kind="worker"]').first().click(); await page.locator('.trace-inspector .trace-fields').waitFor(); await showTrace(); await shot('13-trace-worker-inspector.png');
-    await page.locator('.trace-node[data-kind="receipt"]').first().click(); await showTrace(); await shot('14-trace-receipt-inspector.png');
-    await page.locator('.trace-node[data-kind="judge"]').first().click(); await showTrace(); await shot('15-trace-furyjudge-proof.png');
-    servers.normal.corruptTraceFor(runId); await openTrace(); await page.locator('#run-trace-status').filter({ hasText: 'Trace INVALID' }).waitFor(); await showTrace(); await shot('16-trace-invalid-genuine.png'); servers.normal.clearTraceCorruption();
+    await openTrace(); await page.locator('#run-trace-status').filter({ hasText: 'Trace READY' }).waitFor(); await showTrace(); await shot('14-trace-ready-complete.png');
+    await page.locator('.trace-node[data-kind="worker"]').first().click(); await page.locator('.trace-inspector .trace-fields').waitFor(); await showTrace(); await shot('14b-trace-worker-inspector.png');
+    await page.locator('.trace-node[data-kind="receipt"]').first().click(); await showTrace(); await shot('14c-trace-receipt-inspector.png');
+    await page.locator('.trace-node[data-kind="judge"]').first().click(); await showTrace(); await shot('14d-trace-furyjudge-proof.png');
+    servers.normal.corruptTraceFor(runId); await openTrace(); await page.locator('#run-trace-status').filter({ hasText: 'Trace INVALID' }).waitFor(); await showTrace(); await shot('14e-trace-invalid-genuine.png'); servers.normal.clearTraceCorruption();
     await page.setViewportSize({ width: 390, height: 844 }); await page.goto(`${servers.normal.origin}/#/chat`); await page.locator('section[data-view="chat"]').waitFor({ state: 'visible' }); await page.goto(`${servers.normal.origin}/#/mission`); await page.locator('section[data-view="mission"]').waitFor({ state: 'visible' }); await page.locator(`#runs .card[data-run-id="${runId}"]`).waitFor({ state: 'visible' });
     if (await page.locator('#app').getAttribute('data-drawer') === 'open') { await page.locator('#scrim').click({ position: { x: 360, y: 400 } }); await page.waitForFunction(() => document.querySelector('#app')?.getAttribute('data-drawer') === 'closed'); }
     await page.locator('#side-open').click(); await page.waitForFunction(() => document.querySelector('#app')?.getAttribute('data-drawer') === 'open'); await page.locator('#scrim').click({ position: { x: 360, y: 400 } }); await page.waitForFunction(() => document.querySelector('#app')?.getAttribute('data-drawer') === 'closed');
@@ -647,12 +677,36 @@ async function captureScreens(type: BrowserType, servers: Record<'normal' | 'emp
     assert(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth <= 1), 'mobile trace has horizontal page overflow'); await shot('17-trace-ready-390.png');
     await page.locator('.trace-node[data-kind="worker"]').first().click(); await page.locator('.trace-inspector .trace-fields').waitFor(); await page.locator('.trace-inspector').scrollIntoViewIfNeeded();
     assert(await page.locator('.trace-linked button').first().isVisible(), 'mobile worker inspector has no reachable linked-evidence action'); await shot('17b-trace-worker-inspector-390.png');
-    await page.setViewportSize({ width: 1440, height: 900 }); await showTrace(); await shot('18-trace-ready-1440.png');
+    await page.setViewportSize({ width: 1440, height: 900 }); await showTrace(); await shot('14f-trace-ready-1440.png');
     await page.setViewportSize({ width: 1024, height: 768 }); await page.goto(`${servers.normal.origin}/#/mission`); await page.locator('#run-form').waitFor(); await page.locator('.worker-table-scroll').first().waitFor(); await page.locator('.worker-table-scroll').first().scrollIntoViewIfNeeded();
-    const workerHeaders = await page.locator('.worker-table-scroll th:visible').allTextContents(); assert(['Worker', 'Role', 'Runtime', 'State', 'Receipts'].every((header) => workerHeaders.includes(header)), `1024 worker table lost required columns: ${workerHeaders.join(', ')}`); assert(!workerHeaders.includes('Model') && !workerHeaders.includes('Locality') && !workerHeaders.includes('Tokens'), `1024 worker table did not adapt columns: ${workerHeaders.join(', ')}`); await shot('19-mission-1024.png');
-    const dark = asset(path.join(dir, '05-studio-dark-1440.png'), 'image/png'); const lightImage = asset(path.join(dir, '06-studio-light-1440.png'), 'image/png'); await page.setViewportSize({ width: 1440, height: 900 }); await page.setContent(`<main style="margin:0;background:#111;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px"><img alt="Studio dark actual capture" style="width:100%" src="${dark}"><img alt="Studio light actual capture" style="width:100%" src="${lightImage}"></main>`); await shot('20-studio-dark-light-comparison.png');
+    const workerHeaders = await page.locator('.worker-table-scroll th:visible').allTextContents(); assert(['Worker', 'Role', 'Runtime', 'State', 'Receipts'].every((header) => workerHeaders.includes(header)), `1024 worker table lost required columns: ${workerHeaders.join(', ')}`); assert(!workerHeaders.includes('Model') && !workerHeaders.includes('Locality') && !workerHeaders.includes('Tokens'), `1024 worker table did not adapt columns: ${workerHeaders.join(', ')}`); await shot('21-mission-1024.png');
+    const evidencePage = await context.newPage(); await evidencePage.setViewportSize({ width: 1440, height: 900 });
+    const evidenceShot = async (file: string): Promise<void> => { await evidencePage.screenshot({ path: path.join(dir, file) }); shots.push(file); };
+    const smallSizes = [16, 20, 24, 32, 48, 64, 128, 256];
+    await evidencePage.setContent(withFonts(`<main style="min-height:100vh;margin:0;padding:48px;background:#0B0D10;color:#F5F4F0;font:16px 'IBM Plex Sans',sans-serif"><h1 style="font-size:22px">FORGE 03 · petites tailles</h1><div style="display:flex;align-items:end;gap:28px;flex-wrap:wrap">${smallSizes.map((size) => `<figure style="display:grid;justify-items:center;gap:10px;margin:0"><img alt="FORGE symbol ${size}px" style="width:${size}px;height:${size}px" src="${asset(`assets/branding/forge/icons/symbol-${size}.png`, 'image/png')}"><figcaption style="font:12px 'IBM Plex Mono',monospace">${size}px</figcaption></figure>`).join('')}</div></main>`));
+    const smallLayoutProof = await evidencePage.evaluate(() => { const main = document.querySelector('main'); const sizes = document.querySelector('main > div'); if (!main || !sizes) return null; const mainStyle = getComputedStyle(main); const sizesStyle = getComputedStyle(sizes); return { bodyFamily: getComputedStyle(document.body).fontFamily, mainFamily: mainStyle.fontFamily, mainBackground: mainStyle.backgroundColor, sizesDisplay: sizesStyle.display, sizesFlexWrap: sizesStyle.flexWrap }; });
+    assert(smallLayoutProof?.mainBackground === 'rgb(11, 13, 16)' && smallLayoutProof.sizesDisplay === 'flex' && smallLayoutProof.sizesFlexWrap === 'wrap', `small-size visual layout proof failed: ${JSON.stringify(smallLayoutProof)}`);
+    await evidencePage.evaluate(async () => { await document.fonts.load('16px "IBM Plex Sans"', 'FORGE 03'); await document.fonts.load('12px "IBM Plex Mono"', '16px'); await document.fonts.ready; });
+    const computedFontProof = await evidencePage.evaluate(() => ({
+      sansLoaded: document.fonts.check('16px "IBM Plex Sans"'),
+      monoLoaded: document.fonts.check('16px "IBM Plex Mono"'),
+      bodyFamily: getComputedStyle(document.body).fontFamily,
+    }));
+    assert(computedFontProof.sansLoaded && computedFontProof.monoLoaded, `small-size font proof failed: ${JSON.stringify(computedFontProof)}`);
+    await evidenceShot('18-forge-small-size.png');
+    await evidencePage.setContent(withFonts(`<main style="min-height:100vh;margin:0;padding:48px;background:#F5F4F0;color:#0B0D10;font-family:'IBM Plex Sans',sans-serif"><article style="max-width:760px;border:1px solid #D7DBE0;border-radius:16px;padding:28px;background:#fff"><p style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#A84200">COMPUTED FONT EVIDENCE</p><h1 style="font-size:36px;margin:0 0 12px">IBM Plex Sans</h1><p style="font:600 16px 'IBM Plex Mono',monospace">IBM Plex Mono · local WOFF2 · no CDN</p><pre style="font:13px 'IBM Plex Mono',monospace;white-space:pre-wrap">${JSON.stringify(computedFontProof, null, 2)}</pre></article></main>`));
+    await evidenceShot('19-ibm-plex-computed-font.png');
+    const readmeExcerpt = readFileSync(path.resolve('README.md'), 'utf8').match(/The current FuryPipe Studio shell[\s\S]{0,520}/u)?.[0] ?? 'FORGE 03 · README brand section';
+    await evidencePage.setContent(withFonts(`<main style="min-height:100vh;margin:0;padding:48px;background:#0B0D10;color:#F5F4F0;font:16px 'IBM Plex Sans',sans-serif"><article style="max-width:980px;margin:auto;border:1px solid #34383F;border-radius:18px;padding:32px;background:#121519"><img alt="FuryPipe FORGE 03 README wordmark" style="display:block;width:min(80vw,720px);margin-bottom:28px" src="${asset('assets/branding/forge/variants/furypipe-logo-dark.svg', 'image/svg+xml')}"><p style="font:600 11px 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#FF6A00">README / GITHUB PRESENTATION PREVIEW</p><pre style="white-space:pre-wrap;color:#E5E7EB;line-height:1.6">${readmeExcerpt.replace(/[&<>]/gu, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c])}</pre></article></main>`));
+    await evidenceShot('20-readme-github-presentation.png');
+    const referencePath = process.env.FURYPIPE_FORGE_REFERENCE_IMAGE?.trim() || 'C:/Users/loicd/Downloads/Guide de marque FuryPipe _ identité tech et design.png';
+    const reference = existsSync(referencePath) ? asset(referencePath, 'image/png') : '';
+    const referencePanel = reference ? `<img alt="Owner-supplied FORGE 03 reference raster" style="width:100%;max-height:760px;object-fit:contain;background:#fff" src="${reference}">` : '<div style="padding:48px;background:#2A2A2A;color:#E5E7EB">REFERENCE RASTER indisponible dans cet environnement</div>';
+    await evidencePage.setContent(withFonts(`<main style="min-height:100vh;margin:0;padding:24px;background:#17191D;color:#F5F4F0;font:14px 'IBM Plex Sans',sans-serif"><div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start"><section><p style="font:600 11px 'IBM Plex Mono',monospace;color:#FF6A00;letter-spacing:.12em">REFERENCE RASTER · OWNER BOARD</p>${referencePanel}</section><section><p style="font:600 11px 'IBM Plex Mono',monospace;color:#FF6A00;letter-spacing:.12em">RECONSTRUCTED PRODUCTION VECTOR</p><div style="padding:24px;background:#0B0D10"><img alt="Reconstructed FORGE 03 production vector" style="width:100%" src="${asset('assets/branding/forge/variants/furypipe-logo-dark.svg', 'image/svg+xml')}"></div><p style="color:#E5E7EB;line-height:1.5">OWNER_APPROVED_REFERENCE_RECONSTRUCTED · comparaison honnête, pas pixel-perfect.</p></section></div></main>`));
+    await evidenceShot('20-reference-raster-vs-reconstructed-vector.png');
+    const dark = asset(path.join(dir, '05-studio-dark-1440.png'), 'image/png'); const lightImage = asset(path.join(dir, '06-studio-light-1440.png'), 'image/png'); await evidencePage.setContent(withFonts(`<main style="margin:0;background:#111;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px"><img alt="Studio dark actual capture" style="width:100%" src="${dark}"><img alt="Studio light actual capture" style="width:100%" src="${lightImage}"></main>`)); await evidenceShot('22-studio-dark-light-comparison.png');
   } finally { await browser.close(); }
-  assert(shots.length === 21, `expected 21 final visual evidence screenshots, received ${shots.length}`);
+  assert(shots.length === 27, `expected 27 final visual evidence screenshots, received ${shots.length}`);
   return shots;
 }
 

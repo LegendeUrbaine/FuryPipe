@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   FURY_GATEWAY_WEBCHAT_CONFIG_PATH,
+  FURY_GATEWAY_WEBCHAT_FAVICON_PATH,
   FURY_GATEWAY_WEBCHAT_PATH,
   FURY_GATEWAY_WEBCHAT_SCRIPT_PATH,
   FURY_GATEWAY_WEBCHAT_STYLE_PATH,
@@ -95,9 +96,22 @@ describe('Fury Gateway local WebChat HTTP surface', () => {
     expect(html).toContain('Hard purge');
     expect(html).toContain(`src="${FURY_GATEWAY_WEBCHAT_SCRIPT_PATH}"`);
     expect(html).toContain(`href="${FURY_GATEWAY_WEBCHAT_STYLE_PATH}"`);
+    expect(html).toContain(`href="${FURY_GATEWAY_WEBCHAT_FAVICON_PATH}"`);
     expect(html).not.toMatch(/<script(?![^>]*\bsrc=)/u);
     expect(html).not.toContain('http://');
     expect(html).not.toContain('https://');
+  });
+
+  it('serves the FORGE favicon as a same-origin vector asset', async () => {
+    const { origin } = await startWebChatServer();
+    const response = await fetch(origin + FURY_GATEWAY_WEBCHAT_FAVICON_PATH);
+    const svg = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/svg+xml; charset=utf-8');
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('#FF6A00');
+    expect(svg).not.toContain('data:image');
   });
 
   it('serves bounded same-origin JavaScript and CSS without third-party dependencies', async () => {

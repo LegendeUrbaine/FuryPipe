@@ -274,9 +274,15 @@ The loopback Control Plane V2 exposes only bounded, read-only runtime and source
 
 The visual engine uses provider-priced geometry planning and lossless rendering safeguards; transformations remain gated by profitability and fidelity checks rather than being applied blindly. See [Visual Engine](docs/VISUAL_ENGINE.md) for the pipeline and release invariants.
 
-The FuryPipe Studio shell uses the official black, graphite, orange and white
-identity. See [FuryPipe brand guidelines](docs/brand/FURYPIPE_BRAND_GUIDELINES.md)
-for the centralized UI mark, usage rules and asset-source boundary.
+The current FuryPipe Studio shell uses the official **FORGE 03** identity:
+Deep Black, Graphite, Fury Orange, Off White and Cool Gray. The signature
+remains **BUILD · AUTOMATE · CREATE · BEYOND.** The source status is
+`OWNER_APPROVED_REFERENCE_RECONSTRUCTED`: the board is a raster reference and
+the production mark is an editable SVG path reconstruction. IBM Plex Sans and
+IBM Plex Mono are vendored locally under `assets/fonts/` under OFL-1.1; no
+runtime CDN is used. See [FuryPipe brand guidelines](docs/brand/FURYPIPE_BRAND_GUIDELINES.md)
+and the [brand inventory](docs/brand/FURYPIPE_BRAND_INVENTORY.md) for palette,
+lockup rules, provenance and active-versus-historical FLUX classification.
 ## CLI
 
 Common entry points:

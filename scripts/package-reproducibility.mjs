@@ -11,8 +11,9 @@
 // furypipe@<version>` after an authorized publish), so the published content
 // can be compared with the RC contentDigest.
 //
-// The pack fails closed if any packed file is not mode 644 or contains a CR byte: the canonical
-// package is LF-only, and a CR means a line-ending conversion leaked in.
+// The pack fails closed if any packed file is not mode 644 or any packed text
+// file contains a CR byte: the canonical text package is LF-only, while binary
+// assets (PNG, WOFF2, ICO, ...) naturally contain arbitrary byte values.
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -26,6 +27,38 @@ const execFileAsync = promisify(execFile);
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
+}
+
+const BINARY_FILE_EXTENSIONS = new Set([
+  '.7z',
+  '.avif',
+  '.bin',
+  '.bmp',
+  '.class',
+  '.eot',
+  '.gif',
+  '.gz',
+  '.ico',
+  '.jpeg',
+  '.jpg',
+  '.mp3',
+  '.mp4',
+  '.otf',
+  '.pdf',
+  '.png',
+  '.tar',
+  '.tgz',
+  '.ttf',
+  '.wasm',
+  '.webp',
+  '.woff',
+  '.woff2',
+  '.zip',
+]);
+
+function isTextEntry(entryPath) {
+  const extension = path.extname(entryPath).toLowerCase();
+  return !BINARY_FILE_EXTENSIONS.has(extension);
 }
 
 function npmInvocation(args) {
@@ -124,7 +157,9 @@ async function main() {
     if (entries.length !== packed.entryCount) {
       throw new Error(`tar entry count ${entries.length} does not match npm entryCount ${packed.entryCount}`);
     }
-    const withCarriageReturn = entries.filter((entry) => entry.bytes.includes(0x0d)).map((entry) => entry.path);
+    const withCarriageReturn = entries
+      .filter((entry) => isTextEntry(entry.path) && entry.bytes.includes(0x0d))
+      .map((entry) => entry.path);
     if (withCarriageReturn.length > 0) {
       throw new Error(`packed files contain CR bytes (line-ending conversion leaked into the package): ${withCarriageReturn.slice(0, 20).join(', ')}${withCarriageReturn.length > 20 ? ` (+${withCarriageReturn.length - 20} more)` : ''}`);
     }

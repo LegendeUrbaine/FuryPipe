@@ -10,7 +10,7 @@ This document records provenance. It is **not** the current product status page;
 - audited upstream branch: `main`
 - audited upstream commit: `8ba82b713a1e823bc1c09b7a68e47f63caa7b426`
 - original local fetch/audit date: **2026-09-11**
-- FuryPipe repository: `https://github.com/Mistermode45/FuryPipe.git`
+- FuryPipe repository: `https://github.com/LegendeUrbaine/FuryPipe.git`
 
 The audited upstream commit is preserved as a provenance reference. FuryPipe does not claim that later FuryPipe behavior, architecture or release evidence is provided by that upstream snapshot.
 

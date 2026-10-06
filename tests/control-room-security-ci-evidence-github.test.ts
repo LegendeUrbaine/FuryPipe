@@ -21,7 +21,7 @@ describe('GitHub Actions Security CI evidence adapter', () => {
   it('uses the fixed GitHub API origin, exact head_sha, pinned API version and no redirects', async () => {
     const calls: Array<{ url: string; init: RequestInit | undefined }> = [];
     const client = createGitHubActionsEvidenceClient({
-      repository: 'Mistermode45/FuryPipe',
+      repository: 'LegendeUrbaine/FuryPipe',
       token: TOKEN,
       fetchImpl: async (url: string | URL | Request, init?: RequestInit) => {
         calls.push({ url: String(url), init });
@@ -44,7 +44,7 @@ describe('GitHub Actions Security CI evidence adapter', () => {
     const runs = await client.listWorkflowRunsForCommit(SHA);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toBe(
-      `${GITHUB_ACTIONS_EVIDENCE_API_ORIGIN}/repos/Mistermode45/FuryPipe/actions/runs?head_sha=${SHA}&per_page=100&page=1`,
+      `${GITHUB_ACTIONS_EVIDENCE_API_ORIGIN}/repos/LegendeUrbaine/FuryPipe/actions/runs?head_sha=${SHA}&per_page=100&page=1`,
     );
     expect(calls[0]?.init?.redirect).toBe('error');
     const headers = calls[0]?.init?.headers as Record<string, string>;
@@ -74,7 +74,7 @@ describe('GitHub Actions Security CI evidence adapter', () => {
       created_at: '2026-09-13T20:00:00Z',
     }));
     const client = createGitHubActionsEvidenceClient({
-      repository: 'Mistermode45/FuryPipe',
+      repository: 'LegendeUrbaine/FuryPipe',
       token: TOKEN,
       fetchImpl: async () => {
         calls += 1;
@@ -98,7 +98,7 @@ describe('GitHub Actions Security CI evidence adapter', () => {
 
     let failedCalls = 0;
     const failingClient = createGitHubActionsEvidenceClient({
-      repository: 'Mistermode45/FuryPipe',
+      repository: 'LegendeUrbaine/FuryPipe',
       token: TOKEN,
       fetchImpl: async () => {
         failedCalls += 1;
@@ -113,7 +113,7 @@ describe('GitHub Actions Security CI evidence adapter', () => {
   it('collects latest-attempt jobs for the exact selected workflow run only', async () => {
     const urls: string[] = [];
     const client = createGitHubActionsEvidenceClient({
-      repository: 'Mistermode45/FuryPipe',
+      repository: 'LegendeUrbaine/FuryPipe',
       token: TOKEN,
       fetchImpl: async (url: string | URL | Request) => {
         urls.push(String(url));
@@ -165,7 +165,7 @@ describe('GitHub Actions Security CI evidence adapter', () => {
     'sanitizes GitHub HTTP %i bodies and never propagates Authorization data',
     async (status) => {
       const client = createGitHubActionsEvidenceClient({
-        repository: 'Mistermode45/FuryPipe',
+        repository: 'LegendeUrbaine/FuryPipe',
         token: TOKEN,
         fetchImpl: async () => jsonResponse({
           message: `Authorization: Bearer ${TOKEN}`,
@@ -191,7 +191,7 @@ describe('GitHub Actions Security CI evidence adapter', () => {
   it('enforces a bounded response body before JSON parsing', async () => {
     const oversized = 'x'.repeat(GITHUB_ACTIONS_EVIDENCE_MAX_RESPONSE_BYTES + 1);
     const client = createGitHubActionsEvidenceClient({
-      repository: 'Mistermode45/FuryPipe',
+      repository: 'LegendeUrbaine/FuryPipe',
       token: TOKEN,
       fetchImpl: async () => new Response(oversized, { status: 200 }),
     });
@@ -203,7 +203,7 @@ describe('GitHub Actions Security CI evidence adapter', () => {
   it('times out a single request without retrying', async () => {
     let calls = 0;
     const client = createGitHubActionsEvidenceClient({
-      repository: 'Mistermode45/FuryPipe',
+      repository: 'LegendeUrbaine/FuryPipe',
       token: TOKEN,
       requestTimeoutMs: 5,
       fetchImpl: async (_url: string | URL | Request, init?: RequestInit) => {
@@ -230,7 +230,7 @@ describe('GitHub Actions Security CI evidence adapter', () => {
     })).toThrow(/repository identity/i);
 
     const client = createGitHubActionsEvidenceClient({
-      repository: 'Mistermode45/FuryPipe',
+      repository: 'LegendeUrbaine/FuryPipe',
       token: TOKEN,
       fetchImpl: async () => jsonResponse({ total_count: 0, workflow_runs: [] }),
     });

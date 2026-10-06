@@ -78,7 +78,7 @@ describe('SPDX SBOM generator', () => {
       relationships: Array<{ spdxElementId: string; relatedSpdxElement: string; relationshipType: string }>;
     };
     expect(document.spdxVersion).toBe('SPDX-2.3');
-    expect(document.documentNamespace).toBe(`https://github.com/Mistermode45/FuryPipe/sbom/${sourceCommit}`);
+    expect(document.documentNamespace).toBe(`https://github.com/LegendeUrbaine/FuryPipe/sbom/${sourceCommit}`);
     expect(document.packages.map((pkg) => [pkg.name, pkg.versionInfo])).toEqual(expect.arrayContaining([
       ['furypipe', '0.13.2'],
       ['json5', '2.2.3'],

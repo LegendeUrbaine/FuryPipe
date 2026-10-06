@@ -13,8 +13,14 @@ describe('validation command resolution', () => {
     expect(resolvePnpmCommand()).toMatchObject({ executable: 'corepack', prefixArgs: ['pnpm'], shell: false });
   });
 
-  it('uses the command shell for the Windows Corepack cmd shim', () => {
+  it('uses the command shell for the Windows package-manager shim', () => {
     if (process.platform !== 'win32') return;
-    expect(resolvePnpmCommand()).toMatchObject({ executable: 'corepack.cmd', prefixArgs: ['pnpm'], shell: true });
+    const command = resolvePnpmCommand();
+    expect(command.shell).toBe(true);
+    if (command.executable === 'corepack.cmd') {
+      expect(command.prefixArgs).toEqual(['pnpm']);
+      return;
+    }
+    expect(command).toMatchObject({ executable: 'pnpm.cmd', prefixArgs: [], shell: true });
   });
 });

@@ -11,6 +11,7 @@ import {
   createFurySupplyChainEvidence,
   type FuryResolvedPackageInput,
 } from '../src/fury-supply-chain.js';
+import { resolvePnpmCommand } from './validation-command.mjs';
 
 const execFileAsync = promisify(execFile);
 const ROOT = process.cwd();
@@ -26,12 +27,21 @@ function sha256(value: Uint8Array | string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function pnpmInvocation(args: readonly string[]): { file: string; args: readonly string[] } {
+function pnpmInvocation(args: readonly string[]): {
+  readonly file: string;
+  readonly args: readonly string[];
+  readonly shell: boolean;
+} {
   const execPath = process.env.npm_execpath?.trim();
   if (execPath && /pnpm(?:\.c?js)?$/iu.test(execPath)) {
-    return { file: process.execPath, args: [execPath, ...args] };
+    return { file: process.execPath, args: [execPath, ...args], shell: false };
   }
-  return { file: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', args };
+  const command = resolvePnpmCommand();
+  return {
+    file: command.executable,
+    args: [...command.prefixArgs, ...args],
+    shell: command.shell,
+  };
 }
 
 async function runPnpm(args: readonly string[]): Promise<string> {
@@ -42,7 +52,7 @@ async function runPnpm(args: readonly string[]): Promise<string> {
     maxBuffer: MAX_OUTPUT_BYTES,
     timeout: 120_000,
     windowsHide: true,
-    shell: false,
+    shell: command.shell,
     env: {
       ...process.env,
       NO_COLOR: '1',

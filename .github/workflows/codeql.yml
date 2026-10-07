@@ -30,7 +30,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@1cf8f518e1ad217271451b975391e639ea196e55
+        uses: github/codeql-action/init@e0b52dbdc5c3376dd8cb78e956fd23fa07ca2c5b
         with:
           languages: javascript-typescript
           build-mode: none

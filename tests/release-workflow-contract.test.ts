@@ -25,9 +25,21 @@ describe('Release workflow contract', () => {
 
     expect(installStart).toBeGreaterThanOrEqual(0);
     expect(installEnd).toBeGreaterThan(installStart);
-    expect(installStep).toContain('sudo apt-get install -y ffmpeg');
+    expect(installStep).toMatch(/sudo apt-get install\s+-y\s+--no-install-recommends\s+ffmpeg/u);
     expect(installStep).toContain('ffmpeg -version');
     expect(publishCommand).toBeGreaterThan(installEnd);
+  });
+
+  it('keeps Ubuntu CI FFmpeg installation lean without changing video test coverage', () => {
+    const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+    const installStepStart = ciWorkflow.indexOf('      - name: Install FFmpeg (Ubuntu)');
+    const installStepEnd = ciWorkflow.indexOf('\n      - ', installStepStart + 1);
+    const installStep = ciWorkflow.slice(installStepStart, installStepEnd);
+
+    expect(installStepStart).toBeGreaterThanOrEqual(0);
+    expect(installStepEnd).toBeGreaterThan(installStepStart);
+    expect(installStep).toMatch(/sudo apt-get install\s+-y\s+--no-install-recommends\s+ffmpeg/u);
+    expect(installStep).not.toContain('|| true');
   });
 
   it('uses versioned curated notes for the matching GitHub Release', () => {

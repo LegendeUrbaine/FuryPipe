@@ -30,6 +30,11 @@ const CONCEPTS = [['token', 'expiry', 'expire', 'refresh', 'session', 'credentia
 const embed: FuryEmbedder = async (texts) => texts.map((t) => CONCEPTS.map((words) => words.filter((w) => t.toLowerCase().includes(w)).length + 0.01));
 
 describe('FuryKnowledge chunking and terms', () => {
+  it('decodes HTML entities once when indexing HTML text', () => {
+    const chunks = chunkFuryDocument('docs/page.html', '<main>&amp;lt;script&amp;gt;literal&amp;lt;/script&amp;gt;</main>');
+    expect(chunks.map((chunk) => chunk.text)).toEqual(['&lt;script&gt;literal&lt;/script&gt;']);
+  });
+
   it('chunks Markdown by heading with 1-based line citations and splits identifiers', () => {
     const chunks = chunkFuryDocument('docs/auth.md', '# A\n\ntext\n\n## B\n\nmore\n');
     expect(chunks.map((c) => [c.heading, c.startLine, c.endLine])).toEqual([['A', 1, 3], ['B', 5, 7]]);

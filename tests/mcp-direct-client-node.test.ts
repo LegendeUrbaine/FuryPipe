@@ -308,6 +308,11 @@ describe('direct MCP client inventory transport', () => {
         endpointFingerprint: deriveMcpDirectEndpointFingerprint(oauthConfig),
       },
     };
+    const rotatedAuthConfig: McpDirectRuntimeConfig = {
+      ...oauthConfig,
+      authProvider: { token: async () => 'MCP_OAUTH_ROTATED_SECRET_CANARY' } as never,
+    };
+    expect(deriveMcpDirectEndpointFingerprint(rotatedAuthConfig)).toBe(bound.source.endpointFingerprint);
 
     const result = await probeMcpDirectInventoryInternal(bound, {
       clientInfo: { name: 'furypipe-test', version: '1.0.0' },

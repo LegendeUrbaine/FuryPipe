@@ -71,7 +71,7 @@ export function furyKnowledgeTerms(text: string): string[] {
 }
 
 function stripHtml(text: string): string {
-  return text.replace(/<(script|style)[\s\S]*?<\/\1>/giu, ' ').replace(/<[^>]+>/gu, ' ').replace(/&nbsp;/gu, ' ').replace(/&amp;/gu, '&').replace(/&lt;/gu, '<').replace(/&gt;/gu, '>');
+  return text.replace(/<(script|style)[\s\S]*?<\/\1>/giu, ' ').replace(/<[^>]+>/gu, ' ').replace(/&nbsp;/gu, ' ').replace(/&lt;/gu, '<').replace(/&gt;/gu, '>').replace(/&amp;/gu, '&');
 }
 
 /** Split a file into citeable chunks (1-based inclusive line ranges). */

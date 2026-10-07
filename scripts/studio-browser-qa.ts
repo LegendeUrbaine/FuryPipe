@@ -659,7 +659,17 @@ async function captureScreens(type: BrowserType, servers: Record<'normal' | 'emp
     await page.locator('#run-form button[type=submit]').click(); await page.waitForFunction(() => Boolean(document.querySelector('#run-status')?.getAttribute('data-run-id'))); const runId = await page.locator('#run-status').getAttribute('data-run-id'); assert(runId, 'visual evidence runId was not bound');
     await page.locator(`#runs .card[data-run-id="${runId}"]`).waitFor(); await page.waitForFunction((id) => new RegExp(id + ' — running', 'u').test(document.querySelector(`#runs .card[data-run-id="${id}"] h2`)?.textContent ?? ''), runId); await shot('13b-mission-running-bound.png');
     await page.waitForFunction((id) => !/running/u.test(document.querySelector(`#runs .card[data-run-id="${id}"] h2`)?.textContent ?? ''), runId); await shot('13c-mission-terminal-bound.png');
-    const openTrace = async () => { const button = page.locator(`#runs .card[data-run-id="${runId}"] button[aria-label="Inspect Fury Trace for ${runId}"]`); await button.waitFor({ state: 'attached' }); await button.scrollIntoViewIfNeeded(); await button.click(); };
+    const openTrace = async () => {
+      const selector = `#runs .card[data-run-id="${runId}"] button[aria-label="Inspect Fury Trace for ${runId}"]`;
+      await page.locator(selector).waitFor({ state: 'visible' });
+      // Mission Control refreshes run cards every two seconds. Dispatch the button's
+      // native click synchronously so scrolling cannot race a card replacement.
+      await page.evaluate((buttonSelector) => {
+        const button = document.querySelector(buttonSelector);
+        if (!(button instanceof HTMLButtonElement)) throw new Error('verified Fury Trace action disappeared before click');
+        button.click();
+      }, selector);
+    };
     const showTrace = async () => { await page.evaluate(() => document.querySelector('#run-trace-panel')?.scrollIntoView({ block: 'start' })); };
     await openTrace(); await page.locator('#run-trace-status').filter({ hasText: 'Trace READY' }).waitFor(); await showTrace(); await shot('14-trace-ready-complete.png');
     await page.locator('.trace-node[data-kind="worker"]').first().click(); await page.locator('.trace-inspector .trace-fields').waitFor(); await showTrace(); await shot('14b-trace-worker-inspector.png');

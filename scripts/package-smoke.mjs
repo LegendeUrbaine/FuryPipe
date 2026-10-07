@@ -84,6 +84,8 @@ try {
   const formerPortForChecks = ['478', '21'].join('');
   assert(!packedFiles.has(`docs/${legacyEnvForChecks}GAP_ANALYSIS.md`), 'historical gap analysis leaked into the public package');
   assert(packedFiles.has('docs/CLI.md'), 'FuryPipe CLI documentation is missing from the public package');
+  assert(packedFiles.has('docs/FURYPIPE_VNEXT_PHASE10_BETA_2026.md'), 'Phase 10 beta architecture documentation is missing from the public package');
+  assert(packedFiles.has('docs/FURYPIPE_VNEXT_PHASE10_OPERATOR.md'), 'Phase 10 beta operator runbook is missing from the public package');
   assert(packedFiles.has('docs/VISUAL_ENGINE.md'), 'Visual Engine documentation is missing from the public package');
   assert(packedFiles.has('docs/MODEL_ADAPTERS.md'), 'Model Adapter documentation is missing from the public package');
   assert(packedFiles.has('docs/CAPABILITY_CATALOG.md'), 'Capability Catalog documentation is missing from the public package');
@@ -223,10 +225,73 @@ try {
   const doctorEnv = { ...process.env };
   delete doctorEnv.FURYPIPE_PORT;
   delete doctorEnv.FURYPIPE_HOST;
+  doctorEnv.FURYPIPE_CONFIG = setupConfig;
   const doctor = await run(process.execPath, [cli, 'doctor', '--json'], installDir, doctorEnv);
   const report = JSON.parse(doctor.stdout);
   assert(report.runtime?.node, 'doctor smoke returned no Node runtime');
   assert(report.network?.port === 48721, `doctor reported unexpected default FuryPipe port: ${report.network?.port}`);
+  assert(report.betaConfig?.status, 'doctor smoke returned no beta config observation');
+  assert(report.betaReadiness?.taskReady === true, 'doctor smoke did not report task-ready local startup');
+  assert(report.betaReadiness?.authority === 'readiness-observation-only', 'doctor smoke exposed beta authority');
+
+  const betaConfigEnv = { ...doctorEnv, FURYPIPE_CONFIG: setupConfig };
+  const betaStatus = await run(process.execPath, [cli, 'beta', 'status', '--json'], installDir, betaConfigEnv);
+  const betaStatusReport = JSON.parse(betaStatus.stdout);
+  assert(betaStatusReport.entry?.entryPath === 'legacy-expert', 'legacy setup did not retain the legacy/expert beta entry');
+  assert(betaStatusReport.entry?.executionAuthority === false, 'beta status exposed execution authority');
+  const betaOptIn = await run(process.execPath, [cli, 'beta', 'opt-in', '--json'], installDir, betaConfigEnv);
+  const betaOptInReport = JSON.parse(betaOptIn.stdout);
+  assert(betaOptInReport.result?.mode === 'recommended', 'beta opt-in did not write the recommended mode');
+  const planned = await run(
+    process.execPath,
+    [cli, 'task', '--plan', 'inspect installed package', '--json'],
+    installDir,
+    betaConfigEnv,
+  );
+  const plannedReport = JSON.parse(planned.stdout);
+  assert(plannedReport.selection === 'not-run', 'task plan performed capability selection');
+  assert(plannedReport.execution === 'not-authorized', 'task plan exposed execution authority');
+  assert(!Object.prototype.hasOwnProperty.call(plannedReport, 'objective'), 'task plan leaked the objective text');
+  let missingPlanError;
+  try {
+    await run(process.execPath, [cli, 'task', 'without-explicit-plan'], installDir, betaConfigEnv);
+  } catch (error) {
+    missingPlanError = error;
+  }
+  assert(missingPlanError, 'task command accepted an implicit execution/planning mode');
+  assert(String(missingPlanError.stderr ?? '').includes('explicit --plan'), 'task command did not explain the required planning boundary');
+  const betaOptOut = await run(process.execPath, [cli, 'beta', 'opt-out', '--json'], installDir, betaConfigEnv);
+  const betaOptOutReport = JSON.parse(betaOptOut.stdout);
+  assert(betaOptOutReport.result?.mode === 'opted-out', 'beta opt-out did not persist the opt-out mode');
+  const betaLegacy = await run(process.execPath, [cli, 'beta', 'legacy', '--json'], installDir, betaConfigEnv);
+  assert(JSON.parse(betaLegacy.stdout).observation?.mode === 'legacy', 'beta legacy path did not restore the reversible legacy mode');
+  const betaLegacyRollback = await run(
+    process.execPath,
+    [cli, 'config', 'rollback-beta', '--json'],
+    installDir,
+    betaConfigEnv,
+  );
+  assert(JSON.parse(betaLegacyRollback.stdout).result?.status === 'rolled-back', 'beta experience rollback did not remove only the owned marker');
+  const migratedBeta = await run(
+    process.execPath,
+    [cli, 'config', 'migrate-beta', '--json'],
+    installDir,
+    betaConfigEnv,
+  );
+  const migratedBetaReport = JSON.parse(migratedBeta.stdout);
+  assert(migratedBetaReport.result?.status === 'migrated', 'beta config migration did not report migrated');
+  assert(migratedBetaReport.observation?.status === 'current', 'beta config migration did not produce current marker');
+  const rolledBackBeta = await run(
+    process.execPath,
+    [cli, 'config', 'rollback-beta', '--json'],
+    installDir,
+    betaConfigEnv,
+  );
+  const rolledBackBetaReport = JSON.parse(rolledBackBeta.stdout);
+  assert(rolledBackBetaReport.result?.status === 'rolled-back', 'beta config rollback did not report rolled-back');
+  assert(rolledBackBetaReport.observation?.status === 'legacy', 'beta config rollback did not restore legacy state');
+  const rolledBackConfig = JSON.parse(await readFile(setupConfig, 'utf8'));
+  assert(rolledBackConfig.locale === 'fr' && rolledBackConfig.setup?.completed === true, 'beta rollback changed setup-owned state');
   const httpExport = await run(process.execPath, [
     '--input-type=module',
     '-e',
@@ -356,6 +421,34 @@ try {
   ], installDir);
   assert(gatewayLocalToolRuntimeExport.stderr === '', `Gateway local tool runtime export wrote stderr: ${gatewayLocalToolRuntimeExport.stderr}`);
 
+  const furyCodeAdvancedExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-code-advanced-node'); if (typeof m.createFuryCodeAdvanced !== 'function' || m.FURY_CODE_EDIT_PLAN_FORMAT !== 'furypipe-code-edit-plan/v1' || m.FURY_CODE_SCRIPT_PLAN_FORMAT !== 'furypipe-code-script-plan/v1') process.exit(1);",
+  ], installDir);
+  assert(furyCodeAdvancedExport.stderr === '', `FuryCode Advanced package export wrote stderr: ${furyCodeAdvancedExport.stderr}`);
+
+  const browserPlaywrightHostExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/browser-playwright-host-node'); if (typeof m.createPlaywrightBrowserHost !== 'function' || typeof m.createPinnedBrowserNetworkTransport !== 'function' || m.FURY_PLAYWRIGHT_BROWSER_HOST_FORMAT !== 'furypipe-playwright-browser-host/v1') process.exit(1);",
+  ], installDir);
+  assert(browserPlaywrightHostExport.stderr === '', `Playwright browser host package export wrote stderr: ${browserPlaywrightHostExport.stderr}`);
+
+  const furyVideoTimelineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-video-timeline'); if (typeof m.createFuryVideoTimelinePreview !== 'function' || m.FURY_VIDEO_TIMELINE_FORMAT !== 'furypipe-furyvideo-timeline/v1') process.exit(1);",
+  ], installDir);
+  assert(furyVideoTimelineExport.stderr === '', `FuryVideo timeline package export wrote stderr: ${furyVideoTimelineExport.stderr}`);
+
+  const furyObservabilityExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-observability'); if (typeof m.createFuryObservabilityRegistry !== 'function' || m.FURY_OBSERVABILITY_SNAPSHOT_FORMAT !== 'furypipe-observability-snapshot/v1') process.exit(1);",
+  ], installDir);
+  assert(furyObservabilityExport.stderr === '', `FuryObservability package export wrote stderr: ${furyObservabilityExport.stderr}`);
+
   const capabilityIndexExport = await run(process.execPath, [
     '--input-type=module',
     '-e',
@@ -369,6 +462,13 @@ try {
     "const m = await import('furypipe/capability-autopilot'); if (typeof m.selectFuryCapabilitiesForTask !== 'function' || m.FURY_CAPABILITY_SELECTION_FORMAT !== 'furypipe-capability-selection/v1') process.exit(1);",
   ], installDir);
   assert(capabilityAutopilotExport.stderr === '', `Capability Autopilot export wrote stderr: ${capabilityAutopilotExport.stderr}`);
+
+  const capabilityRouterAutopilotExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/capability-router-autopilot'); if (typeof m.createFuryCapabilityRouterAutopilot !== 'function' || m.FURY_CAPABILITY_ROUTER_AUTOPILOT_DOMAIN !== 'capability-index-autopilot') process.exit(1);",
+  ], installDir);
+  assert(capabilityRouterAutopilotExport.stderr === '', `Capability Router Autopilot export wrote stderr: ${capabilityRouterAutopilotExport.stderr}`);
 
   const capabilityAdaptersExport = await run(process.execPath, [
     '--input-type=module',
@@ -598,6 +698,42 @@ try {
     "const m = await import('furypipe/long-term-memory'); if (typeof m.createLongTermMemoryStore !== 'function' || typeof m.promoteValidatedLessonToLongTermMemory !== 'function') process.exit(1);",
   ], installDir);
   assert(longTermMemoryExport.stderr === '', `Long-term memory package export wrote stderr: ${longTermMemoryExport.stderr}`);
+  const memoryTimeMachineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-memory-time-machine'); if (typeof m.createFuryMemoryTimeMachine !== 'function' || m.FURY_MEMORY_SNAPSHOT_FORMAT !== 'furypipe-memory-snapshot/v1') process.exit(1);",
+  ], installDir);
+  assert(memoryTimeMachineExport.stderr === '', `Memory Time Machine package export wrote stderr: ${memoryTimeMachineExport.stderr}`);
+  const marketplaceExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-marketplace'); if (typeof m.createFuryMarketplaceCatalog !== 'function' || typeof m.verifyFuryMarketplaceSource !== 'function' || m.FURY_MARKETPLACE_CATALOG_FORMAT !== 'furypipe-marketplace-catalog/v1') process.exit(1);",
+  ], installDir);
+  assert(marketplaceExport.stderr === '', `Marketplace package export wrote stderr: ${marketplaceExport.stderr}`);
+  const providerSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-provider-sdk'); if (typeof m.defineFuryProviderAdapter !== 'function' || typeof m.compileFuryProviderSdkManifest !== 'function' || m.FURY_PROVIDER_SDK_MANIFEST_FORMAT !== 'furypipe-provider-sdk-manifest/v1') process.exit(1);",
+  ], installDir);
+  assert(providerSdkExport.stderr === '', `Provider SDK package export wrote stderr: ${providerSdkExport.stderr}`);
+  const agentSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-agent-sdk'); if (typeof m.defineFuryAgentContract !== 'function' || typeof m.compileFuryAgentSdkManifest !== 'function' || m.FURY_AGENT_SDK_MANIFEST_FORMAT !== 'furypipe-agent-sdk-manifest/v1') process.exit(1);",
+  ], installDir);
+  assert(agentSdkExport.stderr === '', `Agent SDK package export wrote stderr: ${agentSdkExport.stderr}`);
+  const workflowSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-workflow-sdk'); if (typeof m.compileFuryWorkflowAutomationPlan !== 'function' || m.FURY_WORKFLOW_AUTOMATION_PLAN_FORMAT !== 'furypipe-workflow-automation-plan/v1') process.exit(1);",
+  ], installDir);
+  assert(workflowSdkExport.stderr === '', `Workflow SDK package export wrote stderr: ${workflowSdkExport.stderr}`);
+  const headlessExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-headless'); if (typeof m.executeFuryHeadless !== 'function' || m.FURY_HEADLESS_REQUEST_FORMAT !== 'furypipe-headless-request/v1' || m.FURY_HEADLESS_RESPONSE_FORMAT !== 'furypipe-headless-response/v1') process.exit(1);",
+  ], installDir);
+  assert(headlessExport.stderr === '', `Headless package export wrote stderr: ${headlessExport.stderr}`);
   const controlRoomEvidenceExport = await run(process.execPath, [
     '--input-type=module',
     '-e',
@@ -652,6 +788,24 @@ try {
     "const m = await import('furypipe/provider-stream-transports'); if (typeof m.createOpenAIProviderStreamTransport !== 'function' || typeof m.createAnthropicProviderStreamTransport !== 'function' || typeof m.createGoogleProviderStreamTransport !== 'function') process.exit(1);",
   ], installDir);
   assert(providerStreamTransportsExport.stderr === '', `Provider stream transports package export wrote stderr: ${providerStreamTransportsExport.stderr}`);
+  const furyEvalHistoryExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-eval-history'); if (typeof m.createFuryEvalHistoryRepository !== 'function' || m.FURY_EVAL_HISTORY_RECORD_FORMAT !== 'furypipe-eval-history-record/v1') process.exit(1);",
+  ], installDir);
+  assert(furyEvalHistoryExport.stderr === '', `FuryEval history package export wrote stderr: ${furyEvalHistoryExport.stderr}`);
+  const externalEffectLedgerExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-external-effect-ledger'); if (typeof m.createFuryExternalEffectLedger !== 'function' || m.FURY_EXTERNAL_EFFECT_LEDGER_FORMAT !== 'furypipe-external-effect-ledger/v1') process.exit(1);",
+  ], installDir);
+  assert(externalEffectLedgerExport.stderr === '', `External effect ledger package export wrote stderr: ${externalEffectLedgerExport.stderr}`);
+  const mediaGenerationJobEngineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/media-generation-job-engine'); if (typeof m.createFuryMediaGenerationJobEngine !== 'function' || m.FURY_MEDIA_GENERATION_JOB_FORMAT !== 'furypipe-media-generation-job/v1') process.exit(1);",
+  ], installDir);
+  assert(mediaGenerationJobEngineExport.stderr === '', `Media generation job engine package export wrote stderr: ${mediaGenerationJobEngineExport.stderr}`);
   const omniRouteExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

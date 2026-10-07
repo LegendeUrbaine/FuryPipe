@@ -5,10 +5,13 @@ import { HTMX_JS, ALPINE_JS } from './vendor.js';
 import { CACHE_CREATE_RATE, CACHE_READ_RATE } from '../core/baseline.js';
 import type { ControlRoomSnapshot } from '../control-room/index.js';
 import type { ControlPlaneDomainId, ControlPlaneSnapshot } from '../control-plane.js';
+import type { FuryBetaControlPlaneSnapshot } from '../beta-control-plane.js';
 import type { ModelFabricEntry } from '../core/model-fabric.js';
 import type { FuryPipeModelScopeMode, FuryPipeVisualPolicy } from '../core/applicability.js';
 import { createI18n } from '../i18n/index.js';
 import { CORE_CATALOGS } from '../i18n/catalogs.js';
+import { FURYPIPE_FAVICON_SVG, renderFuryPipeMonogramSvg, renderFuryPipeWordmarkHtml } from '../studio/studio-brand.js';
+import { IBM_PLEX_FONT_FACE_CSS } from '../studio/ibm-plex-fonts.js';
 import type {
   StatsPayload,
   RecentPayload,
@@ -219,7 +222,7 @@ export function renderModelsFragment(
     (scopeChips || `<span class="hint">${escapeHtml(t('dashboard.models.unlisted'))}</span>`) +
     `</div>` +
     `<div class="models">` +
-    `<span class="models-label">FURYPIPE_MODELS</span>` +
+    `<label class="models-label" for="models-csv">FURYPIPE_MODELS</label>` +
     `<input class="models-csv" id="models-csv" type="text" name="list" ` +
     `value="${escapeHtml(active.join(','))}" spellcheck="false" autocomplete="off" ` +
     `hx-post="/fragments/models" hx-target="#frag-models" hx-trigger="change">` +
@@ -292,7 +295,7 @@ function mathRow(key: string, val: number | string | undefined, note = ''): stri
 }
 
 function mathBlock(title: string, body: string): string {
-  return `<section class="math-block"><h4>${title}</h4><div class="formula">${body}</div></section>`;
+  return `<section class="math-block"><h3>${title}</h3><div class="formula">${body}</div></section>`;
 }
 
 /** Stat tile; `tip` adds a hover "?" explainer. */
@@ -1082,6 +1085,103 @@ export function renderControlPlaneFragment(
     : surfaces[surface];
 }
 
+// ---- Beta task-first projection -------------------------------------------
+
+/**
+ * Render the beta entry/readiness projection without exposing a mutation
+ * control. The same snapshot is served by /api/beta.json; the browser is only
+ * an observer and cannot turn any row into a permit or installation request.
+ */
+export function renderBetaControlPlaneFragment(
+  snapshot: FuryBetaControlPlaneSnapshot | null,
+  locale = 'en',
+): string {
+  const fr = resolveDashboardLocale(locale).canonical.startsWith('fr');
+  const copy = fr
+    ? {
+        title: 'Beta task-first',
+        subtitle: 'entrée recommandée · projection en lecture seule',
+        unavailable: 'Projection beta indisponible : aucune preuve runtime injectée.',
+        entry: 'Entrée effective',
+        mode: 'Mode',
+        config: 'Configuration',
+        reversible: 'Réversible',
+        authority: 'Autorité',
+        observation: 'observation uniquement',
+        taskFirst: 'task-first',
+        legacy: 'legacy / expert',
+        readiness: 'Readiness',
+        onboarding: 'Onboarding des capacités',
+        configured: 'configuré',
+        available: 'disponible',
+        authenticated: 'authentifié',
+        authorized: 'autorisé',
+        selected: 'sélectionné',
+        executed: 'exécuté',
+        domain: 'Domaine',
+        evidence: 'Preuve',
+        operations: 'Opérations',
+        notObserved: 'non observé',
+        noGrant: 'aucun grant / aucune installation automatique',
+      }
+    : {
+        title: 'Beta task-first',
+        subtitle: 'recommended entry · read-only projection',
+        unavailable: 'Beta projection unavailable: no runtime evidence provider is connected.',
+        entry: 'Effective entry',
+        mode: 'Mode',
+        config: 'Configuration',
+        reversible: 'Reversible',
+        authority: 'Authority',
+        observation: 'observation only',
+        taskFirst: 'task-first',
+        legacy: 'legacy / expert',
+        readiness: 'Readiness',
+        onboarding: 'Capability onboarding',
+        configured: 'configured',
+        available: 'available',
+        authenticated: 'authenticated',
+        authorized: 'authorized',
+        selected: 'selected',
+        executed: 'executed',
+        domain: 'Domain',
+        evidence: 'Evidence',
+        operations: 'Operations',
+        notObserved: 'not observed',
+        noGrant: 'no automatic grant / installation',
+      };
+  if (!snapshot) return `<div class="status">${escapeHtml(copy.unavailable)}</div>`;
+  const entryLabel = snapshot.entry.entryPath === 'task-first' ? copy.taskFirst : copy.legacy;
+  const readinessRows = snapshot.readiness.subsystems.map((subsystem) =>
+    `<tr><td><code>${escapeHtml(subsystem.id)}</code></td>` +
+    `<td><span class="cp-state cp-state-${escapeHtml(subsystem.status)}">${escapeHtml(subsystem.status)}</span></td>` +
+    `<td>${escapeHtml(subsystem.reasonCodes.join(', ') || copy.notObserved)}</td></tr>`).join('');
+  const onboardingRows = snapshot.onboarding.items.map((item) =>
+    `<tr><td>${escapeHtml(item.domain)}</td>` +
+    `<td>${escapeHtml(item.configured)}</td><td>${escapeHtml(item.available)}</td>` +
+    `<td>${escapeHtml(item.authenticated)}</td><td>${escapeHtml(item.authorized)}</td>` +
+    `<td>${escapeHtml(item.selected)}</td><td>${escapeHtml(item.executed)}</td>` +
+    `<td><code>${escapeHtml(item.reasonCodes.join(', ') || copy.notObserved)}</code></td></tr>`).join('');
+  const operations = snapshot.operations;
+  return (
+    `<section class="beta-observation instrument-section" aria-labelledby="beta-observation-title">` +
+    `<div class="instrument-section-head"><div><span class="eyebrow">FURYPIPE / BETA</span>` +
+    `<h2 id="beta-observation-title">${escapeHtml(copy.title)}</h2>` +
+    `<p>${escapeHtml(copy.subtitle)} · <code>${escapeHtml(entryLabel)}</code></p></div>` +
+    `<span class="cp-state cp-state-${snapshot.readiness.overallStatus}">${escapeHtml(snapshot.readiness.overallStatus)}</span></div>` +
+    `<div class="beta-facts"><span><strong>${escapeHtml(copy.entry)}:</strong> ${escapeHtml(entryLabel)}</span>` +
+    `<span><strong>${escapeHtml(copy.mode)}:</strong> ${escapeHtml(snapshot.entry.mode)}</span>` +
+    `<span><strong>${escapeHtml(copy.config)}:</strong> ${escapeHtml(snapshot.entry.configStatus)}</span>` +
+    `<span><strong>${escapeHtml(copy.reversible)}:</strong> ${snapshot.entry.reversible ? 'yes' : 'no'}</span>` +
+    `<span><strong>${escapeHtml(copy.authority)}:</strong> ${escapeHtml(copy.observation)}</span>` +
+    `<span class="muted">${escapeHtml(copy.noGrant)}</span></div>` +
+    `<div class="beta-grid"><div><h3>${escapeHtml(copy.readiness)}</h3><div class="table-wrap"><table class="dtable"><thead><tr><th>${escapeHtml(copy.domain)}</th><th>Status</th><th>${escapeHtml(copy.evidence)}</th></tr></thead><tbody>${readinessRows}</tbody></table></div></div>` +
+    `<div><h3>${escapeHtml(copy.onboarding)}</h3><div class="table-wrap"><table class="dtable"><thead><tr><th>${escapeHtml(copy.domain)}</th><th>${escapeHtml(copy.configured)}</th><th>${escapeHtml(copy.available)}</th><th>${escapeHtml(copy.authenticated)}</th><th>${escapeHtml(copy.authorized)}</th><th>${escapeHtml(copy.selected)}</th><th>${escapeHtml(copy.executed)}</th><th>${escapeHtml(copy.evidence)}</th></tr></thead><tbody>${onboardingRows}</tbody></table></div></div></div>` +
+    `<div class="status"><strong>${escapeHtml(copy.operations)}:</strong> approvals=${escapeHtml(operations.approvals)} · policy=${escapeHtml(operations.policy)} · recovery=${escapeHtml(operations.recovery)} · unknown-outcomes=${escapeHtml(operations.unknownOutcomes)} · <code>${escapeHtml(operations.reasonCodes.join(', '))}</code></div>` +
+    `</section>`
+  );
+}
+
 // ---- full-history stats table --------------------------------------------
 
 export function renderStatsTableFragment(p: FullStatsPayload, locale = 'en'): string {
@@ -1128,41 +1228,33 @@ export function renderStatsTableFragment(p: FullStatsPayload, locale = 'en'): st
 
 // ---- page shell -------------------------------------------------------------
 
-// FuryPipe favicon: three linked nodes on a midnight field. It mirrors the
-// FuryLink / Context Fabric identity rather than the historical warm-flame mark.
-const FAVICON =
-  "data:image/svg+xml," +
-  "%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E" +
-  "%3Crect%20x='1'%20y='1'%20width='30'%20height='30'%20rx='8'%20fill='%23050914'%20stroke='%231b3156'/%3E" +
-  "%3Cpath%20d='M8%2010h8l8%206-8%206H8'%20fill='none'%20stroke='%236f9dff'%20stroke-width='2.4'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E" +
-  "%3Ccircle%20cx='8'%20cy='10'%20r='2.4'%20fill='%23f6f0e4'/%3E" +
-  "%3Ccircle%20cx='24'%20cy='16'%20r='2.4'%20fill='%236f9dff'/%3E" +
-  "%3Ccircle%20cx='8'%20cy='22'%20r='2.4'%20fill='%23f6f0e4'/%3E%3C/svg%3E";
+const FAVICON = `data:image/svg+xml,${encodeURIComponent(FURYPIPE_FAVICON_SVG)}`;
+const DASHBOARD_MARK = renderFuryPipeMonogramSvg({ className: 'pulse-mark', tone: 'accent' });
+const DASHBOARD_WORDMARK = renderFuryPipeWordmarkHtml('dashboard-wordmark');
 
-const CSS = `
+const CSS = `${IBM_PLEX_FONT_FACE_CSS}
   :root {
-    --bg: #f4eee3; --surface: #fffaf1; --surface-2: #ece5d9;
-    --border: #dcd2c3; --border-strong: #cbbdac;
-    --ink: #10213a; --ink-2: #42526a; --muted: #7d8795;
-    --accent: #4f7cff; --accent-strong: #2f5ee8; --accent-ink: #244fc5; --accent-tint: #e8eeff;
+    --bg: #F5F4F0; --surface: #FFFFFF; --surface-2: #E5E7EB;
+    --border: #D7DBE0; --border-strong: #AEB6C0;
+    --ink: #0B0D10; --ink-2: #2A2A2A; --muted: #68717D;
+    --accent: #FF6A00; --accent-strong: #C74F00; --accent-ink: #9B3D00; --accent-tint: #FFF0E6;
     --good: #168a68; --good-tint: #e2f4ec; --bad: #c94f62; --bad-tint: #f8e7e9; --warn: #9a6a19; --warn-tint: #f5ecd8;
     --img: #4f7cff; --img-ink: #244fc5; --img-tint: #e8eeff;
     --txt: #168f91; --txt-ink: #0f696b; --txt-tint: #e2f3f1;
     --radius: 2px;
     --shadow: none;
-    --mono: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --mono: 'IBM Plex Mono', 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     color-scheme: light;
   }
-  /* FuryPipe midnight theme. Applied before first paint from the FuryPipe-owned
-     theme preference, then toggled by furyTheme(). Cobalt and teal accents are
-     lifted independently from the neutral navy/black surface stack. */
+  /* FuryPipe FORGE 03 theme. Applied before first paint from the FuryPipe-owned
+     theme preference, then toggled by furyTheme(). */
   :root[data-theme="dark"] {
-    --bg: #03060c; --surface: #07111f; --surface-2: #0c192b;
-    --border: #152641; --border-strong: #22395d;
-    --ink: #f4f1e9; --ink-2: #b8c5d8; --muted: #778ba7;
-    --accent: #6f9dff; --accent-strong: #4e7ff0; --accent-ink: #9ab8ff; --accent-tint: #10234a;
+    --bg: #0B0D10; --surface: #121519; --surface-2: #2A2A2A;
+    --border: #34383F; --border-strong: #4A4F57;
+    --ink: #F5F4F0; --ink-2: #E5E7EB; --muted: #9CA3AF;
+    --accent: #FF6A00; --accent-strong: #FF8533; --accent-ink: #FFB07A; --accent-tint: #3A1B09;
     --good: #32c39a; --good-tint: #0b2b25; --bad: #ef6d7b; --bad-tint: #32141c; --warn: #e0a94f; --warn-tint: #30230e;
-    --img: #6f9dff; --img-ink: #a8c2ff; --img-tint: #10234a;
+    --img: #FF6A00; --img-ink: #FFB07A; --img-tint: #3A1B09;
     --txt: #4ed2cf; --txt-ink: #88e7e2; --txt-tint: #0b292c;
     --shadow: none;
     color-scheme: dark;
@@ -1175,7 +1267,7 @@ const CSS = `
   html { scroll-behavior: smooth; }
   body { margin: 0; padding: 0 0 72px; color: var(--ink-2);
     background: var(--bg);
-    font: 14px/1.5 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font: 14px/1.5 'IBM Plex Sans', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased; }
   .workspace { width: min(1480px, calc(100% - 40px)); margin: 0 auto; }
   b, strong { color: var(--ink); }
@@ -1188,13 +1280,10 @@ const CSS = `
     background: var(--bg); backdrop-filter: none;
     border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
   .brand { display: flex; align-items: center; gap: 12px; }
-  .pulse-mark { position: relative; width: 34px; height: 34px; border-radius: 2px;
-    background-image: none; background-color: var(--surface);
-    border: 1px solid var(--border-strong); box-shadow: none; flex: none; }
-  .pulse-mark::before, .pulse-mark::after { content: ''; position: absolute; top: 15px; width: 8px; height: 4px;
-    border-radius: 0; background: var(--accent); box-shadow: none; }
-  .pulse-mark::before { left: 5px; } .pulse-mark::after { right: 5px; }
-  .wordmark { font-size: 22px; font-weight: 800; color: var(--ink); letter-spacing: -0.03em; }
+  .pulse-mark { display: block; width: 34px; height: 34px; color: var(--ink); flex: none; }
+  .pulse-mark .forge-symbol-orange { fill: #FF6A00; }
+  .dashboard-wordmark { display: inline-flex; align-items: center; min-width: 0; line-height: 0; }
+  .dashboard-wordmark .wordmark-svg { display: block; width: 180px; height: auto; max-width: 100%; }
   .brand-kicker { margin-left: 8px; color: var(--accent-ink); font: 700 10px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
   .wordmark-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   /* Which machine is this? Two dashboards from two hosts look identical otherwise. */
@@ -1577,20 +1666,20 @@ const CSS = `
   .toast button { background: transparent; color: inherit; border: 0; cursor: pointer; font-size: 16px;
     line-height: 1; padding: 0; }
 
-  /* Control Plane V4 — Fury Instrument Panel.
+  /* Control Plane V4 — FuryPipe FORGE 03 instrument panel.
      Surfaces are deliberately sparse: canvas, section rail, raised inspector.
      Status is always written as text; colour reinforces but never carries state. */
   :root {
-    --canvas: #f4eee3; --surface: #fffaf1; --raised: #ece5d9;
-    --border: #dcd2c3; --border-strong: #cbbdac; --ink: #10213a;
-    --ink-2: #42526a; --muted: #778ba7; --accent: #4f7cff;
-    --accent-ink: #244fc5; --accent-tint: #e8eeff; --radius: 4px; --shadow: none;
+    --canvas: #F5F4F0; --surface: #FFFFFF; --raised: #E5E7EB;
+    --border: #D7DBE0; --border-strong: #AEB6C0; --ink: #0B0D10;
+    --ink-2: #2A2A2A; --muted: #68717D; --accent: #FF6A00;
+    --accent-ink: #9B3D00; --accent-tint: #FFF0E6; --radius: 4px; --shadow: none;
   }
   :root[data-theme="dark"] {
-    --canvas: #03060c; --surface: #07111f; --raised: #0c192b;
-    --border: #152641; --border-strong: #22395d; --ink: #f4f1e9;
-    --ink-2: #b8c5d8; --muted: #778ba7; --accent: #4f7cff;
-    --accent-ink: #9ab8ff; --accent-tint: #10213a; --shadow: none;
+    --canvas: #0B0D10; --surface: #121519; --raised: #2A2A2A;
+    --border: #34383F; --border-strong: #4A4F57; --ink: #F5F4F0;
+    --ink-2: #E5E7EB; --muted: #9CA3AF; --accent: #FF6A00;
+    --accent-ink: #FFB07A; --accent-tint: #3A1B09; --shadow: none;
   }
   html { scroll-padding-top: 112px; }
   body { background: var(--canvas); color: var(--ink-2); }
@@ -1598,9 +1687,8 @@ const CSS = `
   .workspace { width: min(1440px, calc(100% - 48px)); }
   .topbar { min-width: 0; margin: 0; padding: 18px 0 14px; gap: 14px; background: var(--canvas); backdrop-filter: none; }
   .brand, .wordmark-row, .wordmark, .tagline { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
-  .pulse-mark { width: 30px; height: 30px; border-radius: 2px; background: var(--surface); box-shadow: none; }
-  .pulse-mark::before, .pulse-mark::after { border-radius: 0; box-shadow: none; }
-  .wordmark { font-size: 20px; letter-spacing: -.025em; }
+  .pulse-mark { width: 30px; height: 30px; color: var(--ink); }
+  .dashboard-wordmark .wordmark-svg { width: 142px; }
   .brand-kicker { margin-left: 6px; color: var(--muted); letter-spacing: .1em; }
   .hostchip { border-radius: 2px; padding: 2px 6px; font-family: var(--mono); font-size: 10px; }
   .controls { gap: 5px; }
@@ -1688,6 +1776,14 @@ const CSS = `
      it. Structural borders identify a navigation layer; content itself stays
      flat and evidence-led rather than becoming another card grid. */
   .cp-shell { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 0; margin-bottom: 48px; }
+  .beta-observation { margin: 0 0 18px; padding: 16px 0 20px; border-bottom: 1px solid var(--border-strong); }
+  .beta-facts { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 13px 0 18px; font-size: 12px; }
+  .beta-facts span { overflow-wrap: anywhere; }
+  .beta-grid { display: grid; grid-template-columns: minmax(0, .75fr) minmax(0, 1.25fr); gap: 20px; }
+  .beta-grid h3 { margin: 0 0 8px; color: var(--ink); font-size: 14px; }
+  .beta-grid .table-wrap { overflow-x: auto; }
+  .beta-grid .dtable { min-width: 640px; }
+  .beta-grid .dtable td, .beta-grid .dtable th { white-space: nowrap; }
   .cp-shell-overview { min-width: 0; padding: 8px 0 30px; border-bottom: 2px solid var(--accent); scroll-margin-top: 112px; }
   .cp-shell-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .55fr); gap: 10px 28px; align-items: end; margin: 4px 0 4px; }
   .cp-shell-heading .eyebrow { grid-column: 1 / -1; margin-bottom: 0; }
@@ -1714,7 +1810,7 @@ const CSS = `
   dialog#command-palette::backdrop { background: rgba(3,6,12,.56); }.command-palette-head { display: grid; gap: 8px; padding: 14px; border-bottom: 1px solid var(--border); }.command-palette-head label { color: var(--muted); font: 700 10px/1.2 var(--mono); text-transform: uppercase; }.command-palette-head input { min-height: 36px; border: 1px solid var(--border-strong); border-radius: 2px; background: transparent; color: var(--ink); padding: 7px 9px; font: 14px inherit; }.command-results { display: grid; padding: 8px; }.command-results a { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 9px; color: var(--ink); text-decoration: none; border-left: 2px solid transparent; }.command-results a:hover, .command-results a:focus-visible { background: var(--raised); border-left-color: var(--accent); outline: 0; }.command-results small { color: var(--muted); font: 10px/1.3 var(--mono); }.command-palette-foot { margin: 0; padding: 10px 14px; color: var(--muted); border-top: 1px solid var(--border); font-size: 11px; }
   .skip-link { position: absolute; left: 8px; top: -50px; z-index: 100; padding: 8px; background: var(--surface); color: var(--ink); border: 2px solid var(--accent); }.skip-link:focus { top: 8px; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  @media (max-width: 1000px) { .cp-runtime-lane { grid-template-columns: 68px minmax(0, 1fr); }.cp-metrics { grid-column: 1 / -1; border-left: 0; }.xray { grid-template-columns: 1fr; }.xray > .card + .card { border-left: 0; border-top: 1px solid var(--border); padding: 24px 0 0; }.cp-bindings { grid-template-columns: 1fr; } }
+  @media (max-width: 1000px) { .cp-runtime-lane { grid-template-columns: 68px minmax(0, 1fr); }.cp-metrics { grid-column: 1 / -1; border-left: 0; }.xray { grid-template-columns: 1fr; }.xray > .card + .card { border-left: 0; border-top: 1px solid var(--border); padding: 24px 0 0; }.cp-bindings { grid-template-columns: 1fr; }.beta-grid { grid-template-columns: 1fr; } }
   @media (max-width: 760px) { .cp-explorer { grid-template-columns: 1fr; }.cp-explorer > .instrument-section-head, .cp-explorer > .cp-tools, .cp-explorer > .cp-list, .cp-inspector { grid-column: 1; }.cp-inspector { grid-row: auto; position: static; } }
   @media (max-width: 640px) { .workspace { width: min(100% - 24px, 1440px); }.topbar { position: static; }.command-nav { top: 0; margin-inline: -12px; padding-inline: 12px; }.command-nav a { padding-inline: 9px; }.command-trigger { display: none; }.strip { grid-template-columns: repeat(2, 1fr); }.tile:nth-child(2) { border-right: 0; }.tile:nth-child(-n+2) { border-bottom: 1px solid var(--border); }.cp-runtime-lane { grid-template-columns: 50px minmax(0, 1fr); gap: 12px; }.fury-core { width: 44px; height: 44px; }.fury-core::before { inset: 7px; }.fury-core::after { inset: 15px; }.fury-core span { top: 5px; }.fury-core i { right: 5px; }.fury-core b { bottom: 5px; }.cp-metrics { grid-template-columns: 1fr; gap: 7px; }.cp-metrics div { padding: 0; border-right: 0; }.cp-decision-lens { grid-template-columns: 1fr; gap: 12px; }.instrument-section-head { align-items: start; flex-direction: column; }.cp-tools { grid-template-columns: 1fr; }.cp-row { grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }.cp-row-source, .cp-row-life { grid-column: 1 / -1; }.cp-row-source { white-space: normal; }.cp-inspector { position: static; }.cp-inspector dl { grid-template-columns: 1fr; }.cp-bindings li { grid-template-columns: minmax(90px, .75fr) auto minmax(0, 1.25fr); }.cp-evidence tr { border-radius: 0 !important; background: transparent !important; }.cp-evidence td { grid-template-columns: minmax(105px, .8fr) minmax(0, 1.2fr) !important; }.hero { padding-left: 12px; }.cp-shell-heading { grid-template-columns: 1fr; gap: 8px; }.cp-shell-overview { padding-top: 0; }.cp-disclosure > summary { grid-template-columns: 24px minmax(0, 1fr) 20px; gap: 9px; min-height: 60px; padding-block: 14px; }.cp-disclosure > summary > small { grid-column: 2 / -1; }.cp-disclosure-body { padding-bottom: 22px; }.cp-disclosure:not([open]) { border-bottom-color: var(--border); } }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
@@ -1938,10 +2034,10 @@ export function renderPage(port: number, hostLabel = '', locale = 'en'): string 
 
 <header class="topbar">
   <div class="brand">
-    <span class="pulse-mark"></span>
+    ${DASHBOARD_MARK}
     <div>
       <div class="wordmark-row">
-        <div class="wordmark">FuryPipe <span class="brand-kicker">Control Plane</span></div>
+        ${DASHBOARD_WORDMARK}<span class="brand-kicker">Control Plane</span>
         ${host ? `<span class="hostchip" title="${escapeHtml(t('dashboard.page.proxyHost'))}">${host}</span>` : ''}
       </div>
       <div class="tagline">${escapeHtml(dashboardT(activeLocale, 'dashboard.tagline'))}</div>
@@ -1986,8 +2082,8 @@ export function renderPage(port: number, hostLabel = '', locale = 'en'): string 
   <p class="command-palette-foot">${escapeHtml(t('dashboard.page.commandHint'))}</p>
 </dialog>
 
-<dialog id="routing-help" onclick="if (event.target === this) this.close()">
-  <h3>${escapeHtml(t('dashboard.page.routingTitle'))}</h3>
+<dialog id="routing-help" aria-labelledby="routing-help-title" onclick="if (event.target === this) this.close()">
+  <h3 id="routing-help-title">${escapeHtml(t('dashboard.page.routingTitle'))}</h3>
   <p>${escapeHtml(t('dashboard.page.routingIntro'))}</p>
   <ul>
     <li><code>OPENAI_MODELS</code> — ${escapeHtml(t('dashboard.page.routingOpenAI'))} (<code>OPENAI_UPSTREAM</code> + <code>OPENAI_API_KEY</code>)</li>
@@ -2009,6 +2105,7 @@ npx furypipe</pre>
 <main id="instrument-panel" class="cp-shell">
   <section class="cp-shell-overview" id="overview" aria-labelledby="overview-title">
     <div class="cp-shell-heading"><span class="eyebrow">FURYPIPE / LIVE</span><h1 id="overview-title">${escapeHtml(t('dashboard.page.navOverview'))}</h1><p>${escapeHtml(t('dashboard.controlPlane.subtitle'))}</p></div>
+    <div id="frag-beta" hx-get="/fragments/beta" hx-trigger="load, every 5s" hx-swap="innerHTML"><div class="status">Beta readiness loading…</div></div>
     <div id="frag-cp-overview" hx-get="/fragments/control-plane-overview" hx-trigger="load, every 5s" hx-swap="innerHTML"><div class="status">${escapeHtml(t('dashboard.controlPlane.loading'))}</div></div>
     <div class="cp-efficiency" aria-label="${escapeHtml(t('dashboard.controlPlane.runtimeLane'))}">
       <div id="frag-header" hx-get="/fragments/header" hx-trigger="load, every 2s" hx-swap="innerHTML"></div>

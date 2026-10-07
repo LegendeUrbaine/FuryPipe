@@ -1,4 +1,6 @@
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
+import { dirname, isAbsolute } from 'node:path';
 
 export const FURY_KERNEL_CONVERSATION_FORMAT = 'furypipe-kernel-conversation/v1' as const;
 export const FURY_KERNEL_MESSAGE_FORMAT = 'furypipe-kernel-message/v1' as const;
@@ -79,6 +81,8 @@ export interface FuryKernelConversationOptions {
   readonly maxMessageBytes?: number;
   readonly maxConversationBytes?: number;
   readonly maxInFlightTurns?: number;
+  /** Optional local durable snapshot. Credentials and execution permits are never stored. */
+  readonly stateFile?: string;
 }
 
 export interface FuryKernelClosedConversation {
@@ -171,6 +175,11 @@ interface ConversationState {
   activeTurnId?: string;
 }
 
+interface PersistedKernelState {
+  readonly format: 'furypipe-kernel-persistence/v1';
+  readonly conversations: readonly FuryKernelConversationSnapshot[];
+}
+
 const DEFAULT_MAX_CONVERSATIONS = 32;
 const HARD_MAX_CONVERSATIONS = 4096;
 const DEFAULT_MAX_MESSAGES = 256;
@@ -183,6 +192,8 @@ const DEFAULT_MAX_CONVERSATION_BYTES = 1024 * 1024;
 const HARD_MAX_CONVERSATION_BYTES = 64 * 1024 * 1024;
 const DEFAULT_MAX_IN_FLIGHT_TURNS = 16;
 const HARD_MAX_IN_FLIGHT_TURNS = 1024;
+const MAX_PERSISTED_STATE_BYTES = 32 * 1024 * 1024;
+const FURY_KERNEL_PERSISTENCE_FORMAT = 'furypipe-kernel-persistence/v1' as const;
 
 const CONVERSATION_ID_RE = /^fkc_[A-Za-z0-9_-]{24}$/u;
 const TURN_ID_RE = /^fkt_[A-Za-z0-9_-]{24}$/u;
@@ -324,6 +335,289 @@ function snapshot(state: ConversationState): FuryKernelConversationSnapshot {
   });
 }
 
+function persistedTimestamp(value: unknown, label: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new FuryKernelConversationError('invalid-config', `${label} is invalid in persisted Kernel state`);
+  }
+  return value as number;
+}
+
+function persistedString(value: unknown, label: string, maximum = 256): string {
+  if (
+    typeof value !== 'string'
+    || value.length === 0
+    || value.length > maximum
+    || value !== value.trim()
+    || /[\u0000-\u001f\u007f]/u.test(value)
+  ) {
+    throw new FuryKernelConversationError('invalid-config', `${label} is invalid in persisted Kernel state`);
+  }
+  return value;
+}
+
+function loadPersistedKernelState(
+  stateFile: string,
+  startupAt: number,
+  limits: {
+    readonly maxConversations: number;
+    readonly maxMessages: number;
+    readonly maxTurns: number;
+    readonly maxMessageBytes: number;
+    readonly maxConversationBytes: number;
+  },
+): { readonly states: readonly ConversationState[]; readonly repaired: boolean } {
+  if (!existsSync(stateFile)) return Object.freeze({ states: Object.freeze([]), repaired: false });
+
+  let encoded: string;
+  try {
+    encoded = readFileSync(stateFile, 'utf8');
+  } catch {
+    throw new FuryKernelConversationError('invalid-config', 'persisted Kernel state cannot be read');
+  }
+  if (Buffer.byteLength(encoded, 'utf8') > MAX_PERSISTED_STATE_BYTES) {
+    throw new FuryKernelConversationError('invalid-config', 'persisted Kernel state exceeds its safety limit');
+  }
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(encoded) as unknown;
+  } catch {
+    throw new FuryKernelConversationError('invalid-config', 'persisted Kernel state is not valid JSON');
+  }
+  assertExactKeys(
+    raw,
+    ['format', 'conversations'],
+    'invalid-config',
+    'persisted Kernel state',
+  );
+  if (raw.format !== FURY_KERNEL_PERSISTENCE_FORMAT || !Array.isArray(raw.conversations)) {
+    throw new FuryKernelConversationError('invalid-config', 'persisted Kernel state format is unsupported');
+  }
+  if (raw.conversations.length > limits.maxConversations) {
+    throw new FuryKernelConversationError('invalid-config', 'persisted Kernel state exceeds conversation capacity');
+  }
+
+  const states: ConversationState[] = [];
+  const conversationIds = new Set<string>();
+  let repaired = false;
+  for (const rawConversation of raw.conversations) {
+    assertExactKeys(
+      rawConversation,
+      ['format', 'conversationId', 'createdAt', 'updatedAt', 'messages', 'turns', 'activeTurnId', 'authority', 'executionAuthority'],
+      'invalid-config',
+      'persisted conversation',
+    );
+    if (
+      rawConversation.format !== FURY_KERNEL_CONVERSATION_FORMAT
+      || rawConversation.authority !== 'conversation-state'
+      || rawConversation.executionAuthority !== false
+      || !Array.isArray(rawConversation.messages)
+      || !Array.isArray(rawConversation.turns)
+    ) {
+      throw new FuryKernelConversationError('invalid-config', 'persisted conversation metadata is invalid');
+    }
+    const id = canonicalId(
+      rawConversation.conversationId,
+      CONVERSATION_ID_RE,
+      'invalid-config',
+      'persisted conversation ID',
+    );
+    if (conversationIds.has(id)) {
+      throw new FuryKernelConversationError('invalid-config', 'persisted conversation IDs are duplicated');
+    }
+    conversationIds.add(id);
+    const createdAt = persistedTimestamp(rawConversation.createdAt, 'persisted conversation createdAt');
+    let updatedAt = persistedTimestamp(rawConversation.updatedAt, 'persisted conversation updatedAt');
+    if (updatedAt < createdAt) {
+      throw new FuryKernelConversationError('invalid-config', 'persisted conversation timestamps are inconsistent');
+    }
+    if (rawConversation.messages.length > limits.maxMessages || rawConversation.turns.length > limits.maxTurns) {
+      throw new FuryKernelConversationError('invalid-config', 'persisted conversation exceeds configured limits');
+    }
+
+    const messages: FuryKernelMessage[] = [];
+    const messageIds = new Set<string>();
+    let bytes = 0;
+    for (const rawMessage of rawConversation.messages) {
+      assertExactKeys(
+        rawMessage,
+        ['format', 'messageId', 'role', 'content', 'createdAt'],
+        'invalid-config',
+        'persisted message',
+      );
+      if (
+        rawMessage.format !== FURY_KERNEL_MESSAGE_FORMAT
+        || (rawMessage.role !== 'user' && rawMessage.role !== 'assistant')
+      ) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted message metadata is invalid');
+      }
+      const message = persistedString(rawMessage.messageId, 'persisted message ID', 96);
+      if (!MESSAGE_ID_RE.test(message) || messageIds.has(message)) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted message ID is invalid or duplicated');
+      }
+      const content = persistedString(rawMessage.content, 'persisted message content', limits.maxMessageBytes);
+      const contentBytes = Buffer.byteLength(content, 'utf8');
+      if (contentBytes > limits.maxMessageBytes || bytes + contentBytes > limits.maxConversationBytes) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted conversation exceeds byte limits');
+      }
+      const created = persistedTimestamp(rawMessage.createdAt, 'persisted message createdAt');
+      if (created < createdAt || created > updatedAt) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted message timestamp is inconsistent');
+      }
+      messages.push(Object.freeze({
+        format: FURY_KERNEL_MESSAGE_FORMAT,
+        messageId: message,
+        role: rawMessage.role,
+        content,
+        createdAt: created,
+      }));
+      messageIds.add(message);
+      bytes += contentBytes;
+    }
+
+    const turns: MutableTurn[] = [];
+    const turnIds = new Set<string>();
+    const acceptedTurnIds = new Set<string>();
+    for (const rawTurn of rawConversation.turns) {
+      assertExactKeys(
+        rawTurn,
+        ['format', 'turnId', 'requestMessageId', 'responseMessageId', 'failureCode', 'status', 'createdAt', 'completedAt', 'executionAuthority'],
+        'invalid-config',
+        'persisted turn',
+      );
+      if (
+        rawTurn.format !== FURY_KERNEL_TURN_FORMAT
+        || rawTurn.executionAuthority !== false
+        || !['accepted', 'completed', 'cancelled', 'failed'].includes(String(rawTurn.status))
+      ) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted turn metadata is invalid');
+      }
+      const persistedTurnId = canonicalId(
+        rawTurn.turnId,
+        TURN_ID_RE,
+        'invalid-config',
+        'persisted turn ID',
+      );
+      if (turnIds.has(persistedTurnId)) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted turn IDs are duplicated');
+      }
+      turnIds.add(persistedTurnId);
+      const requestMessageId = persistedString(rawTurn.requestMessageId, 'persisted request message ID', 96);
+      const requestMessage = messages.find((message) => message.messageId === requestMessageId);
+      if (!requestMessage || requestMessage.role !== 'user') {
+        throw new FuryKernelConversationError('invalid-config', 'persisted turn request does not reference a user message');
+      }
+      const created = persistedTimestamp(rawTurn.createdAt, 'persisted turn createdAt');
+      if (created < createdAt || created > updatedAt) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted turn timestamp is inconsistent');
+      }
+      const responseMessageId = rawTurn.responseMessageId === undefined
+        ? undefined
+        : persistedString(rawTurn.responseMessageId, 'persisted response message ID', 96);
+      if (responseMessageId !== undefined) {
+        const response = messages.find((message) => message.messageId === responseMessageId);
+        if (!response || response.role !== 'assistant') {
+          throw new FuryKernelConversationError('invalid-config', 'persisted turn response is invalid');
+        }
+      }
+      const failureCode = rawTurn.failureCode === undefined
+        ? undefined
+        : persistedString(rawTurn.failureCode, 'persisted turn failure code', 96);
+      if (failureCode !== undefined && !FAILURE_CODE_RE.test(failureCode)) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted turn failure code is invalid');
+      }
+      const completedAt = rawTurn.completedAt === undefined
+        ? undefined
+        : persistedTimestamp(rawTurn.completedAt, 'persisted turn completedAt');
+      if (completedAt !== undefined && (completedAt < created || completedAt > Math.max(updatedAt, startupAt))) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted turn completion timestamp is inconsistent');
+      }
+
+      const turn: MutableTurn = {
+        turnId: persistedTurnId,
+        requestMessageId,
+        ...(responseMessageId === undefined ? {} : { responseMessageId }),
+        ...(failureCode === undefined ? {} : { failureCode }),
+        status: rawTurn.status as FuryKernelTurnStatus,
+        createdAt: created,
+        ...(completedAt === undefined ? {} : { completedAt }),
+      };
+      if (turn.status === 'accepted') {
+        acceptedTurnIds.add(persistedTurnId);
+        if (responseMessageId !== undefined || failureCode !== undefined || completedAt !== undefined) {
+          throw new FuryKernelConversationError('invalid-config', 'persisted accepted turn is already terminal');
+        }
+        turn.status = 'failed';
+        turn.failureCode = 'recovered-process-restart';
+        turn.completedAt = Math.max(startupAt, created);
+        repaired = true;
+        updatedAt = Math.max(updatedAt, turn.completedAt);
+      } else if (turn.status === 'completed') {
+        if (responseMessageId === undefined || completedAt === undefined || failureCode !== undefined) {
+          throw new FuryKernelConversationError('invalid-config', 'persisted completed turn is incomplete');
+        }
+      } else if (turn.status === 'failed') {
+        if (failureCode === undefined || completedAt === undefined || responseMessageId !== undefined) {
+          throw new FuryKernelConversationError('invalid-config', 'persisted failed turn is incomplete');
+        }
+      } else if (responseMessageId !== undefined || completedAt === undefined || failureCode !== undefined) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted cancelled turn is incomplete');
+      }
+      turns.push(turn);
+    }
+
+    if (rawConversation.activeTurnId !== undefined) {
+      const active = persistedString(rawConversation.activeTurnId, 'persisted active turn ID', 64);
+      if (!acceptedTurnIds.has(active)) {
+        throw new FuryKernelConversationError('invalid-config', 'persisted active turn is not accepted');
+      }
+      // Accepted turns are always terminalized during recovery above.
+      repaired = true;
+    } else if (acceptedTurnIds.size > 0) {
+      throw new FuryKernelConversationError('invalid-config', 'persisted accepted turn has no active turn');
+    }
+    const state: ConversationState = {
+      conversationId: id,
+      createdAt,
+      updatedAt,
+      messages,
+      turns,
+      messageIds,
+      bytes,
+    };
+    states.push(state);
+  }
+  return Object.freeze({ states: Object.freeze(states), repaired });
+}
+
+function persistKernelState(
+  stateFile: string | undefined,
+  conversations: ReadonlyMap<string, ConversationState>,
+): void {
+  if (stateFile === undefined) return;
+  const payload: PersistedKernelState = {
+    format: FURY_KERNEL_PERSISTENCE_FORMAT,
+    conversations: Object.freeze([...conversations.values()].map(snapshot)),
+  };
+  const encoded = JSON.stringify(payload);
+  if (Buffer.byteLength(encoded, 'utf8') > MAX_PERSISTED_STATE_BYTES) {
+    throw new FuryKernelConversationError('invalid-config', 'persisted Kernel state exceeds its safety limit');
+  }
+  const temporary = `${stateFile}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`;
+  try {
+    mkdirSync(dirname(stateFile), { recursive: true });
+    writeFileSync(temporary, encoded, { encoding: 'utf8', flag: 'wx' });
+    renameSync(temporary, stateFile);
+  } catch {
+    try {
+      if (existsSync(temporary)) unlinkSync(temporary);
+    } catch {
+      // Preserve the original persistence failure.
+    }
+    throw new FuryKernelConversationError('invalid-config', 'persisted Kernel state cannot be written');
+  }
+}
+
 function findTurn(state: ConversationState, id: string): MutableTurn {
   const found = state.turns.find((turn) => turn.turnId === id);
   if (!found) {
@@ -379,8 +673,40 @@ export function createFuryKernelConversationStore(
     'maxInFlightTurns',
   );
 
+  const stateFile = options.stateFile;
+  if (
+    stateFile !== undefined
+    && (
+      typeof stateFile !== 'string'
+      || stateFile.length === 0
+      || stateFile !== stateFile.trim()
+      || !isAbsolute(stateFile)
+      || /[\u0000-\u001f\u007f]/u.test(stateFile)
+    )
+  ) {
+    throw new FuryKernelConversationError(
+      'invalid-config',
+      'stateFile must be an absolute printable path',
+    );
+  }
+
   const conversations = new Map<string, ConversationState>();
   let inFlightTurns = 0;
+  if (stateFile !== undefined) {
+    const startupAt = finiteNow(now);
+    const recovered = loadPersistedKernelState(stateFile, startupAt, {
+      maxConversations,
+      maxMessages,
+      maxTurns,
+      maxMessageBytes,
+      maxConversationBytes,
+    });
+    for (const state of recovered.states) conversations.set(state.conversationId, state);
+    if (recovered.repaired) persistKernelState(stateFile, conversations);
+  }
+  const persist = (): void => {
+    persistKernelState(stateFile, conversations);
+  };
 
   const requireConversation = (id: string): ConversationState => {
     const canonical = conversationId(id);
@@ -417,6 +743,12 @@ export function createFuryKernelConversationStore(
         bytes: 0,
       };
       conversations.set(id, state);
+      try {
+        persist();
+      } catch (error) {
+        conversations.delete(id);
+        throw error;
+      }
       return snapshot(state);
     },
 
@@ -434,6 +766,12 @@ export function createFuryKernelConversationStore(
       }
       const closedAt = finiteNow(now);
       conversations.delete(state.conversationId);
+      try {
+        persist();
+      } catch (error) {
+        conversations.set(state.conversationId, state);
+        throw error;
+      }
       return Object.freeze({
         format: FURY_KERNEL_CONVERSATION_FORMAT,
         conversationId: state.conversationId,
@@ -479,6 +817,7 @@ export function createFuryKernelConversationStore(
         throw new FuryKernelConversationError('byte-limit', 'conversation byte limit reached');
       }
 
+      const previousUpdatedAt = state.updatedAt;
       const at = finiteNow(now);
       const turn: MutableTurn = {
         turnId: nextOpaqueId(
@@ -504,6 +843,18 @@ export function createFuryKernelConversationStore(
       state.activeTurnId = turn.turnId;
       state.updatedAt = at;
       inFlightTurns += 1;
+      try {
+        persist();
+      } catch (error) {
+        state.messages.pop();
+        state.messageIds.delete(id);
+        state.turns.pop();
+        state.bytes -= body.bytes;
+        delete state.activeTurnId;
+        state.updatedAt = previousUpdatedAt;
+        inFlightTurns -= 1;
+        throw error;
+      }
 
       return Object.freeze({
         format: FURY_KERNEL_TURN_FORMAT,
@@ -539,6 +890,8 @@ export function createFuryKernelConversationStore(
         throw new FuryKernelConversationError('byte-limit', 'conversation byte limit reached');
       }
 
+      const previousUpdatedAt = state.updatedAt;
+      const previousBytes = state.bytes;
       const at = finiteNow(now);
       const response: FuryKernelMessage = Object.freeze({
         format: FURY_KERNEL_MESSAGE_FORMAT,
@@ -556,6 +909,20 @@ export function createFuryKernelConversationStore(
       turn.responseMessageId = responseId;
       turn.completedAt = at;
       inFlightTurns -= 1;
+      try {
+        persist();
+      } catch (error) {
+        state.messages.pop();
+        state.messageIds.delete(responseId);
+        state.bytes = previousBytes;
+        state.updatedAt = previousUpdatedAt;
+        state.activeTurnId = turn.turnId;
+        turn.status = 'accepted';
+        delete turn.responseMessageId;
+        delete turn.completedAt;
+        inFlightTurns += 1;
+        throw error;
+      }
 
       return Object.freeze({
         format: FURY_KERNEL_TURN_FORMAT,
@@ -579,12 +946,23 @@ export function createFuryKernelConversationStore(
       if (turn.status !== 'accepted' || state.activeTurnId !== turn.turnId) {
         throw new FuryKernelConversationError('turn-terminal', 'conversation turn is no longer active');
       }
+      const previousUpdatedAt = state.updatedAt;
       const at = finiteNow(now);
       turn.status = 'cancelled';
       turn.completedAt = at;
       state.updatedAt = at;
       delete state.activeTurnId;
       inFlightTurns -= 1;
+      try {
+        persist();
+      } catch (error) {
+        turn.status = 'accepted';
+        delete turn.completedAt;
+        state.updatedAt = previousUpdatedAt;
+        state.activeTurnId = turn.turnId;
+        inFlightTurns += 1;
+        throw error;
+      }
 
       return Object.freeze({
         format: FURY_KERNEL_TURN_FORMAT,
@@ -617,6 +995,7 @@ export function createFuryKernelConversationStore(
           'turn failure code must be a bounded canonical identifier',
         );
       }
+      const previousUpdatedAt = state.updatedAt;
       const at = finiteNow(now);
       turn.status = 'failed';
       turn.failureCode = input.failureCode;
@@ -624,6 +1003,17 @@ export function createFuryKernelConversationStore(
       state.updatedAt = at;
       delete state.activeTurnId;
       inFlightTurns -= 1;
+      try {
+        persist();
+      } catch (error) {
+        turn.status = 'accepted';
+        delete turn.failureCode;
+        delete turn.completedAt;
+        state.updatedAt = previousUpdatedAt;
+        state.activeTurnId = turn.turnId;
+        inFlightTurns += 1;
+        throw error;
+      }
 
       return Object.freeze({
         format: FURY_KERNEL_TURN_FORMAT,

@@ -7,11 +7,7 @@ import {
 import type { AddressInfo } from 'node:net';
 import type { Duplex } from 'node:stream';
 
-import {
-  WebSocket,
-  WebSocketServer,
-  type RawData,
-} from 'ws';
+import type { RawData, WebSocket } from 'ws';
 
 import type { FuryGatewayAuthenticatedDevice } from './gateway-auth-node.js';
 import type {
@@ -93,6 +89,8 @@ export interface FuryGatewayWebSocketAdmittedExecutionCommand {
   readonly input: unknown;
   readonly transportReceipt: FuryGatewayTransportReceipt;
   readonly admission: FuryGatewayCommandAdmissionDecision;
+  /** Emits one bounded presentation event on the same admitted connection. */
+  readonly emit: (event: unknown) => boolean;
   readonly executionAuthority: false;
 }
 
@@ -214,6 +212,10 @@ interface ActiveSocketState {
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 0;
+// The ws package exposes the standard WebSocket ready-state value as a static
+// runtime constant. Keep this small protocol constant local so ws can be
+// imported lazily at the actual Gateway host boundary.
+const WEBSOCKET_OPEN_READY_STATE = 1;
 const DEFAULT_MAX_BUFFERED_AMOUNT_BYTES = 512 * 1024;
 const MAX_BUFFERED_AMOUNT_BYTES = 8 * 1024 * 1024;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
@@ -325,7 +327,7 @@ function safeSend(
   maxBufferedAmountBytes: number,
   payload: string,
 ): boolean {
-  if (ws.readyState !== WebSocket.OPEN) return false;
+  if (ws.readyState !== WEBSOCKET_OPEN_READY_STATE) return false;
   if (
     Buffer.byteLength(payload, 'utf8') > DEFAULT_MAX_PAYLOAD_BYTES
     || ws.bufferedAmount + Buffer.byteLength(payload, 'utf8') > maxBufferedAmountBytes
@@ -344,6 +346,39 @@ function safeSend(
     }
     return false;
   }
+}
+
+function safeExecutionEvent(
+  ws: WebSocket,
+  maxBufferedAmountBytes: number,
+  dispatch: Pick<
+    FuryGatewayWebSocketAdmittedExecutionCommand,
+    'connectionId' | 'messageId' | 'sequence' | 'commandName'
+  >,
+  event: unknown,
+): boolean {
+  if (!event || typeof event !== 'object' || Array.isArray(event)) return false;
+  let encoded: string;
+  try {
+    encoded = JSON.stringify(event);
+  } catch {
+    return false;
+  }
+  if (Buffer.byteLength(encoded, 'utf8') > DEFAULT_MAX_PAYLOAD_BYTES - 1024) {
+    return false;
+  }
+  return safeSend(
+    ws,
+    maxBufferedAmountBytes,
+    safeServerMessage({
+      type: 'execution-command-event',
+      connectionId: dispatch.connectionId,
+      messageId: dispatch.messageId,
+      sequence: dispatch.sequence,
+      commandName: dispatch.commandName,
+      event,
+    }),
+  );
 }
 
 function closeForTransportError(
@@ -541,6 +576,8 @@ export async function listenFuryGatewayWebSocketHost(
     }
     return seen;
   })();
+
+  const { WebSocketServer } = await import('ws');
 
   const transport: FuryGatewayTransportCoordinator =
     createFuryGatewayTransportCoordinator(
@@ -896,7 +933,7 @@ export async function listenFuryGatewayWebSocketHost(
                   );
                 } else {
                   inFlightExecutionCommands += 1;
-                  const dispatch = Object.freeze({
+                  const dispatchBase = {
                     connectionId: state.connection.connectionId,
                     messageId: accepted.message.messageId,
                     sequence: accepted.message.sequence,
@@ -905,6 +942,15 @@ export async function listenFuryGatewayWebSocketHost(
                     transportReceipt: evaluated.transportReceipt,
                     admission: evaluated.admission,
                     executionAuthority: false as const,
+                  };
+                  const dispatch = Object.freeze({
+                    ...dispatchBase,
+                    emit: (event: unknown) => safeExecutionEvent(
+                      ws,
+                      maxBufferedAmountBytes,
+                      dispatchBase,
+                      event,
+                    ),
                   });
                   queueMicrotask(() => {
                     Promise.resolve()
@@ -1025,7 +1071,7 @@ export async function listenFuryGatewayWebSocketHost(
 
   const heartbeat = setInterval(() => {
     for (const state of active.values()) {
-      if (state.ws.readyState !== WebSocket.OPEN) continue;
+      if (state.ws.readyState !== WEBSOCKET_OPEN_READY_STATE) continue;
       if (!state.alive) {
         state.ws.terminate();
         continue;

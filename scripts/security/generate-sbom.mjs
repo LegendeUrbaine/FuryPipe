@@ -80,7 +80,7 @@ if (sourceCommit && !/^[0-9a-f]{40}$/u.test(sourceCommit)) {
   throw new Error('FURYPIPE_SOURCE_COMMIT/GITHUB_SHA must be an exact lowercase 40-character commit SHA');
 }
 const sha = /^[0-9a-f]{40}$/u.test(sourceCommit) ? sourceCommit : 'local';
-const namespace = `https://github.com/Mistermode45/FuryPipe/sbom/${sha}`;
+const namespace = `https://github.com/LegendeUrbaine/FuryPipe/sbom/${sha}`;
 
 const document = {
   spdxVersion: 'SPDX-2.3',

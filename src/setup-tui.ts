@@ -38,20 +38,20 @@ interface ParsedSetupArgs {
   readonly help: boolean;
 }
 
-// FuryPipe terminal identity: midnight/navy surfaces, cobalt/ice accents and
-// warm-cream foregrounds. Windows Terminal, modern PowerShell, macOS Terminal
-// and the major Linux terminals support these true-color ANSI sequences.
+// FuryPipe FORGE 03 terminal identity: Deep Black / Graphite surfaces,
+// Forge Orange accents and Off White foregrounds. Windows Terminal, modern
+// PowerShell, macOS Terminal and major Linux terminals support these colors.
 const A = {
   reset: '\x1b[0m',
   bold: '\x1b[1m',
-  cyan: '\x1b[38;2;96;165;250m',
-  blue: '\x1b[38;2;59;130;246m',
-  purple: '\x1b[38;2;129;140;248m',
+  cyan: '\x1b[38;2;255;106;0m',
+  blue: '\x1b[38;2;229;231;235m',
+  purple: '\x1b[38;2;255;133;51m',
   green: '\x1b[38;2;52;211;153m',
-  yellow: '\x1b[38;2;250;204;21m',
-  muted: '\x1b[38;2;148;163;184m',
-  white: '\x1b[38;2;248;245;237m',
-  bgBlue: '\x1b[48;2;23;37;84m',
+  yellow: '\x1b[38;2;255;176;122m',
+  muted: '\x1b[38;2;156;163;175m',
+  white: '\x1b[38;2;245;244;240m',
+  bgBlue: '\x1b[48;2;42;42;42m',
 } as const;
 
 
@@ -187,6 +187,7 @@ export function renderSetupScreen(options: SetupRenderOptions): string {
 
   const header = box([
     title,
+    paint(color, A.cyan + A.bold, 'BUILD · AUTOMATE · CREATE · BEYOND.'),
     paint(color, A.muted, fr
       ? 'Runtime de contexte gouverné · exécution explicite · preuves vérifiables'
       : 'Governed context runtime · explicit execution · verifiable evidence'),

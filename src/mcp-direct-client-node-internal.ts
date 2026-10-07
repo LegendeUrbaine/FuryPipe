@@ -1,5 +1,4 @@
-import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+import type { Client, OAuthClientProvider } from '@modelcontextprotocol/client';
 
 import {
   createMcpDirectCatalogHandle,
@@ -68,16 +67,33 @@ export interface McpDirectHttpRuntimeConfig {
    */
   readonly headers?: Readonly<Record<string, string>>;
   /**
-   * Stable non-secret principal identity for runtime HTTP header credentials.
-   * Required whenever headers are supplied.
+   * Optional host-owned OAuth provider. FuryPipe never serializes its tokens,
+   * registration state or PKCE material. Interactive redirects remain a host
+   * responsibility.
    */
+  readonly authProvider?: OAuthClientProvider;
+  /**
+   * Stable non-secret principal identity for runtime HTTP header/OAuth credentials.
+   * Required whenever headers or authProvider are supplied.
+   */
+  readonly principalId?: string;
+  readonly maxResponseBytes?: number;
+}
+
+export interface McpDirectSseRuntimeConfig {
+  readonly source: McpDirectSourceConfig & { readonly transport: 'sse' };
+  readonly url: string;
+  readonly allowedHosts?: readonly string[];
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly authProvider?: OAuthClientProvider;
   readonly principalId?: string;
   readonly maxResponseBytes?: number;
 }
 
 export type McpDirectRuntimeConfig =
   | McpDirectStdioRuntimeConfig
-  | McpDirectHttpRuntimeConfig;
+  | McpDirectHttpRuntimeConfig
+  | McpDirectSseRuntimeConfig;
 
 export interface McpDirectInventoryProbeOptions {
   readonly clientInfo: McpDirectClientInfo;
@@ -147,6 +163,13 @@ export interface McpDirectSdkFactory {
   createHttpTransport(config: {
     readonly url: URL;
     readonly headers: Readonly<Record<string, string>>;
+    readonly authProvider?: OAuthClientProvider;
+    readonly maxResponseBytes: number;
+  }): unknown;
+  createSseTransport?(config: {
+    readonly url: URL;
+    readonly headers: Readonly<Record<string, string>>;
+    readonly authProvider?: OAuthClientProvider;
     readonly maxResponseBytes: number;
   }): unknown;
 }
@@ -200,100 +223,128 @@ async function fetchWithResponseLimit(
   });
 }
 
-const DEFAULT_FACTORY: McpDirectSdkFactory = Object.freeze({
-  createClient(
-    clientInfo: McpDirectClientInfo,
-    options: { readonly listMaxPages: number; readonly probeTimeoutMs: number },
-  ) {
-    const client = new Client(
-      { name: clientInfo.name, version: clientInfo.version },
-      {
-        versionNegotiation: {
-          mode: 'auto',
-          probe: {
-            timeoutMs: options.probeTimeoutMs,
-            maxRetries: 0,
+async function createDefaultFactory(): Promise<McpDirectSdkFactory> {
+  // Keep the MCP SDK outside the startup graph. The installed package must
+  // resolve these runtime dependencies, but commands such as --version and
+  // gateway startup do not need to load the MCP client implementation.
+  const [{ Client, SSEClientTransport, StreamableHTTPClientTransport }, { StdioClientTransport }] = await Promise.all([
+    import('@modelcontextprotocol/client'),
+    import('@modelcontextprotocol/client/stdio'),
+  ]);
+
+  return Object.freeze({
+    createClient(
+      clientInfo: McpDirectClientInfo,
+      options: { readonly listMaxPages: number; readonly probeTimeoutMs: number },
+    ) {
+      const client = new Client(
+        { name: clientInfo.name, version: clientInfo.version },
+        {
+          versionNegotiation: {
+            mode: 'auto',
+            probe: {
+              timeoutMs: options.probeTimeoutMs,
+              maxRetries: 0,
+            },
           },
+          listMaxPages: options.listMaxPages,
+          defaultCacheTtlMs: 0,
         },
-        listMaxPages: options.listMaxPages,
-        defaultCacheTtlMs: 0,
-      },
-    );
-    return {
-      connect: (
-        transport: unknown,
-        connectOptions: { readonly timeout: number; readonly signal: AbortSignal },
-      ) => client.connect(
-        transport as Parameters<Client['connect']>[0],
-        connectOptions,
-      ),
-      listTools: async (listOptions: {
-        readonly timeout: number;
-        readonly signal: AbortSignal;
-        readonly cacheMode: 'refresh';
-      }) => client.listTools(undefined, {
-        ...listOptions,
-        cacheMode: 'refresh',
-      }),
-      callTool: (
-        params: {
-          readonly name: string;
-          readonly arguments?: Readonly<Record<string, unknown>>;
-        },
-        callOptions: {
+      );
+      return {
+        connect: (
+          transport: unknown,
+          connectOptions: { readonly timeout: number; readonly signal: AbortSignal },
+        ) => client.connect(
+          transport as Parameters<Client['connect']>[0],
+          connectOptions,
+        ),
+        listTools: async (listOptions: {
           readonly timeout: number;
           readonly signal: AbortSignal;
-          readonly toolDefinition: unknown;
+          readonly cacheMode: 'refresh';
+        }) => client.listTools(undefined, {
+          ...listOptions,
+          cacheMode: 'refresh',
+        }),
+        callTool: (
+          params: {
+            readonly name: string;
+            readonly arguments?: Readonly<Record<string, unknown>>;
+          },
+          callOptions: {
+            readonly timeout: number;
+            readonly signal: AbortSignal;
+            readonly toolDefinition: unknown;
+          },
+        ) => client.callTool(
+          params as Parameters<Client['callTool']>[0],
+          callOptions as Parameters<Client['callTool']>[1],
+        ),
+        getProtocolEra: () => client.getProtocolEra(),
+        getNegotiatedProtocolVersion: () => client.getNegotiatedProtocolVersion(),
+        close: () => client.close(),
+      };
+    },
+
+    createStdioTransport(config: Parameters<McpDirectSdkFactory['createStdioTransport']>[0]) {
+      const transport = new StdioClientTransport({
+        command: config.command,
+        args: [...config.args],
+        ...(config.env === undefined ? {} : { env: { ...config.env } }),
+        ...(config.cwd === undefined ? {} : { cwd: config.cwd }),
+        stderr: 'pipe',
+        maxBufferSize: config.maxBufferBytes,
+      });
+      // Drain child stderr so a noisy server cannot backpressure its own process.
+      // Nothing from stderr is persisted into FuryPipe evidence.
+      const stderr = transport.stderr as { resume?: () => unknown } | null;
+      stderr?.resume?.();
+      return transport;
+    },
+
+    createHttpTransport(config: Parameters<McpDirectSdkFactory['createHttpTransport']>[0]) {
+      return new StreamableHTTPClientTransport(config.url, {
+        fetch: (input: string | URL | Request, init?: RequestInit) =>
+          fetchWithResponseLimit(input, init, config.maxResponseBytes),
+        ...(config.authProvider === undefined ? {} : { authProvider: config.authProvider }),
+        requestInit: {
+          headers: { ...config.headers },
+          // Direct MCP endpoints are source-bound. Never silently follow a
+          // redirect to a different origin/private address.
+          redirect: 'manual',
         },
-      ) => client.callTool(
-        params as Parameters<Client['callTool']>[0],
-        callOptions as Parameters<Client['callTool']>[1],
-      ),
-      getProtocolEra: () => client.getProtocolEra(),
-      getNegotiatedProtocolVersion: () => client.getNegotiatedProtocolVersion(),
-      close: () => client.close(),
-    };
-  },
+        // M1 is inventory-only: background reconnect loops are unnecessary and
+        // would create ambiguous liveness evidence.
+        reconnectionOptions: {
+          initialReconnectionDelay: 1_000,
+          maxReconnectionDelay: 1_000,
+          reconnectionDelayGrowFactor: 1,
+          maxRetries: 0,
+        },
+        onInsufficientScope: 'throw',
+        maxStepUpRetries: 0,
+      });
+    },
 
-  createStdioTransport(config: Parameters<McpDirectSdkFactory['createStdioTransport']>[0]) {
-    const transport = new StdioClientTransport({
-      command: config.command,
-      args: [...config.args],
-      ...(config.env === undefined ? {} : { env: { ...config.env } }),
-      ...(config.cwd === undefined ? {} : { cwd: config.cwd }),
-      stderr: 'pipe',
-      maxBufferSize: config.maxBufferBytes,
-    });
-    // Drain child stderr so a noisy server cannot backpressure its own process.
-    // Nothing from stderr is persisted into FuryPipe evidence.
-    const stderr = transport.stderr as { resume?: () => unknown } | null;
-    stderr?.resume?.();
-    return transport;
-  },
-
-  createHttpTransport(config: Parameters<McpDirectSdkFactory['createHttpTransport']>[0]) {
-    return new StreamableHTTPClientTransport(config.url, {
-      fetch: (input: string | URL | Request, init?: RequestInit) =>
-        fetchWithResponseLimit(input, init, config.maxResponseBytes),
-      requestInit: {
-        headers: { ...config.headers },
-        // Direct MCP endpoints are source-bound. Never silently follow a
-        // redirect to a different origin/private address.
-        redirect: 'manual',
-      },
-      // M1 is inventory-only: background reconnect loops are unnecessary and
-      // would create ambiguous liveness evidence.
-      reconnectionOptions: {
-        initialReconnectionDelay: 1_000,
-        maxReconnectionDelay: 1_000,
-        reconnectionDelayGrowFactor: 1,
-        maxRetries: 0,
-      },
-      onInsufficientScope: 'throw',
-      maxStepUpRetries: 0,
-    });
-  },
-});
+    createSseTransport(config: {
+      readonly url: URL;
+      readonly headers: Readonly<Record<string, string>>;
+      readonly authProvider?: OAuthClientProvider;
+      readonly maxResponseBytes: number;
+    }) {
+      return new SSEClientTransport(config.url, {
+        fetch: (input: string | URL | Request, init?: RequestInit) =>
+          fetchWithResponseLimit(input, init, config.maxResponseBytes),
+        ...(config.authProvider === undefined ? {} : { authProvider: config.authProvider }),
+        requestInit: {
+          headers: { ...config.headers },
+          redirect: 'manual',
+        },
+      });
+    },
+  });
+}
 
 function boundedInteger(
   value: number | undefined,
@@ -411,11 +462,13 @@ function isLoopbackHost(host: string): boolean {
   return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1';
 }
 
-function validatedHttpConfig(config: McpDirectHttpRuntimeConfig): {
+function validatedHttpConfig(config: McpDirectHttpRuntimeConfig | McpDirectSseRuntimeConfig): {
   readonly url: URL;
   readonly headers: Readonly<Record<string, string>>;
   readonly principalId: string | null;
   readonly headerNames: readonly string[];
+  readonly authProvider?: OAuthClientProvider;
+  readonly authKind: 'none' | 'headers' | 'oauth-provider';
 } {
   let url: URL;
   try {
@@ -450,10 +503,14 @@ function validatedHttpConfig(config: McpDirectHttpRuntimeConfig): {
   }
 
   const entries = Object.entries(config.headers ?? {});
+  const hasAuthProvider = config.authProvider !== undefined;
+  if (hasAuthProvider && (typeof config.authProvider !== 'object' || config.authProvider === null)) {
+    throw new Error('MCP OAuth authProvider must be a host-owned provider object');
+  }
   const principalId = validatedPrincipalId(
     config.principalId,
-    entries.length > 0,
-    'MCP HTTP headers',
+    entries.length > 0 || hasAuthProvider,
+    'MCP HTTP credentials',
   );
   if (entries.length > MAX_HTTP_HEADERS) {
     throw new Error('MCP HTTP headers exceed the 64 header bound');
@@ -490,11 +547,16 @@ function validatedHttpConfig(config: McpDirectHttpRuntimeConfig): {
     headers[name] = value;
   }
 
+  if (hasAuthProvider && Object.keys(headers).some((name) => name.toLowerCase() === 'authorization')) {
+    throw new Error('MCP OAuth authProvider cannot be combined with an Authorization header');
+  }
   return Object.freeze({
     url,
     headers: Object.freeze(headers),
     principalId,
     headerNames: Object.freeze(Object.keys(headers).map(name => name.toLowerCase()).sort()),
+    ...(config.authProvider === undefined ? {} : { authProvider: config.authProvider }),
+    authKind: hasAuthProvider ? 'oauth-provider' as const : entries.length > 0 ? 'headers' as const : 'none' as const,
   });
 }
 
@@ -598,11 +660,19 @@ function transportFor(
     16 * 1024 * 1024,
     'MCP HTTP maxResponseBytes',
   );
-  return factory.createHttpTransport({
+  const remoteConfig = {
     url: http.url,
     headers: http.headers,
+    ...(http.authProvider === undefined ? {} : { authProvider: http.authProvider }),
     maxResponseBytes,
-  });
+  };
+  if (config.source.transport === 'sse') {
+    if (typeof factory.createSseTransport !== 'function') {
+      throw new Error('MCP SSE transport factory is unavailable');
+    }
+    return factory.createSseTransport(remoteConfig);
+  }
+  return factory.createHttpTransport(remoteConfig);
 }
 
 /**
@@ -635,10 +705,11 @@ export function deriveMcpDirectEndpointFingerprint(
   if (!('url' in config)) throw new Error('MCP source transport/config mismatch');
   const http = validatedHttpConfig(config);
   return digestMcpDirectJson({
-    transport: 'streamable_http',
+    transport: config.source.transport,
     url: http.url.toString(),
     principalId: http.principalId,
     headerNames: http.headerNames,
+    authKind: http.authKind,
   });
 }
 
@@ -699,7 +770,7 @@ export async function withMcpDirectFreshInventory<T>(
   }
 
   let lifecycle = createMcpDirectLifecycle(config.source);
-  const factory = options.factory ?? DEFAULT_FACTORY;
+  const factory = options.factory ?? await createDefaultFactory();
   const client = factory.createClient(options.clientInfo, { listMaxPages, probeTimeoutMs });
   const transport = transportFor(config, factory);
   let primaryError: unknown;

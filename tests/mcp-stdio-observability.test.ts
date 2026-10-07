@@ -166,8 +166,7 @@ describe('MCP stdio runtime observability', () => {
     const root = await mkdtemp(join(tmpdir(), 'furypipe-mcp-stdio-child-'));
     roots.push(root);
     const worker = fileURLToPath(new URL('./fixtures/mcp-stdio-observability-worker.ts', import.meta.url));
-    const tsx = join(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
-    const child = spawn(process.execPath, [tsx, worker, root, 'stdio-child'], {
+    const child = spawn(process.execPath, ['--import', 'tsx/esm', worker, root, 'stdio-child'], {
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 

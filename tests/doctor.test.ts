@@ -3,6 +3,46 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { collectDoctorReport, renderDoctorReport, resolveDoctorLocale, type DoctorReport } from '../src/doctor.js';
+import type { FuryBetaConfigObservation } from '../src/beta-config.js';
+import type { FuryBetaReadinessSnapshot } from '../src/beta-readiness.js';
+
+const betaConfig: FuryBetaConfigObservation = {
+  format: 'furypipe-beta-config/v1',
+  path: 'C:\\Users\\test\\config.json',
+  status: 'legacy',
+  schemaVersion: null,
+  mode: null,
+  migrationId: null,
+  digestSha256: '0'.repeat(64),
+  rollback: 'not-required',
+  reasonCodes: ['legacy-config'],
+};
+
+const betaReadiness: FuryBetaReadinessSnapshot = {
+  format: 'furypipe-beta-readiness-snapshot/v1',
+  observedAt: 1,
+  overallStatus: 'degraded',
+  taskReady: true,
+  subsystemCount: 0,
+  requiredSubsystems: 0,
+  optionalSubsystems: 0,
+  statusCounts: {
+    ready: 0,
+    degraded: 0,
+    unconfigured: 0,
+    unavailable: 0,
+    blocked: 0,
+    unsupported: 0,
+  },
+  blockers: [],
+  degradations: [],
+  subsystems: [],
+  digestSha256: '0'.repeat(64),
+  authority: 'readiness-observation-only',
+  executionAuthority: false,
+  repairAuthority: false,
+  selectionAuthority: false,
+};
 
 const report: DoctorReport = {
   platform: { os: 'test 1', arch: 'x64', shell: 'powershell', cwd: 'C:\\work', executable: 'node' },
@@ -20,7 +60,11 @@ const report: DoctorReport = {
     claude: { status: 'unavailable' },
     codex: { status: 'available', value: 'codex 1' },
     openclaw: { status: 'unavailable' },
+    ffmpeg: { status: 'available', value: 'ffmpeg version 6.1.1' },
+    ffprobe: { status: 'available', value: 'ffprobe version 6.1.1' },
   },
+  betaConfig,
+  betaReadiness,
 };
 
 describe('furypipe doctor renderer', () => {
@@ -28,6 +72,9 @@ describe('furypipe doctor renderer', () => {
     const output = renderDoctorReport(report);
     expect(output).toContain('Node: 26.8.2');
     expect(output).toContain('OpenClaw: unavailable');
+    expect(output).toContain('FFmpeg: available (ffmpeg version 6.1.1)');
+    expect(output).toContain('FFprobe: available (ffprobe version 6.1.1)');
+    expect(output).toContain('Beta readiness: degraded (task-ready=yes)');
     expect(output).not.toContain('API_KEY');
     expect(output).not.toContain('token');
   });
@@ -104,6 +151,13 @@ describe('furypipe doctor renderer', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('reports media tool availability without exposing environment secrets', () => {
+    const result = collectDoctorReport({ env: { FURYPIPE_CONFIG: path.join(os.tmpdir(), 'missing-furypipe-config.json') } });
+    expect(['available', 'unavailable']).toContain(result.tools.ffmpeg?.status);
+    expect(['available', 'unavailable']).toContain(result.tools.ffprobe?.status);
+    expect(JSON.stringify(result)).not.toContain('API_KEY');
   });
 
   it('reports environment scope as authoritative over persisted config', () => {

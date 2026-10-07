@@ -16,10 +16,19 @@ import {
   type ProviderTransport,
 } from './provider-transport.js';
 import {
+  createProviderStreamTransportRegistry,
+  type ProviderStreamTransport,
+} from './provider-stream-transport.js';
+import {
   createAnthropicProviderTransport,
   createGoogleProviderTransport,
   createOpenAIProviderTransport,
 } from './provider-transports/index.js';
+import {
+  createAnthropicProviderStreamTransport,
+  createGoogleProviderStreamTransport,
+  createOpenAIProviderStreamTransport,
+} from './provider-stream-transports/index.js';
 
 export const FURY_GATEWAY_LOCAL_MODEL_CONFIG_FORMAT =
   'furypipe-gateway-local-model-config/v1' as const;
@@ -185,6 +194,32 @@ function createTransport(
   return createGoogleProviderTransport(runtime);
 }
 
+function createStreamTransport(
+  config: FuryGatewayLocalModelConfigEnabled,
+  env: Readonly<Record<string, string | undefined>>,
+  fetchImpl: typeof fetch | undefined,
+): ProviderStreamTransport {
+  const runtime = {
+    getCredential: () => {
+      const credential = exactEnv(env, config.credentialSource);
+      if (credential === undefined) {
+        throw new Error('configured WebChat provider credential is unavailable');
+      }
+      return credential;
+    },
+    ...(fetchImpl === undefined ? {} : { fetchImpl }),
+    maxOutputTokens: config.maxOutputTokens,
+  };
+
+  if (config.providerId === 'openai') {
+    return createOpenAIProviderStreamTransport(runtime);
+  }
+  if (config.providerId === 'anthropic') {
+    return createAnthropicProviderStreamTransport(runtime);
+  }
+  return createGoogleProviderStreamTransport(runtime);
+}
+
 export function createFuryGatewayLocalModelRuntime(
   options: FuryGatewayLocalModelRuntimeOptions,
 ): FuryGatewayLocalModelRuntime {
@@ -234,6 +269,9 @@ export function createFuryGatewayLocalModelRuntime(
     providerRuntime,
     transports: createProviderTransportRegistry([
       createTransport(config, env, options.fetchImpl),
+    ]),
+    streamTransports: createProviderStreamTransportRegistry([
+      createStreamTransport(config, env, options.fetchImpl),
     ]),
     routes: [route],
     continuationPolicy: Object.freeze({

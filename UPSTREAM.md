@@ -10,7 +10,7 @@ This document records provenance. It is **not** the current product status page;
 - audited upstream branch: `main`
 - audited upstream commit: `8ba82b713a1e823bc1c09b7a68e47f63caa7b426`
 - original local fetch/audit date: **2026-09-11**
-- FuryPipe repository: `https://github.com/Mistermode45/FuryPipe.git`
+- FuryPipe repository: `https://github.com/LegendeUrbaine/FuryPipe.git`
 
 The audited upstream commit is preserved as a provenance reference. FuryPipe does not claim that later FuryPipe behavior, architecture or release evidence is provided by that upstream snapshot.
 
@@ -69,9 +69,10 @@ The earlier V5 hardening branch and PR history are retained in repository histor
 
 Current public release status:
 
-- FuryPipe `v0.14.0`: released **2026-09-15**
-- npm `furypipe@0.14.0`: published
-- GitHub Release `v0.14.0`: published
+- FuryPipe `v0.15.0`: released **2026-09-16**
+- npm `furypipe@0.15.0`: published
+- GitHub Release `v0.15.0`: published
+- FuryPipe `v0.16.0`: release candidate under preparation; not published
 - production deployment: separate lifecycle state
 
 Exact release details are recorded in [docs/RELEASE_SECURITY.md](docs/RELEASE_SECURITY.md).

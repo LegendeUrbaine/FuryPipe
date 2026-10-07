@@ -440,7 +440,7 @@ export async function runHostedMcpConformance(): Promise<HostedMcpEvidence> {
   const githubRunAttempt = process.env.GITHUB_RUN_ATTEMPT?.trim() || 'unknown';
   const runnerEnvironment = process.env.FURYPIPE_GITHUB_RUNNER_ENVIRONMENT?.trim() || 'unknown';
   const githubActionsBound = process.env.GITHUB_ACTIONS === 'true'
-    && githubRepository === 'Mistermode45/FuryPipe'
+    && githubRepository === 'LegendeUrbaine/FuryPipe'
     && (process.env.GITHUB_EVENT_NAME === 'workflow_dispatch' || process.env.GITHUB_EVENT_NAME === 'pull_request')
     && runnerEnvironment === 'github-hosted'
     && /^\d+$/u.test(githubRunId)

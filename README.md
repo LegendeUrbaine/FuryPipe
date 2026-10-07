@@ -32,7 +32,7 @@ That distinction is enforced throughout the project through explicit lifecycle s
 
 **Current public release:** [FuryPipe v0.15.0](https://github.com/LegendeUrbaine/FuryPipe/releases/tag/v0.15.0) · [npm package](https://www.npmjs.com/package/furypipe)
 
-**0.16.0 release candidate:** the exact candidate is being validated in [PR #238](https://github.com/LegendeUrbaine/FuryPipe/pull/238) and is not published.
+**0.16.0 release candidate:** the exact candidate is being validated in [PR #250](https://github.com/LegendeUrbaine/FuryPipe/pull/250) and is not published.
 
 FuryPipe is pre-1.0. Public APIs can still evolve. Package publication also remains distinct from production deployment and from optional hosted-integration verification.
 
@@ -435,7 +435,7 @@ Security vulnerabilities must follow [SECURITY.md](SECURITY.md).
 
 **Version publique actuelle :** [FuryPipe v0.15.0](https://github.com/LegendeUrbaine/FuryPipe/releases/tag/v0.15.0) · [package npm](https://www.npmjs.com/package/furypipe)
 
-**Release candidate 0.16.0 :** le candidat exact est validé dans la [PR #238](https://github.com/LegendeUrbaine/FuryPipe/pull/238) et n’est pas publié.
+**Release candidate 0.16.0 :** le candidat exact est validé dans la [PR #250](https://github.com/LegendeUrbaine/FuryPipe/pull/250) et n’est pas publié.
 
 FuryPipe est encore en pré-1.0. Les API publiques peuvent évoluer. La publication du package reste également distincte d’un déploiement en production et de la vérification des intégrations externes optionnelles.
 

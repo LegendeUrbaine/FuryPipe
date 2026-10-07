@@ -445,7 +445,7 @@ If the selected listener port is already occupied, `furypipe start` fails closed
 ## Distribution and release status
 
 The latest public GitHub release in the canonical repository is v0.15.0.
-The 0.16.0 candidate is under validation in PR #238 and is not published.
+The 0.16.0 candidate is under validation in PR #250 and is not published.
 The npm registry state must be checked independently before installing a
 registry release; a green CI run is not publication evidence.
 

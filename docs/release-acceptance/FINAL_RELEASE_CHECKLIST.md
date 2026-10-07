@@ -6,9 +6,9 @@
 |---|---|
 | Version | 0.16.0 |
 | Base prévue | codex/furypipe-final-completion |
-| Head final | supplied by the exact RC artifact; current candidate was checked in PR #238 |
-| Branch | codex/furypipe-production-finalization-2026 |
-| Draft PR | #238 OPEN/DRAFT |
+| Head final | `c8cf7e5b99a073beb5689bb57459af704ba0d5c8` |
+| Branch | codex/furypipe-0.16.0-release-candidate |
+| RC PR | #250 OPEN / non-draft |
 | Worktree | canonical GitHub branch; no unverified local checkout is used |
 
 ## Gates techniques

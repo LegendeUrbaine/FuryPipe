@@ -34,6 +34,7 @@ describe('FuryPipe setup TUI', () => {
     });
 
     expect(rendered).toContain('FURYPIPE');
+    expect(rendered).toContain('BUILD · AUTOMATE · CREATE · BEYOND.');
     expect(rendered).toContain('CONTROL PLANE');
     expect(rendered).toContain('FURYLINK');
     expect(rendered).toContain('VISUAL');

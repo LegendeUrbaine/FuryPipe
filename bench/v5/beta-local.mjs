@@ -234,7 +234,7 @@ try {
   const output = {
     format: 'furypipe-furybench-beta/v1',
     status: baselinePath ? (regressions.length === 0 ? 'PASS' : 'REGRESSION') : 'BASELINE_CAPTURED',
-    source: { repository: 'Mistermode45/FuryPipe', commit, workingTreeDirty: workingTreeDirty() },
+    source: { repository: 'LegendeUrbaine/FuryPipe', commit, workingTreeDirty: workingTreeDirty() },
     runtime: { node: process.versions.node, platform: process.platform, arch: process.arch },
     parameters: { iterations, warmup, commands: Object.fromEntries(Object.entries(commands).map(([name, command]) => [name, command.args])) },
     thresholds: {

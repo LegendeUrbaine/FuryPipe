@@ -265,6 +265,46 @@ describe('Fury Gateway durable automation trigger/run ledger', () => {
     });
   });
 
+  it('reconciles a durable outcome-unknown run after restart without replaying its execution identity', async () => {
+    const dir = root();
+    let now = 100;
+    const first = createFuryGatewayAutomationRunLedger({
+      store: recovery(dir),
+      now: () => now,
+    });
+    const run = await first.registerTrigger(triggerInput() as never);
+    const claim = await first.claim(run.runIdSha256, 'gateway-instance-a');
+    now = 200;
+    await first.arm(claim);
+
+    const restarted = createFuryGatewayAutomationRunLedger({
+      store: recovery(dir),
+      now: () => 300,
+    });
+    const terminal = await restarted.reconcileOutcomeUnknown(run.runIdSha256, {
+      outcome: 'succeeded',
+      evidenceSha256: 'f'.repeat(64),
+      confirmation: 'operator-confirmed',
+    });
+
+    expect(terminal).toMatchObject({
+      state: 'terminal',
+      outcome: 'succeeded',
+      evidenceSha256: 'f'.repeat(64),
+      automaticReplayAllowed: false,
+    });
+    await expect(
+      restarted.claim(run.runIdSha256, 'gateway-instance-b'),
+    ).rejects.toMatchObject({ code: 'run-conflict' });
+    await expect(
+      restarted.reconcileOutcomeUnknown(run.runIdSha256, {
+        outcome: 'failed',
+        evidenceSha256: 'e'.repeat(64),
+        confirmation: 'operator-confirmed',
+      }),
+    ).rejects.toMatchObject({ code: 'run-conflict' });
+  });
+
   it('settles an armed known outcome only with evidence and recovers terminal state', async () => {
     const dir = root();
     let now = 100;

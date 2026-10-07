@@ -1,6 +1,6 @@
 {
   "name": "furypipe",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "FuryPipe — context, agents, skills, MCP, memory, provider routing and capability orchestration for production AI workflows.",
   "type": "module",
   "bin": {
@@ -373,6 +373,10 @@
       "types": "./dist/capability-router.d.ts",
       "import": "./dist/capability-router.js"
     },
+    "./capability-router-autopilot": {
+      "types": "./dist/capability-router-autopilot.d.ts",
+      "import": "./dist/capability-router-autopilot.js"
+    },
     "./capability-index": {
       "types": "./dist/capability-index.d.ts",
       "import": "./dist/capability-index.js"
@@ -428,6 +432,50 @@
     "./capability-catalog": {
       "types": "./dist/capability-catalog.d.ts",
       "import": "./dist/capability-catalog.js"
+    },
+    "./fury-marketplace": {
+      "types": "./dist/fury-marketplace.d.ts",
+      "import": "./dist/fury-marketplace.js"
+    },
+    "./fury-supply-chain": {
+      "types": "./dist/fury-supply-chain.d.ts",
+      "import": "./dist/fury-supply-chain.js"
+    },
+    "./fury-eval": {
+      "types": "./dist/fury-eval.d.ts",
+      "import": "./dist/fury-eval.js"
+    },
+    "./fury-capability-composer": {
+      "types": "./dist/fury-capability-composer.d.ts",
+      "import": "./dist/fury-capability-composer.js"
+    },
+    "./fury-eval-history": {
+      "types": "./dist/fury-eval-history.d.ts",
+      "import": "./dist/fury-eval-history.js"
+    },
+    "./fury-external-effect-ledger": {
+      "types": "./dist/fury-external-effect-ledger.d.ts",
+      "import": "./dist/fury-external-effect-ledger.js"
+    },
+    "./fury-plugin-sdk": {
+      "types": "./dist/fury-plugin-sdk.d.ts",
+      "import": "./dist/fury-plugin-sdk.js"
+    },
+    "./fury-provider-sdk": {
+      "types": "./dist/fury-provider-sdk.d.ts",
+      "import": "./dist/fury-provider-sdk.js"
+    },
+    "./fury-agent-sdk": {
+      "types": "./dist/fury-agent-sdk.d.ts",
+      "import": "./dist/fury-agent-sdk.js"
+    },
+    "./fury-workflow-sdk": {
+      "types": "./dist/fury-workflow-sdk.d.ts",
+      "import": "./dist/fury-workflow-sdk.js"
+    },
+    "./fury-headless": {
+      "types": "./dist/fury-headless.d.ts",
+      "import": "./dist/fury-headless.js"
     },
     "./benchmark-claim-gate": {
       "types": "./dist/benchmark-claim-gate.d.ts",
@@ -557,6 +605,10 @@
       "types": "./dist/memory-vnext.d.ts",
       "import": "./dist/memory-vnext.js"
     },
+    "./fury-memory-time-machine": {
+      "types": "./dist/fury-memory-time-machine.d.ts",
+      "import": "./dist/fury-memory-time-machine.js"
+    },
     "./acp-v1-server-node": {
       "types": "./dist/acp-v1-server-node.d.ts",
       "import": "./dist/acp-v1-server-node.js"
@@ -588,6 +640,94 @@
     "./a2a-remote-adapter-node": {
       "types": "./dist/a2a-remote-adapter-node.d.ts",
       "import": "./dist/a2a-remote-adapter-node.js"
+    },
+    "./fury-artifacts": {
+      "types": "./dist/fury-artifacts.d.ts",
+      "import": "./dist/fury-artifacts.js"
+    },
+    "./media-plugin-contracts": {
+      "types": "./dist/media-plugin-contracts.d.ts",
+      "import": "./dist/media-plugin-contracts.js"
+    },
+    "./media-ingestion": {
+      "types": "./dist/media-ingestion.d.ts",
+      "import": "./dist/media-ingestion.js"
+    },
+    "./media-generation-runtime": {
+      "types": "./dist/media-generation-runtime.d.ts",
+      "import": "./dist/media-generation-runtime.js"
+    },
+    "./media-generation-job-engine": {
+      "types": "./dist/media-generation-job-engine.d.ts",
+      "import": "./dist/media-generation-job-engine.js"
+    },
+    "./media-generation-host-runtime-node": {
+      "types": "./dist/media-generation-host-runtime-node.d.ts",
+      "import": "./dist/media-generation-host-runtime-node.js"
+    },
+    "./media-generation-deterministic-adapter": {
+      "types": "./dist/media-generation-deterministic-adapter.d.ts",
+      "import": "./dist/media-generation-deterministic-adapter.js"
+    },
+    "./media-studio": {
+      "types": "./dist/media-studio.d.ts",
+      "import": "./dist/media-studio.js"
+    },
+    "./fury-video-timeline": {
+      "types": "./dist/fury-video-timeline.d.ts",
+      "import": "./dist/fury-video-timeline.js"
+    },
+    "./video-studio": {
+      "types": "./dist/video-studio.d.ts",
+      "import": "./dist/video-studio.js"
+    },
+    "./video-local-engine": {
+      "types": "./dist/video-local-engine.d.ts",
+      "import": "./dist/video-local-engine.js"
+    },
+    "./video-providers": {
+      "types": "./dist/video-providers.d.ts",
+      "import": "./dist/video-providers.js"
+    },
+    "./video-workflow": {
+      "types": "./dist/video-workflow.d.ts",
+      "import": "./dist/video-workflow.js"
+    },
+    "./video-cli": {
+      "types": "./dist/video-cli.d.ts",
+      "import": "./dist/video-cli.js"
+    },
+    "./video-skills": {
+      "types": "./dist/video-skills.d.ts",
+      "import": "./dist/video-skills.js"
+    },
+    "./fury-observability": {
+      "types": "./dist/fury-observability.d.ts",
+      "import": "./dist/fury-observability.js"
+    },
+    "./fury-plugin-runtime": {
+      "types": "./dist/fury-plugin-runtime.d.ts",
+      "import": "./dist/fury-plugin-runtime.js"
+    },
+    "./fury-artifact-repository-node": {
+      "types": "./dist/fury-artifact-repository-node.d.ts",
+      "import": "./dist/fury-artifact-repository-node.js"
+    },
+    "./fury-plugin-sandbox-node": {
+      "types": "./dist/fury-plugin-sandbox-node.d.ts",
+      "import": "./dist/fury-plugin-sandbox-node.js"
+    },
+    "./fury-plugin-ui-runtime-node": {
+      "types": "./dist/fury-plugin-ui-runtime-node.d.ts",
+      "import": "./dist/fury-plugin-ui-runtime-node.js"
+    },
+    "./fury-code-advanced-node": {
+      "types": "./dist/fury-code-advanced-node.d.ts",
+      "import": "./dist/fury-code-advanced-node.js"
+    },
+    "./browser-playwright-host-node": {
+      "types": "./dist/browser-playwright-host-node.d.ts",
+      "import": "./dist/browser-playwright-host-node.js"
     }
   },
   "files": [
@@ -595,6 +735,8 @@
     "dist/",
     "!dist/**/*.map",
     "assets/*LICENSE.txt",
+    "assets/fonts/",
+    "assets/branding/forge/",
     "README.md",
     "SECURITY.md",
     "THIRD_PARTY_NOTICES.md",
@@ -674,12 +816,29 @@
   "scripts": {
     "audit": "pnpm audit --prod --audit-level high",
     "build": "node scripts/build.mjs",
+    "start": "node bin/cli.js start",
     "build:atlas": "tsx scripts/gen-atlas.ts",
     "dev:node": "tsx watch src/node.ts",
     "dev:worker": "wrangler dev",
     "deploy:worker": "wrangler deploy",
-    "browser:qa": "tsx scripts/cross-browser-qa.ts",
+    "browser:qa": "node --import tsx/esm scripts/cross-browser-qa.ts",
     "benchmark:beta": "node bench/v5/beta-local.mjs",
+    "lint": "eslint src scripts tests --max-warnings 0",
+    "validation:upgrade-rollback": "node scripts/upgrade-rollback-smoke.mjs",
+    "validation:recovery": "node scripts/recovery-resilience-smoke.mjs",
+    "validation:gateway": "node scripts/gateway-restart-smoke.mjs",
+    "validation:gateway-installed-package": "node scripts/gateway-installed-package-smoke.mjs",
+    "validation:package-reproducibility": "node scripts/package-reproducibility.mjs",
+    "validation:clean-room": "node scripts/clean-room-package-smoke.mjs",
+    "validation:local-contracts": "node scripts/local-contracts.mjs",
+    "validation:accessibility": "node scripts/accessibility-automation.mjs",
+    "validation:forge-assets": "node scripts/validate-forge-assets.mjs",
+    "validation:flux-assets": "node scripts/validate-flux-assets.mjs",
+    "validation:furybench": "node scripts/furybench-baseline-compare.mjs",
+    "validation:document-summary": "node --import tsx/esm scripts/document-summary-e2e.ts",
+    "validation:provider-live": "tsx scripts/provider-live-validation.ts",
+    "validation:oidc-live": "node scripts/oidc-live-validation.mjs",
+    "validation:mcp-remote": "node scripts/mcp-remote-validation.mjs",
     "openclaw:probe": "tsx scripts/openclaw-live-probe.ts",
     "hosted-mcp:fixture": "tsx scripts/hosted-mcp-fixture.ts",
     "hosted-mcp:conformance": "tsx scripts/hosted-mcp-conformance.ts",
@@ -687,10 +846,16 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.hosted-mcp.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "package:smoke": "node scripts/package-smoke.mjs && node scripts/phase6-package-smoke.mjs && node scripts/phase7-package-smoke.mjs && node scripts/phase8-acp-package-smoke.mjs && node scripts/benchmark-claim-package-smoke.mjs && node scripts/provider-attempt-package-smoke.mjs && node scripts/governed-provider-package-smoke.mjs",
+    "package:smoke": "node scripts/package-smoke.mjs && node scripts/gateway-installed-package-smoke.mjs && node scripts/phase6-package-smoke.mjs && node scripts/phase7-package-smoke.mjs && node scripts/phase8-acp-package-smoke.mjs && node scripts/benchmark-claim-package-smoke.mjs && node scripts/provider-attempt-package-smoke.mjs && node scripts/governed-provider-package-smoke.mjs",
     "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build",
     "vendor:ui": "node scripts/vendor-ui.mjs",
-    "browser:webchat:qa": "tsx scripts/gateway-webchat-browser-qa.ts"
+    "browser:webchat:qa": "node --import tsx/esm scripts/gateway-webchat-browser-qa.ts",
+    "browser:studio:qa": "node --import tsx/esm scripts/studio-browser-qa.ts",
+    "browser:studio:composer:qa": "node --import tsx/esm scripts/studio-capability-composer-browser-qa.ts",
+    "validation:composer:live": "node --import tsx/esm scripts/studio-capability-composer-live-acceptance.ts",
+    "bench:studio": "tsx scripts/furybench-studio.ts",
+    "validation:supply-chain": "tsx scripts/supply-chain-evidence.ts",
+    "browser:host:qa": "node --import tsx/esm scripts/browser-playwright-host-qa.ts"
   },
   "keywords": [
     "furypipe",
@@ -720,6 +885,8 @@
     "@types/node": "^26.5.1",
     "@types/ws": "8.18.1",
     "esbuild": "^0.28.2",
+    "eslint": "10.11.0",
+    "globals": "17.13.0",
     "playwright": "1.63.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
@@ -728,20 +895,20 @@
     "wrangler": "^4.131.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/client": "2.0.0",
+    "@agentclientprotocol/sdk": "1.4.0",
+    "@modelcontextprotocol/client": "2.2.0",
     "@modelcontextprotocol/server": "2.0.0",
     "gpt-tokenizer": "^4.0.0",
     "json5": "^2.2.3",
     "ws": "8.21.3",
-    "@agentclientprotocol/sdk": "1.4.0",
     "zod": "4.6.2"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Mistermode45/FuryPipe.git"
+    "url": "git+https://github.com/LegendeUrbaine/FuryPipe.git"
   },
-  "homepage": "https://github.com/Mistermode45/FuryPipe#readme",
+  "homepage": "https://github.com/LegendeUrbaine/FuryPipe#readme",
   "bugs": {
-    "url": "https://github.com/Mistermode45/FuryPipe/issues"
+    "url": "https://github.com/LegendeUrbaine/FuryPipe/issues"
   }
 }

@@ -7,8 +7,8 @@
 **Build AI workflows that stay explicit about what is available, what is allowed, what actually ran, and what was verified.**
 
 [![npm](https://img.shields.io/npm/v/furypipe?logo=npm&label=npm)](https://www.npmjs.com/package/furypipe)
-[![GitHub release](https://img.shields.io/github/v/release/Mistermode45/FuryPipe?logo=github&label=release)](https://github.com/Mistermode45/FuryPipe/releases/latest)
-[![CI](https://github.com/Mistermode45/FuryPipe/actions/workflows/ci.yml/badge.svg)](https://github.com/Mistermode45/FuryPipe/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/LegendeUrbaine/FuryPipe?logo=github&label=release)](https://github.com/LegendeUrbaine/FuryPipe/releases/latest)
+[![CI](https://github.com/LegendeUrbaine/FuryPipe/actions/workflows/ci.yml/badge.svg)](https://github.com/LegendeUrbaine/FuryPipe/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/Node-%3E%3D22.14-339933?logo=node.js&logoColor=white)](package.json)
 
@@ -30,7 +30,9 @@ FuryPipe is designed around a simple rule:
 
 That distinction is enforced throughout the project through explicit lifecycle states, receipts, source-bound evidence and fail-closed behavior.
 
-**Current public release:** [Latest GitHub Release](https://github.com/Mistermode45/FuryPipe/releases/latest) · [npm package](https://www.npmjs.com/package/furypipe)
+**Current public release:** [FuryPipe v0.15.0](https://github.com/LegendeUrbaine/FuryPipe/releases/tag/v0.15.0) · [npm package](https://www.npmjs.com/package/furypipe)
+
+**0.16.0 release candidate:** the exact candidate is being validated in [PR #250](https://github.com/LegendeUrbaine/FuryPipe/pull/250) and is not published.
 
 FuryPipe is pre-1.0. Public APIs can still evolve. Package publication also remains distinct from production deployment and from optional hosted-integration verification.
 
@@ -271,6 +273,16 @@ FuryPipe is a governed context runtime rather than a single-purpose proxy. Its p
 The loopback Control Plane V2 exposes only bounded, read-only runtime and source-bound evidence. It does not execute capabilities from the dashboard; unavailable wiring remains fail-visible. See [Control Plane V2](docs/CONTROL_PLANE.md).
 
 The visual engine uses provider-priced geometry planning and lossless rendering safeguards; transformations remain gated by profitability and fidelity checks rather than being applied blindly. See [Visual Engine](docs/VISUAL_ENGINE.md) for the pipeline and release invariants.
+
+The current FuryPipe Studio shell uses the official **FORGE 03** identity:
+Deep Black, Graphite, Fury Orange, Off White and Cool Gray. The signature
+remains **BUILD · AUTOMATE · CREATE · BEYOND.** The source status is
+`OWNER_APPROVED_REFERENCE_RECONSTRUCTED`: the board is a raster reference and
+the production mark is an editable SVG path reconstruction. IBM Plex Sans and
+IBM Plex Mono are vendored locally under `assets/fonts/` under OFL-1.1; no
+runtime CDN is used. See [FuryPipe brand guidelines](docs/brand/FURYPIPE_BRAND_GUIDELINES.md)
+and the [brand inventory](docs/brand/FURYPIPE_BRAND_INVENTORY.md) for palette,
+lockup rules, provenance and active-versus-historical FLUX classification.
 ## CLI
 
 Common entry points:
@@ -328,7 +340,7 @@ Requirements:
 - pnpm **10.21.0**
 
 ```bash
-git clone https://github.com/Mistermode45/FuryPipe.git
+git clone https://github.com/LegendeUrbaine/FuryPipe.git
 cd FuryPipe
 pnpm install --frozen-lockfile
 pnpm run typecheck
@@ -347,15 +359,15 @@ A local green build does not replace required GitHub Actions checks.
 
 | Surface | Status |
 |---|---|
-| npm package | **Published — current package on npm** |
-| GitHub Release | **Published — latest GitHub release** |
-| Core release gates | **Verified for the release candidate** |
-| Hosted MCP conformance | **Verified for the release candidate** |
-| Hosted Web Studio conformance | **Verified for the release candidate** |
+| npm package | **0.16.0 candidate NOT_PUBLISHED; registry install remains external** |
+| GitHub Release | **v0.15.0 is the latest public release; 0.16.0 NOT_RELEASED** |
+| Core release gates | **PASS for the exact candidate CI scope** |
+| Hosted MCP conformance | **NOT_EXECUTED — no hosted target configured** |
+| Hosted Web Studio conformance | **NOT_EXECUTED — no hosted target configured** |
 | OAuth authorization-server flow | **NOT_EXECUTED** |
 | External Figma connectivity | **NOT_EXECUTED** |
 | Provider performance claims | **NOT_EXECUTED / no release performance claim** |
-| Production deployment | **Separate lifecycle state; not implied by publication** |
+| Production deployment | **NOT_EXECUTED — no deployment performed** |
 
 Release details belong in [CHANGELOG.md](CHANGELOG.md) and [docs/RELEASE_SECURITY.md](docs/RELEASE_SECURITY.md).
 
@@ -421,7 +433,9 @@ Security vulnerabilities must follow [SECURITY.md](SECURITY.md).
 
 **Construisez des workflows IA qui distinguent clairement ce qui est disponible, ce qui est autorisé, ce qui a réellement été exécuté et ce qui a été vérifié.**
 
-**Version publique actuelle :** [Dernière release GitHub](https://github.com/Mistermode45/FuryPipe/releases/latest) · [package npm](https://www.npmjs.com/package/furypipe)
+**Version publique actuelle :** [FuryPipe v0.15.0](https://github.com/LegendeUrbaine/FuryPipe/releases/tag/v0.15.0) · [package npm](https://www.npmjs.com/package/furypipe)
+
+**Release candidate 0.16.0 :** le candidat exact est validé dans la [PR #250](https://github.com/LegendeUrbaine/FuryPipe/pull/250) et n’est pas publié.
 
 FuryPipe est encore en pré-1.0. Les API publiques peuvent évoluer. La publication du package reste également distincte d’un déploiement en production et de la vérification des intégrations externes optionnelles.
 
@@ -726,7 +740,7 @@ Prérequis :
 - pnpm **10.21.0**
 
 ```bash
-git clone https://github.com/Mistermode45/FuryPipe.git
+git clone https://github.com/LegendeUrbaine/FuryPipe.git
 cd FuryPipe
 pnpm install --frozen-lockfile
 pnpm run typecheck
@@ -745,15 +759,15 @@ Un build local vert ne remplace pas les checks GitHub Actions requis.
 
 | Surface | Statut |
 |---|---|
-| Package npm | **Publié — package actuel sur npm** |
-| GitHub Release | **Publiée — dernière release GitHub** |
-| Gates principales de release | **Vérifiées pour le release candidate** |
-| Conformance Hosted MCP | **Vérifiée pour le release candidate** |
-| Conformance Hosted Web Studio | **Vérifiée pour le release candidate** |
+| Package npm | **Candidat 0.16.0 NON PUBLIÉ ; installation registry à vérifier séparément** |
+| GitHub Release | **v0.15.0 est la dernière release publique ; 0.16.0 NON PUBLIÉE** |
+| Gates principales de release | **PASS pour le périmètre CI du candidat exact** |
+| Conformance Hosted MCP | **NOT_EXECUTED — aucune cible hosted configurée** |
+| Conformance Hosted Web Studio | **NOT_EXECUTED — aucune cible hosted configurée** |
 | Flux OAuth Authorization Server | **NOT_EXECUTED** |
 | Connectivité Figma externe | **NOT_EXECUTED** |
 | Revendications de performance provider | **NOT_EXECUTED / aucune revendication de performance pour la release** |
-| Déploiement production | **État de cycle de vie séparé ; non déduit de la publication** |
+| Déploiement production | **NOT_EXECUTED — aucun déploiement effectué** |
 
 Les détails de release sont documentés dans [CHANGELOG.md](CHANGELOG.md) et [docs/RELEASE_SECURITY.md](docs/RELEASE_SECURITY.md).
 

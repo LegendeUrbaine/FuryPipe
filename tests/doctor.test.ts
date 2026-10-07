@@ -60,6 +60,8 @@ const report: DoctorReport = {
     claude: { status: 'unavailable' },
     codex: { status: 'available', value: 'codex 1' },
     openclaw: { status: 'unavailable' },
+    ffmpeg: { status: 'available', value: 'ffmpeg version 6.1.1' },
+    ffprobe: { status: 'available', value: 'ffprobe version 6.1.1' },
   },
   betaConfig,
   betaReadiness,
@@ -70,6 +72,8 @@ describe('furypipe doctor renderer', () => {
     const output = renderDoctorReport(report);
     expect(output).toContain('Node: 26.8.2');
     expect(output).toContain('OpenClaw: unavailable');
+    expect(output).toContain('FFmpeg: available (ffmpeg version 6.1.1)');
+    expect(output).toContain('FFprobe: available (ffprobe version 6.1.1)');
     expect(output).toContain('Beta readiness: degraded (task-ready=yes)');
     expect(output).not.toContain('API_KEY');
     expect(output).not.toContain('token');
@@ -147,6 +151,13 @@ describe('furypipe doctor renderer', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it('reports media tool availability without exposing environment secrets', () => {
+    const result = collectDoctorReport({ env: { FURYPIPE_CONFIG: path.join(os.tmpdir(), 'missing-furypipe-config.json') } });
+    expect(['available', 'unavailable']).toContain(result.tools.ffmpeg?.status);
+    expect(['available', 'unavailable']).toContain(result.tools.ffprobe?.status);
+    expect(JSON.stringify(result)).not.toContain('API_KEY');
   });
 
   it('reports environment scope as authoritative over persisted config', () => {

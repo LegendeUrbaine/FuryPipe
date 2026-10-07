@@ -2,6 +2,13 @@ import { createHash, randomUUID } from 'node:crypto';
 import { access, constants, lstat, mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import {
+  createFuryExternalEffectLedger,
+  digestFuryExternalEffect,
+  FuryExternalEffectLedgerError,
+  type FuryExternalEffectRecord,
+  type FuryExternalEffectReconciliationInput,
+} from './fury-external-effect-ledger.js';
 import type { RecoveryHandle, RecoveryStore } from './core/recovery-store.js';
 
 export const FURY_CODING_REPOSITORY_FORMAT = 'furypipe-coding-repository/v1' as const;
@@ -93,6 +100,7 @@ export interface ProcessExecutionPermit {
   readonly requestSha256: string;
   readonly issuedAt: number;
   readonly expiresAt: number;
+  readonly recoveryOperationId?: string;
   readonly executionAuthority: false;
 }
 
@@ -114,7 +122,8 @@ export interface ProcessExecutionReceipt {
   readonly stderrBytes: number;
   readonly outputTruncated: boolean;
   readonly verificationStatus: 'not-verified' | 'locally-verified';
-  readonly errorCode?: 'invalid-permit' | 'expired' | 'timeout' | 'output-limit' | 'spawn-failed' | 'policy-denied';
+  readonly errorCode?: 'invalid-permit' | 'expired' | 'timeout' | 'output-limit' | 'spawn-failed' | 'policy-denied' | 'recovery-failed';
+  readonly recoveryOperationId?: string;
   readonly executionAuthority: false;
 }
 
@@ -122,6 +131,14 @@ export interface ProcessExecutionResult {
   readonly receipt: ProcessExecutionReceipt;
   readonly stdout: string;
   readonly stderr: string;
+}
+
+export interface CodingProcessRuntime {
+  authorize(request: ProcessExecutionRequest, ttlMs?: number): Promise<ProcessExecutionPermit>;
+  execute(permit: ProcessExecutionPermit, options?: { readonly signal?: AbortSignal }): Promise<ProcessExecutionResult>;
+  listOutcomeUnknown(input?: { readonly effectKeySha256?: string; readonly limit?: number }): Promise<readonly FuryExternalEffectRecord[]>;
+  inspectOutcomeUnknown(operationId: string): Promise<FuryExternalEffectRecord | undefined>;
+  reconcileOutcomeUnknown(operationId: string, input: FuryExternalEffectReconciliationInput): Promise<FuryExternalEffectRecord>;
 }
 
 export interface GitWorktreeProvider {
@@ -161,7 +178,8 @@ export class CodingRuntimeError extends Error {
     | 'invalid-input' | 'repository-invalid' | 'path-denied' | 'symlink-denied'
     | 'worktree-invalid' | 'worktree-limit' | 'worktree-provider-failed'
     | 'permit-invalid' | 'permit-expired' | 'permit-consumed' | 'policy-denied'
-    | 'process-limit' | 'timeout' | 'output-limit' | 'spawn-failed';
+    | 'process-limit' | 'timeout' | 'output-limit' | 'spawn-failed'
+    | 'recovery-required' | 'recovery-failed';
 
   constructor(code: CodingRuntimeError['code'], message: string) {
     super(message);
@@ -179,6 +197,7 @@ interface ProcessPermitState {
   readonly sandboxPolicySha256: string;
   readonly commandSha256: string;
   readonly cwdSha256: string;
+  readonly requestSha256: string;
   readonly issuedAt: number;
   readonly expiresAt: number;
   readonly timeoutMs: number;
@@ -649,15 +668,23 @@ function commandDigest(command: string, args: readonly string[], cwd: string): s
 export function createCodingProcessRuntime(options: {
   readonly sandbox: CodingSandbox;
   readonly now?: () => number;
-}): {
-  authorize(request: ProcessExecutionRequest, ttlMs?: number): Promise<ProcessExecutionPermit>;
-  execute(permit: ProcessExecutionPermit, options?: { readonly signal?: AbortSignal }): Promise<ProcessExecutionResult>;
-} {
+  readonly recovery?: RecoveryStore;
+}): CodingProcessRuntime {
   if (!isGeneratedCodingSandbox(options.sandbox)) throw new CodingRuntimeError('path-denied', 'process runtime needs process-local sandbox evidence');
   const now = options.now ?? Date.now;
   let running = 0;
   const permitPolicy = options.sandbox.policySha256;
   const at = (): number => finiteTime(now(), 'process clock');
+  const effectLedger = options.recovery === undefined
+    ? undefined
+    : createFuryExternalEffectLedger({ store: options.recovery, now: at });
+  const ledgerError = (error: unknown): CodingRuntimeError => {
+    if (error instanceof FuryExternalEffectLedgerError) {
+      if (error.code === 'recovery-required') return new CodingRuntimeError('recovery-required', error.message);
+      if (error.code === 'invalid-input' || error.code === 'not-found') return new CodingRuntimeError('invalid-input', error.message);
+    }
+    return new CodingRuntimeError('recovery-failed', error instanceof Error ? error.message : 'coding external-effect recovery failed');
+  };
   return Object.freeze({
     async authorize(request: ProcessExecutionRequest, ttlMs = 30_000): Promise<ProcessExecutionPermit> {
       const record = exactObject(request, 'process execution request');
@@ -678,20 +705,22 @@ export function createCodingProcessRuntime(options: {
       const commandSha256 = commandDigest(command, args, cwd);
       const cwdSha256 = sha256(cwd);
       const requestSha256 = sha256(JSON.stringify({ command, args, cwd, environmentNames: Object.keys(env).sort(), stdinBytes: request.stdin === undefined ? 0 : bytes(request.stdin), timeoutMs }));
+      const permitId = 'cpm_' + randomUUID();
       const permit = Object.freeze({
         format: FURY_CODING_PROCESS_PERMIT_FORMAT,
-        permitId: 'cpm_' + randomUUID(),
+        permitId,
         sandboxPolicySha256: permitPolicy,
         commandSha256, cwdSha256, requestSha256, issuedAt, expiresAt,
+        ...(effectLedger === undefined ? {} : { recoveryOperationId: permitId }),
         executionAuthority: false as const,
       });
       PROCESS_PERMIT_STATE.set(permit, {
         request, command, args: Object.freeze([...args]), cwd, env, sandboxPolicySha256: permitPolicy,
-        commandSha256, cwdSha256, issuedAt, expiresAt, timeoutMs, consumed: false,
+        commandSha256, cwdSha256, requestSha256, issuedAt, expiresAt, timeoutMs, consumed: false,
       });
       return permit;
     },
-    async execute(permit: ProcessExecutionPermit, invokeOptions = {}): Promise<ProcessExecutionResult> {
+    async execute(permit: ProcessExecutionPermit, invokeOptions: { readonly signal?: AbortSignal } = {}): Promise<ProcessExecutionResult> {
       const state = PROCESS_PERMIT_STATE.get(permit as unknown as object);
       if (!state) throw new CodingRuntimeError('permit-invalid', 'process permit is not process-local evidence');
       if (state.consumed) throw new CodingRuntimeError('permit-consumed', 'process permit was already consumed');
@@ -699,6 +728,32 @@ export function createCodingProcessRuntime(options: {
       if (running >= options.sandbox.limits.maxProcesses) throw new CodingRuntimeError('process-limit', 'sandbox process limit reached');
       state.consumed = true;
       running += 1;
+      if (effectLedger !== undefined) {
+        try {
+          await effectLedger.arm({
+            operationId: permit.permitId,
+            kind: 'coding',
+            effectKeySha256: digestFuryExternalEffect({
+              command: state.command,
+              args: state.args,
+              cwd: state.cwd,
+              environmentNames: Object.keys(state.env).sort(),
+              stdinSha256: state.request.stdin === undefined ? undefined : sha256(state.request.stdin),
+              timeoutMs: state.timeoutMs,
+            }),
+            intentSha256: digestFuryExternalEffect({
+              requestSha256: state.requestSha256,
+              sandboxPolicySha256: state.sandboxPolicySha256,
+              commandSha256: state.commandSha256,
+              cwdSha256: state.cwdSha256,
+            }),
+            now: at(),
+          });
+        } catch (error) {
+          running -= 1;
+          throw ledgerError(error);
+        }
+      }
       const startedAt = at();
       let childStarted = false;
       let timedOut = false;
@@ -769,7 +824,7 @@ export function createCodingProcessRuntime(options: {
           : outputTruncated
             ? 'output-limit'
             : undefined;
-      const receipt = Object.freeze({
+      const receipt: ProcessExecutionReceipt = Object.freeze({
         format: FURY_CODING_PROCESS_RECEIPT_FORMAT,
         receiptId: 'cpr_' + randomUUID(),
         permitIdSha256: sha256('permit:' + permit.permitId),
@@ -786,9 +841,45 @@ export function createCodingProcessRuntime(options: {
         outputTruncated,
         verificationStatus: 'not-verified' as const,
         ...(errorCode === undefined ? {} : { errorCode }),
+        ...(effectLedger === undefined ? {} : { recoveryOperationId: permit.permitId }),
         executionAuthority: false as const,
       });
-      return Object.freeze({ receipt, stdout: redactedStdout, stderr: redactedStderr });
+      let finalReceipt = receipt;
+      if (effectLedger !== undefined && receipt.outcome !== 'outcome-unknown') {
+        try {
+          await effectLedger.settle(permit.permitId, {
+            outcome: receipt.outcome,
+            evidenceSha256: digestFuryExternalEffect(receipt),
+            confirmation: 'operator-confirmed',
+            now: at(),
+          });
+        } catch {
+          finalReceipt = Object.freeze({
+            ...receipt,
+            outcome: 'outcome-unknown' as const,
+            verificationStatus: 'not-verified' as const,
+            errorCode: 'recovery-failed' as const,
+          });
+        }
+      }
+      return Object.freeze({ receipt: finalReceipt, stdout: redactedStdout, stderr: redactedStderr });
+    },
+    async listOutcomeUnknown(input = {}): Promise<readonly FuryExternalEffectRecord[]> {
+      if (effectLedger === undefined) return Object.freeze([]);
+      return effectLedger.listOutcomeUnknown(input);
+    },
+    async inspectOutcomeUnknown(operationId: string): Promise<FuryExternalEffectRecord | undefined> {
+      if (effectLedger === undefined) return undefined;
+      const record = await effectLedger.inspect(operationId);
+      return record?.state === 'outcome-unknown' ? record : undefined;
+    },
+    async reconcileOutcomeUnknown(operationId: string, input: FuryExternalEffectReconciliationInput): Promise<FuryExternalEffectRecord> {
+      if (effectLedger === undefined) throw new CodingRuntimeError('recovery-required', 'coding outcome reconciliation requires a RecoveryStore');
+      try {
+        return await effectLedger.settle(operationId, input);
+      } catch (error) {
+        throw ledgerError(error);
+      }
     },
   });
 }

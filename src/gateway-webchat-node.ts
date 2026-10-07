@@ -1,11 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import type { FuryGatewayWebSocketHttpRequestHandler } from './gateway-websocket-host-node.js';
+import { FURYPIPE_FAVICON_SVG, renderFuryPipeMonogramSvg } from './studio/studio-brand.js';
+import { IBM_PLEX_FONT_FACE_CSS } from './studio/ibm-plex-fonts.js';
 
 export const FURY_GATEWAY_WEBCHAT_PATH = '/gateway/webchat/' as const;
 export const FURY_GATEWAY_WEBCHAT_SCRIPT_PATH = '/gateway/webchat/app.js' as const;
 export const FURY_GATEWAY_WEBCHAT_STYLE_PATH = '/gateway/webchat/styles.css' as const;
 export const FURY_GATEWAY_WEBCHAT_CONFIG_PATH = '/gateway/webchat/config.json' as const;
+export const FURY_GATEWAY_WEBCHAT_FAVICON_PATH = '/gateway/webchat/favicon.svg' as const;
 export const FURY_GATEWAY_WEBCHAT_CONFIG_FORMAT =
   'furypipe-gateway-webchat-config/v1' as const;
 
@@ -21,21 +24,28 @@ export interface FuryGatewayWebChatOptions {
   readonly automationObservabilityEnabled?: boolean;
 }
 
+const WEBCHAT_MARK = renderFuryPipeMonogramSvg({ className: 'webchat-brand-mark', tone: 'accent' });
+
 const HTML = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Local FuryPipe WebChat powered by the governed Fury Gateway and Fury Kernel.">
+  <link rel="icon" type="image/svg+xml" href="${FURY_GATEWAY_WEBCHAT_FAVICON_PATH}">
   <title>FuryPipe WebChat</title>
   <link rel="stylesheet" href="/gateway/webchat/styles.css">
 </head>
 <body>
   <main class="shell">
     <header class="topbar">
-      <div>
-        <p class="eyebrow">FURYPIPE VNEXT</p>
-        <h1>Local WebChat</h1>
+      <div class="brand-lockup">
+        ${WEBCHAT_MARK}
+        <div>
+          <p class="eyebrow">FURYPIPE FORGE 03</p>
+          <h1>Local WebChat</h1>
+          <p class="tagline">BUILD · AUTOMATE · CREATE · BEYOND.</p>
+        </div>
       </div>
       <div class="connection">
         <span id="connection-dot" class="dot" aria-hidden="true"></span>
@@ -221,28 +231,28 @@ const HTML = `<!doctype html>
 </html>
 `;
 
-const CSS = `:root {
+const CSS = `${IBM_PLEX_FONT_FACE_CSS}:root {
   color-scheme: dark;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #090b10;
-  color: #eef2ff;
-  --panel: #11151d;
-  --panel-2: #171c26;
-  --border: #2a3240;
-  --muted: #9aa7b8;
-  --accent: #ffb02e;
-  --accent-strong: #ffc55f;
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0B0D10;
+  color: #F5F4F0;
+  --panel: #121519;
+  --panel-2: #2A2A2A;
+  --border: #34383F;
+  --muted: #9CA3AF;
+  --accent: #FF6A00;
+  --accent-strong: #FF8533;
   --danger: #ff6b6b;
   --ok: #56d69b;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 20% 0%, #1b2230 0, #090b10 36rem); }
+body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 20% 0%, #2A2A2A 0, #0B0D10 36rem); }
 button, input, textarea, select { font: inherit; }
 button {
-  border: 1px solid #6d4b10;
+  border: 1px solid #8A3F12;
   background: var(--accent);
-  color: #161006;
+  color: #0B0D10;
   font-weight: 800;
   border-radius: .75rem;
   padding: .7rem 1rem;
@@ -251,12 +261,15 @@ button {
 button:hover { background: var(--accent-strong); }
 button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #ffd98b; outline-offset: 2px; }
 button:disabled { opacity: .45; cursor: not-allowed; }
-button.secondary { background: #202735; color: #e6edf7; border-color: #354155; }
+button.secondary { background: #2A2A2A; color: #E5E7EB; border-color: #4A4F57; }
 button.danger { background: #2a171a; color: #ffb3b3; border-color: #653138; }
 button.compact { padding: .4rem .65rem; font-size: .8rem; }
-code, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+code, .mono { font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
 .shell { width: min(1600px, 100%); margin: 0 auto; padding: 1.25rem; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem .25rem 1.25rem; }
+.brand-lockup { display: flex; align-items: center; gap: .85rem; min-width: 0; }
+.webchat-brand-mark { display: block; width: 52px; height: 52px; flex: none; color: #F5F4F0; filter: drop-shadow(0 0 18px rgba(255,106,0,.22)); }
+.tagline { margin: .2rem 0 0; color: var(--muted); font: 600 .68rem/1.3 "IBM Plex Mono", monospace; letter-spacing: .18em; }
 h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 0; font-size: clamp(1.65rem, 3vw, 2.5rem); }
 h2 { margin-bottom: .45rem; font-size: 1.05rem; }
@@ -265,7 +278,7 @@ h2 { margin-bottom: .45rem; font-size: 1.05rem; }
 .connection { display: inline-flex; align-items: center; gap: .55rem; color: var(--muted); }
 .dot { width: .65rem; height: .65rem; border-radius: 50%; background: #657184; box-shadow: 0 0 0 .25rem rgba(101,113,132,.13); }
 .dot.online { background: var(--ok); box-shadow: 0 0 0 .25rem rgba(86,214,155,.13); }
-.panel { background: rgba(17,21,29,.96); border: 1px solid var(--border); border-radius: 1rem; box-shadow: 0 1rem 4rem rgba(0,0,0,.22); }
+.panel { background: rgba(18,21,25,.96); border: 1px solid var(--border); border-radius: 1rem; box-shadow: 0 1rem 4rem rgba(0,0,0,.22); }
 .auth-panel { display: grid; grid-template-columns: minmax(0,1fr) minmax(20rem,.8fr); gap: 2rem; padding: 2rem; max-width: 70rem; margin: 10vh auto 0; }
 .bootstrap-form label { display: block; font-weight: 750; margin-bottom: .55rem; }
 .input-row { display: flex; gap: .65rem; }
@@ -386,6 +399,7 @@ const JS = `(() => {
     toolProposalId: null,
     toolProposalTransport: null,
     toolProposalStatus: null,
+    streamingAssistantBody: null,
   };
 
   const byId = (id) => document.getElementById(id);
@@ -455,6 +469,7 @@ const JS = `(() => {
 
   function clearMessages() {
     messages.replaceChildren();
+    state.streamingAssistantBody = null;
   }
 
   function renderMessage(role, content) {
@@ -467,6 +482,29 @@ const JS = `(() => {
     body.textContent = safeText(content);
     article.append(label, body);
     messages.append(article);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function ensureStreamingAssistant() {
+    if (state.streamingAssistantBody) return state.streamingAssistantBody;
+    const article = document.createElement('article');
+    article.className = 'message assistant';
+    const label = document.createElement('span');
+    label.className = 'role';
+    label.textContent = 'FURYPIPE';
+    const body = document.createElement('span');
+    body.textContent = '';
+    article.append(label, body);
+    messages.append(article);
+    state.streamingAssistantBody = body;
+    return body;
+  }
+
+  function appendStreamingAssistant(value) {
+    const text = safeText(value);
+    if (!text) return;
+    const body = ensureStreamingAssistant();
+    body.textContent += text;
     messages.scrollTop = messages.scrollHeight;
   }
 
@@ -1203,6 +1241,7 @@ const JS = `(() => {
       addActivity('Accepted', 'User turn accepted. Provider inference is still a separate command.', 'accepted');
       if (state.activeTurnId && state.modelBridgeEnabled) {
         turnStatus.textContent = 'Requesting governed model execution…';
+        state.streamingAssistantBody = null;
         addActivity(
           'Model requested',
           (state.modelProvider || 'provider') + ' / ' + (state.model || 'model'),
@@ -1324,6 +1363,23 @@ const JS = `(() => {
 
     if (message.type === 'state-command-result') {
       handleStateResult(message);
+      return;
+    }
+
+    if (message.type === 'execution-command-event') {
+      if (safeText(message.commandName) !== 'conversation.model.execute') return;
+      const event = message.event;
+      if (!event || typeof event !== 'object') return;
+      if (event.kind === 'text-delta') {
+        appendStreamingAssistant(event.text);
+        turnStatus.textContent = 'Provider stream in progress…';
+      } else if (event.kind === 'terminal') {
+        turnStatus.textContent = event.terminalStatus === 'completed'
+          ? 'Provider stream complete — finalizing…'
+          : 'Provider stream ended without a completed response.';
+      } else if (event.kind === 'provider-error') {
+        addActivity('Provider error', safeText(event.errorCode) || 'stream-error', 'blocked');
+      }
       return;
     }
 
@@ -1692,7 +1748,9 @@ const JS = `(() => {
       clearTimeout(state.reconnectTimer);
       state.reconnectTimer = null;
     }
-    if (state.ws) state.ws.close(1000, 'logout');
+    const socket = state.ws;
+    state.ws = null;
+    if (socket) socket.close(1000, 'logout');
     await fetch('/gateway/local-logout/v1', {
       method: 'POST',
       credentials: 'same-origin',
@@ -1899,7 +1957,7 @@ export function createFuryGatewayWebChatHandler(
     "style-src 'self'",
     "connect-src 'self' " + local.wsOrigin,
     "img-src 'self'",
-    "font-src 'none'",
+    'font-src data:',
     "object-src 'none'",
   ].join('; ');
 
@@ -1933,6 +1991,7 @@ export function createFuryGatewayWebChatHandler(
       && parsed.pathname !== FURY_GATEWAY_WEBCHAT_SCRIPT_PATH
       && parsed.pathname !== FURY_GATEWAY_WEBCHAT_STYLE_PATH
       && parsed.pathname !== FURY_GATEWAY_WEBCHAT_CONFIG_PATH
+      && parsed.pathname !== FURY_GATEWAY_WEBCHAT_FAVICON_PATH
     ) {
       return false;
     }
@@ -1956,6 +2015,8 @@ export function createFuryGatewayWebChatHandler(
       send(request, response, 200, 'text/javascript; charset=utf-8', JS, csp);
     } else if (parsed.pathname === FURY_GATEWAY_WEBCHAT_STYLE_PATH) {
       send(request, response, 200, 'text/css; charset=utf-8', CSS, csp);
+    } else if (parsed.pathname === FURY_GATEWAY_WEBCHAT_FAVICON_PATH) {
+      send(request, response, 200, 'image/svg+xml; charset=utf-8', FURYPIPE_FAVICON_SVG, csp);
     } else {
       send(
         request,

@@ -283,6 +283,38 @@ describe('FuryPipe Agent runtime', () => {
     ]);
   });
 
+  it('continues after a tool result and feeds it into the next sequential tool call', async () => {
+    const calls: string[] = [];
+    const result = await runAgent({
+      objective: 'Follow a real two-step tool result chain.',
+      executors: {
+        ...stageExecutors([]),
+        research: async (context) => {
+          const lookup = await context.invokeMcp('chain', 'lookup', { key: 'root' }) as { readonly id: string };
+          const expanded = await context.invokeMcp('chain', 'expand', { id: lookup.id });
+          expect(expanded).toEqual({ summary: 'done' });
+          return { evidence: ['sequential-tool-chain'], consumedTokens: 2 };
+        },
+      },
+      mcpServers: [{
+        id: 'chain',
+        allowedMethods: ['lookup', 'expand'],
+        execute: async (method, params) => {
+          calls.push(`${method}:${JSON.stringify(params)}`);
+          return method === 'lookup' ? { id: 'result-1' } : { summary: 'done' };
+        },
+      }],
+    });
+
+    expect(result.status).toBe('completed');
+    expect(calls).toEqual([
+      'lookup:{"key":"root"}',
+      'expand:{"id":"result-1"}',
+    ]);
+    expect(result.capabilityExecutions).toHaveLength(2);
+    expect(result.capabilityExecutions.map((execution) => execution.method)).toEqual(['lookup', 'expand']);
+  });
+
   it('does not claim a registered skill was executed when no stage invokes it', async () => {
     const result = await runAgent({
       objective: 'Keep unused capabilities observationally distinct.',

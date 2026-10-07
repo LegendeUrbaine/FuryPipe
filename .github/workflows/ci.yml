@@ -36,9 +36,27 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
+      - name: Install FFmpeg (Ubuntu)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install FFmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install ffmpeg-full
+          echo "$(brew --prefix ffmpeg-full)/bin" >> "$GITHUB_PATH"
+      - name: Install FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: choco install ffmpeg -y --no-progress
       - run: pnpm install --frozen-lockfile
       - run: pnpm run audit
       - run: pnpm run typecheck
+      - run: pnpm run lint
       - run: pnpm test
       - run: pnpm run build
       - run: pnpm run package:smoke
+      # Cross-OS package identity: every matrix leg must report the same
+      # contentDigest, and no packed file may carry a CR byte.
+      - run: pnpm run validation:package-reproducibility
+        env:
+          FURYPIPE_SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}

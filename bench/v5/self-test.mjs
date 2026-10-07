@@ -8,7 +8,7 @@ const base = {
   schema_version: 'furypipe-benchmark/v1',
   run_id: 'self-test',
   status: 'EXECUTED',
-  source: { repository: 'Mistermode45/FuryPipe', commit: '1'.repeat(40) },
+  source: { repository: 'LegendeUrbaine/FuryPipe', commit: '1'.repeat(40) },
   provider: 'fixture-provider',
   model: 'fixture-model',
   fixture: digest('fixture-1', 'a'),

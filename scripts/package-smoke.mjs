@@ -421,6 +421,34 @@ try {
   ], installDir);
   assert(gatewayLocalToolRuntimeExport.stderr === '', `Gateway local tool runtime export wrote stderr: ${gatewayLocalToolRuntimeExport.stderr}`);
 
+  const furyCodeAdvancedExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-code-advanced-node'); if (typeof m.createFuryCodeAdvanced !== 'function' || m.FURY_CODE_EDIT_PLAN_FORMAT !== 'furypipe-code-edit-plan/v1' || m.FURY_CODE_SCRIPT_PLAN_FORMAT !== 'furypipe-code-script-plan/v1') process.exit(1);",
+  ], installDir);
+  assert(furyCodeAdvancedExport.stderr === '', `FuryCode Advanced package export wrote stderr: ${furyCodeAdvancedExport.stderr}`);
+
+  const browserPlaywrightHostExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/browser-playwright-host-node'); if (typeof m.createPlaywrightBrowserHost !== 'function' || typeof m.createPinnedBrowserNetworkTransport !== 'function' || m.FURY_PLAYWRIGHT_BROWSER_HOST_FORMAT !== 'furypipe-playwright-browser-host/v1') process.exit(1);",
+  ], installDir);
+  assert(browserPlaywrightHostExport.stderr === '', `Playwright browser host package export wrote stderr: ${browserPlaywrightHostExport.stderr}`);
+
+  const furyVideoTimelineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-video-timeline'); if (typeof m.createFuryVideoTimelinePreview !== 'function' || m.FURY_VIDEO_TIMELINE_FORMAT !== 'furypipe-furyvideo-timeline/v1') process.exit(1);",
+  ], installDir);
+  assert(furyVideoTimelineExport.stderr === '', `FuryVideo timeline package export wrote stderr: ${furyVideoTimelineExport.stderr}`);
+
+  const furyObservabilityExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-observability'); if (typeof m.createFuryObservabilityRegistry !== 'function' || m.FURY_OBSERVABILITY_SNAPSHOT_FORMAT !== 'furypipe-observability-snapshot/v1') process.exit(1);",
+  ], installDir);
+  assert(furyObservabilityExport.stderr === '', `FuryObservability package export wrote stderr: ${furyObservabilityExport.stderr}`);
+
   const capabilityIndexExport = await run(process.execPath, [
     '--input-type=module',
     '-e',
@@ -434,6 +462,13 @@ try {
     "const m = await import('furypipe/capability-autopilot'); if (typeof m.selectFuryCapabilitiesForTask !== 'function' || m.FURY_CAPABILITY_SELECTION_FORMAT !== 'furypipe-capability-selection/v1') process.exit(1);",
   ], installDir);
   assert(capabilityAutopilotExport.stderr === '', `Capability Autopilot export wrote stderr: ${capabilityAutopilotExport.stderr}`);
+
+  const capabilityRouterAutopilotExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/capability-router-autopilot'); if (typeof m.createFuryCapabilityRouterAutopilot !== 'function' || m.FURY_CAPABILITY_ROUTER_AUTOPILOT_DOMAIN !== 'capability-index-autopilot') process.exit(1);",
+  ], installDir);
+  assert(capabilityRouterAutopilotExport.stderr === '', `Capability Router Autopilot export wrote stderr: ${capabilityRouterAutopilotExport.stderr}`);
 
   const capabilityAdaptersExport = await run(process.execPath, [
     '--input-type=module',
@@ -663,6 +698,42 @@ try {
     "const m = await import('furypipe/long-term-memory'); if (typeof m.createLongTermMemoryStore !== 'function' || typeof m.promoteValidatedLessonToLongTermMemory !== 'function') process.exit(1);",
   ], installDir);
   assert(longTermMemoryExport.stderr === '', `Long-term memory package export wrote stderr: ${longTermMemoryExport.stderr}`);
+  const memoryTimeMachineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-memory-time-machine'); if (typeof m.createFuryMemoryTimeMachine !== 'function' || m.FURY_MEMORY_SNAPSHOT_FORMAT !== 'furypipe-memory-snapshot/v1') process.exit(1);",
+  ], installDir);
+  assert(memoryTimeMachineExport.stderr === '', `Memory Time Machine package export wrote stderr: ${memoryTimeMachineExport.stderr}`);
+  const marketplaceExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-marketplace'); if (typeof m.createFuryMarketplaceCatalog !== 'function' || typeof m.verifyFuryMarketplaceSource !== 'function' || m.FURY_MARKETPLACE_CATALOG_FORMAT !== 'furypipe-marketplace-catalog/v1') process.exit(1);",
+  ], installDir);
+  assert(marketplaceExport.stderr === '', `Marketplace package export wrote stderr: ${marketplaceExport.stderr}`);
+  const providerSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-provider-sdk'); if (typeof m.defineFuryProviderAdapter !== 'function' || typeof m.compileFuryProviderSdkManifest !== 'function' || m.FURY_PROVIDER_SDK_MANIFEST_FORMAT !== 'furypipe-provider-sdk-manifest/v1') process.exit(1);",
+  ], installDir);
+  assert(providerSdkExport.stderr === '', `Provider SDK package export wrote stderr: ${providerSdkExport.stderr}`);
+  const agentSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-agent-sdk'); if (typeof m.defineFuryAgentContract !== 'function' || typeof m.compileFuryAgentSdkManifest !== 'function' || m.FURY_AGENT_SDK_MANIFEST_FORMAT !== 'furypipe-agent-sdk-manifest/v1') process.exit(1);",
+  ], installDir);
+  assert(agentSdkExport.stderr === '', `Agent SDK package export wrote stderr: ${agentSdkExport.stderr}`);
+  const workflowSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-workflow-sdk'); if (typeof m.compileFuryWorkflowAutomationPlan !== 'function' || m.FURY_WORKFLOW_AUTOMATION_PLAN_FORMAT !== 'furypipe-workflow-automation-plan/v1') process.exit(1);",
+  ], installDir);
+  assert(workflowSdkExport.stderr === '', `Workflow SDK package export wrote stderr: ${workflowSdkExport.stderr}`);
+  const headlessExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-headless'); if (typeof m.executeFuryHeadless !== 'function' || m.FURY_HEADLESS_REQUEST_FORMAT !== 'furypipe-headless-request/v1' || m.FURY_HEADLESS_RESPONSE_FORMAT !== 'furypipe-headless-response/v1') process.exit(1);",
+  ], installDir);
+  assert(headlessExport.stderr === '', `Headless package export wrote stderr: ${headlessExport.stderr}`);
   const controlRoomEvidenceExport = await run(process.execPath, [
     '--input-type=module',
     '-e',
@@ -717,6 +788,24 @@ try {
     "const m = await import('furypipe/provider-stream-transports'); if (typeof m.createOpenAIProviderStreamTransport !== 'function' || typeof m.createAnthropicProviderStreamTransport !== 'function' || typeof m.createGoogleProviderStreamTransport !== 'function') process.exit(1);",
   ], installDir);
   assert(providerStreamTransportsExport.stderr === '', `Provider stream transports package export wrote stderr: ${providerStreamTransportsExport.stderr}`);
+  const furyEvalHistoryExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-eval-history'); if (typeof m.createFuryEvalHistoryRepository !== 'function' || m.FURY_EVAL_HISTORY_RECORD_FORMAT !== 'furypipe-eval-history-record/v1') process.exit(1);",
+  ], installDir);
+  assert(furyEvalHistoryExport.stderr === '', `FuryEval history package export wrote stderr: ${furyEvalHistoryExport.stderr}`);
+  const externalEffectLedgerExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-external-effect-ledger'); if (typeof m.createFuryExternalEffectLedger !== 'function' || m.FURY_EXTERNAL_EFFECT_LEDGER_FORMAT !== 'furypipe-external-effect-ledger/v1') process.exit(1);",
+  ], installDir);
+  assert(externalEffectLedgerExport.stderr === '', `External effect ledger package export wrote stderr: ${externalEffectLedgerExport.stderr}`);
+  const mediaGenerationJobEngineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/media-generation-job-engine'); if (typeof m.createFuryMediaGenerationJobEngine !== 'function' || m.FURY_MEDIA_GENERATION_JOB_FORMAT !== 'furypipe-media-generation-job/v1') process.exit(1);",
+  ], installDir);
+  assert(mediaGenerationJobEngineExport.stderr === '', `Media generation job engine package export wrote stderr: ${mediaGenerationJobEngineExport.stderr}`);
   const omniRouteExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

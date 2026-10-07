@@ -6,6 +6,7 @@
 
 import type { ProxyEvent } from './proxy.js';
 import { bytesToBase64 } from './png.js';
+import type { ExactnessClass } from './exact-guard.js';
 
 /** Flat record persisted per request. Adding a field is non-breaking for readers. */
 export interface TrackEvent {
@@ -24,6 +25,8 @@ export interface TrackEvent {
   // From TransformInfo:
   compressed?: boolean;
   reason?: string;
+  /** Stable cause when a known request model fell outside explicit operator scope. */
+  eligibility_cause?: 'operator_scope_excluded';
   orig_chars?: number;
   /** Text-chars replaced by image blocks (slab + reminders + tool_results).
    *  Compare with image_count: textTokens(n/4) vs imageTokens(n×2500). */
@@ -99,6 +102,10 @@ export interface TrackEvent {
   dropped_codepoints_top?: Record<string, number>;
   /** Blocks that weren't image-compressed this request; only emitted when at least one counter > 0. */
   passthrough_reasons?: { below_threshold?: number; not_profitable?: number };
+  /** Plaintext-free ExactGuard attribution. Keys are rule classes; values are counts only. */
+  exact_guard_classes?: Partial<Record<ExactnessClass, number>>;
+  /** Plaintext-free top-level request-region attribution for protected spans. */
+  exact_guard_regions?: Partial<Record<'system' | 'messages' | 'tools' | 'top_level_other', number>>;
   /** Unrecognized tag names in the static slab — canary for Claude Code releases adding new dynamic tags. */
   unknown_static_tags?: string[];
   /** Slab tags whose content changed within a session — proven per-turn dynamics busting the image cache. */
@@ -198,6 +205,56 @@ export interface TrackEvent {
   req_body_sample_b64?: string;
   /** Node host only: path to gzipped sidecar when inline cap exceeded. Workers drop oversized samples. */
   req_body_sample_path?: string;
+
+  // Capability Runtime — IDs/digests only; never SKILL.md plaintext.
+  capability_selected_skills?: string[];
+  capability_activated_skills?: Array<{
+    skill_id: string;
+    instruction_bytes: number;
+    instruction_sha256: string;
+  }>;
+  capability_blocked_skills?: string[];
+  capability_execution_authorized?: false;
+  capability_error?: string;
+
+  // Passive MCP Runtime — no argument/result plaintext and no execution claim.
+  mcp_exposed_tools?: Array<{
+    tool_name: string;
+    server_id?: string;
+    tool_id?: string;
+    exposure_evidence: 'declared_mcp_type' | 'claude_code_name_convention';
+    transport_verified: false;
+    trust: 'trusted' | 'untrusted';
+    risk_class:
+      | 'untrusted_unknown'
+      | 'trusted_read_only_closed_world'
+      | 'trusted_read_only_open_world'
+      | 'trusted_mutating_additive'
+      | 'trusted_mutating_destructive';
+    closed_world_read_candidate: boolean;
+    authorization_granted: false;
+    requires_policy_gate: true;
+  }>;
+  mcp_pending_uses?: Array<{
+    tool_name: string;
+    tool_use_id_sha256: string;
+    input_sha256: string;
+    status: 'selected_no_result_observed';
+  }>;
+  mcp_observed_results?: Array<{
+    tool_name: string;
+    server_id?: string;
+    tool_id?: string;
+    tool_use_id_sha256: string;
+    input_sha256: string;
+    result_sha256: string;
+    is_error: boolean;
+    status: 'observed_result';
+    executed_by_furypipe: false;
+  }>;
+  mcp_executed_by_furypipe?: false;
+  mcp_authorization_granted?: false;
+  mcp_error?: string;
 }
 
 /** Max inline base64 body per JSONL row (32 KiB). Larger goes to sidecar (Node) or is dropped (Workers). */
@@ -229,6 +286,69 @@ export function toTrackEvent(ev: ProxyEvent): TrackEvent {
   if (ev.error) out.error = ev.error;
   if (ev.errorBody) out.error_body = ev.errorBody;
   if (ev.reqBodySha8) out.req_body_sha8 = ev.reqBodySha8;
+  if (ev.capability) {
+    if (ev.capability.selectedSkillIds.length > 0) {
+      out.capability_selected_skills = [...ev.capability.selectedSkillIds];
+    }
+    if (ev.capability.activatedSkills.length > 0) {
+      out.capability_activated_skills = ev.capability.activatedSkills.map((receipt) => ({
+        skill_id: receipt.skillId,
+        instruction_bytes: receipt.instructionBytes,
+        instruction_sha256: receipt.instructionSha256,
+      }));
+    }
+    if (ev.capability.blockedSkillIds.length > 0) {
+      out.capability_blocked_skills = [...ev.capability.blockedSkillIds];
+    }
+    out.capability_execution_authorized = false;
+  }
+  if (ev.capabilityError) out.capability_error = ev.capabilityError;
+  if (ev.mcp) {
+    const riskByName = new Map(ev.mcp.tools.map((item) => [item.toolName, item.assessment] as const));
+    if (ev.mcp.observation.exposedTools.length > 0) {
+      const exposed = ev.mcp.observation.exposedTools.flatMap((tool) => {
+        const assessment = riskByName.get(tool.name);
+        if (!assessment) return [];
+        return [{
+          tool_name: tool.name,
+          ...(tool.serverId === undefined ? {} : { server_id: tool.serverId }),
+          ...(tool.toolId === undefined ? {} : { tool_id: tool.toolId }),
+          exposure_evidence: tool.exposureEvidence,
+          transport_verified: false as const,
+          trust: assessment.trust,
+          risk_class: assessment.riskClass,
+          closed_world_read_candidate: assessment.closedWorldReadCandidate,
+          authorization_granted: false as const,
+          requires_policy_gate: true as const,
+        }];
+      });
+      if (exposed.length > 0) out.mcp_exposed_tools = exposed;
+    }
+    if (ev.mcp.observation.pendingUses.length > 0) {
+      out.mcp_pending_uses = ev.mcp.observation.pendingUses.map((item) => ({
+        tool_name: item.toolName,
+        tool_use_id_sha256: item.toolUseIdSha256,
+        input_sha256: item.inputSha256,
+        status: item.status,
+      }));
+    }
+    if (ev.mcp.observation.observedResults.length > 0) {
+      out.mcp_observed_results = ev.mcp.observation.observedResults.map((item) => ({
+        tool_name: item.toolName,
+        ...(item.serverId === undefined ? {} : { server_id: item.serverId }),
+        ...(item.toolId === undefined ? {} : { tool_id: item.toolId }),
+        tool_use_id_sha256: item.toolUseIdSha256,
+        input_sha256: item.inputSha256,
+        result_sha256: item.resultSha256,
+        is_error: item.isError,
+        status: item.status,
+        executed_by_furypipe: false as const,
+      }));
+    }
+    out.mcp_executed_by_furypipe = false;
+    out.mcp_authorization_granted = false;
+  }
+  if (ev.mcpError) out.mcp_error = ev.mcpError;
   // Body sample: sidecar path (Node) > inline base64 if it fits > drop (Workers, oversized).
   if (ev.reqBodySamplePath) {
     out.req_body_sample_path = ev.reqBodySamplePath;
@@ -242,6 +362,7 @@ export function toTrackEvent(ev: ProxyEvent): TrackEvent {
   if (info) {
     if (info.compressed !== undefined) out.compressed = info.compressed;
     if (info.reason) out.reason = info.reason;
+    if (info.eligibilityCause) out.eligibility_cause = info.eligibilityCause;
     if (info.origChars !== undefined) out.orig_chars = info.origChars;
     if (info.compressedChars !== undefined && info.compressedChars > 0) {
       out.compressed_chars = info.compressedChars;
@@ -316,6 +437,12 @@ export function toTrackEvent(ev: ProxyEvent): TrackEvent {
       if (Object.values(pr).some((n) => (n ?? 0) > 0)) {
         out.passthrough_reasons = pr;
       }
+    }
+    if (info.exactGuard?.classes && Object.keys(info.exactGuard.classes).length > 0) {
+      out.exact_guard_classes = info.exactGuard.classes;
+    }
+    if (info.exactGuard?.regions && Object.keys(info.exactGuard.regions).length > 0) {
+      out.exact_guard_regions = info.exactGuard.regions;
     }
     if (info.bucketChars && Object.keys(info.bucketChars).length > 0) {
       // Omit empty object so noop-pass requests stay lean; presence means at least one gate fired.

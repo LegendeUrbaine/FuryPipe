@@ -36,7 +36,7 @@ const sourceCommit = process.env.FURYPIPE_SOURCE_COMMIT || process.env.GITHUB_SH
 if (sourceCommit && !/^[0-9a-f]{40}$/u.test(sourceCommit)) {
   throw new Error('FURYPIPE_SOURCE_COMMIT/GITHUB_SHA must be an exact lowercase 40-character commit SHA');
 }
-if (sourceCommit && sbom.documentNamespace !== `https://github.com/Mistermode45/FuryPipe/sbom/${sourceCommit}`) {
+if (sourceCommit && sbom.documentNamespace !== `https://github.com/LegendeUrbaine/FuryPipe/sbom/${sourceCommit}`) {
   throw new Error('SBOM document namespace does not match the exact source commit');
 }
 

@@ -7,8 +7,8 @@
 **Build AI workflows that stay explicit about what is available, what is allowed, what actually ran, and what was verified.**
 
 [![npm](https://img.shields.io/npm/v/furypipe?logo=npm&label=npm)](https://www.npmjs.com/package/furypipe)
-[![GitHub release](https://img.shields.io/github/v/release/Mistermode45/FuryPipe?logo=github&label=release)](https://github.com/Mistermode45/FuryPipe/releases/latest)
-[![CI](https://github.com/Mistermode45/FuryPipe/actions/workflows/ci.yml/badge.svg)](https://github.com/Mistermode45/FuryPipe/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/LegendeUrbaine/FuryPipe?logo=github&label=release)](https://github.com/LegendeUrbaine/FuryPipe/releases/latest)
+[![CI](https://github.com/LegendeUrbaine/FuryPipe/actions/workflows/ci.yml/badge.svg)](https://github.com/LegendeUrbaine/FuryPipe/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/Node-%3E%3D22.14-339933?logo=node.js&logoColor=white)](package.json)
 
@@ -30,7 +30,9 @@ FuryPipe is designed around a simple rule:
 
 That distinction is enforced throughout the project through explicit lifecycle states, receipts, source-bound evidence and fail-closed behavior.
 
-**Current public release:** [Latest GitHub Release](https://github.com/Mistermode45/FuryPipe/releases/latest) · [npm package](https://www.npmjs.com/package/furypipe)
+**Current public release:** [FuryPipe v0.15.0](https://github.com/LegendeUrbaine/FuryPipe/releases/tag/v0.15.0) · [npm package](https://www.npmjs.com/package/furypipe)
+
+**0.16.0 release candidate:** the exact candidate is being validated in [PR #250](https://github.com/LegendeUrbaine/FuryPipe/pull/250) and is not published.
 
 FuryPipe is pre-1.0. Public APIs can still evolve. Package publication also remains distinct from production deployment and from optional hosted-integration verification.
 
@@ -112,11 +114,15 @@ furypipe export --git
 
 Depending on the input, export can produce artifacts such as `page-*.png`, `factsheet.txt` and `prompt.txt` for inspection or handoff.
 
-### Default model scope
+### Default model policy
 
-Default model scope: `FURYPIPE_MODELS=claude-fable-5,gemini`
+Default policy: **dynamic discovery + evidence-first AUTO**.
 
-The default is a runtime contract, not a benchmark claim. Override it explicitly when a workflow needs a different provider/model scope.
+Model Fabric discovers/observes models independently from visual authorization. In `AUTO`, quality-verified **or calibrated** visual readers transform without an explicit model override, so measured Claude/Grok readers do not fall back to plain text merely because their stronger quality-verification gate is still pending. Configured provider catalogs can surface newly released models without a FuryPipe release, but `discovered != vision-capable != calibrated != quality-verified`.
+
+`FURYPIPE_VISUAL_POLICY=max_savings` broadens automatic eligibility to models whose image-input capability is positively proven **and** whose image-token pricing/profile is provider-appropriate. Discovery alone never causes an unknown provider to inherit OpenAI tile economics. ExactGuard, protocol-state protection, image/byte limits and profitability checks still apply. `safe_exact` is stricter than AUTO and accepts only quality-verified profiles; `text_only` disables visual transformation globally.
+
+`FURYPIPE_MODELS` remains an explicit backward-compatible operator scope override. A CSV selects model bases; `off` disables visual compression.
 
 ---
 
@@ -260,6 +266,23 @@ Report vulnerabilities through GitHub private vulnerability reporting, **not** a
 
 ---
 
+### FuryPipe Control Plane
+
+FuryPipe is a governed context runtime rather than a single-purpose proxy. Its public surface combines Context Fabric, FuryLink agent connectivity, adaptive visual optimization, provider routing, MCP, memory, agent/skill orchestration and evidence-first runtime receipts behind one FuryPipe-native control plane.
+
+The loopback Control Plane V2 exposes only bounded, read-only runtime and source-bound evidence. It does not execute capabilities from the dashboard; unavailable wiring remains fail-visible. See [Control Plane V2](docs/CONTROL_PLANE.md).
+
+The visual engine uses provider-priced geometry planning and lossless rendering safeguards; transformations remain gated by profitability and fidelity checks rather than being applied blindly. See [Visual Engine](docs/VISUAL_ENGINE.md) for the pipeline and release invariants.
+
+The current FuryPipe Studio shell uses the official **FORGE 03** identity:
+Deep Black, Graphite, Fury Orange, Off White and Cool Gray. The signature
+remains **BUILD · AUTOMATE · CREATE · BEYOND.** The source status is
+`OWNER_APPROVED_REFERENCE_RECONSTRUCTED`: the board is a raster reference and
+the production mark is an editable SVG path reconstruction. IBM Plex Sans and
+IBM Plex Mono are vendored locally under `assets/fonts/` under OFL-1.1; no
+runtime CDN is used. See [FuryPipe brand guidelines](docs/brand/FURYPIPE_BRAND_GUIDELINES.md)
+and the [brand inventory](docs/brand/FURYPIPE_BRAND_INVENTORY.md) for palette,
+lockup rules, provenance and active-versus-historical FLUX classification.
 ## CLI
 
 Common entry points:
@@ -268,9 +291,11 @@ Common entry points:
 furypipe setup [--lang=fr|en] [--plain] [--no-color] [--yes]
 furypipe start
 furypipe doctor [--json] [--locale=<BCP-47>]
+furypipe beta status|opt-in|opt-out|legacy [--json]
+furypipe task --plan <objective> [--json] [--task-first|--legacy|--expert]
 furypipe stats [--json] [--file <path>]
 furypipe export [...]
-furypipe warp [...] -- <agent>
+furypipe link [--route PATTERN=TARGET]... [--] <agent> [args...]
 ```
 
 See [docs/CLI.md](docs/CLI.md) for the authoritative public CLI contract.
@@ -315,7 +340,7 @@ Requirements:
 - pnpm **10.21.0**
 
 ```bash
-git clone https://github.com/Mistermode45/FuryPipe.git
+git clone https://github.com/LegendeUrbaine/FuryPipe.git
 cd FuryPipe
 pnpm install --frozen-lockfile
 pnpm run typecheck
@@ -334,15 +359,15 @@ A local green build does not replace required GitHub Actions checks.
 
 | Surface | Status |
 |---|---|
-| npm package | **Published — current package on npm** |
-| GitHub Release | **Published — latest GitHub release** |
-| Core release gates | **Verified for the release candidate** |
-| Hosted MCP conformance | **Verified for the release candidate** |
-| Hosted Web Studio conformance | **Verified for the release candidate** |
+| npm package | **0.16.0 candidate NOT_PUBLISHED; registry install remains external** |
+| GitHub Release | **v0.15.0 is the latest public release; 0.16.0 NOT_RELEASED** |
+| Core release gates | **PASS for the exact candidate CI scope** |
+| Hosted MCP conformance | **NOT_EXECUTED — no hosted target configured** |
+| Hosted Web Studio conformance | **NOT_EXECUTED — no hosted target configured** |
 | OAuth authorization-server flow | **NOT_EXECUTED** |
 | External Figma connectivity | **NOT_EXECUTED** |
 | Provider performance claims | **NOT_EXECUTED / no release performance claim** |
-| Production deployment | **Separate lifecycle state; not implied by publication** |
+| Production deployment | **NOT_EXECUTED — no deployment performed** |
 
 Release details belong in [CHANGELOG.md](CHANGELOG.md) and [docs/RELEASE_SECURITY.md](docs/RELEASE_SECURITY.md).
 
@@ -360,6 +385,8 @@ Release details belong in [CHANGELOG.md](CHANGELOG.md) and [docs/RELEASE_SECURIT
 | Capability routing | [docs/CAPABILITY_ROUTER.md](docs/CAPABILITY_ROUTER.md) |
 | Instruction composition | [docs/INSTRUCTION_FABRIC.md](docs/INSTRUCTION_FABRIC.md) |
 | Context optimization | [docs/CONTEXT_OPTIMIZER.md](docs/CONTEXT_OPTIMIZER.md) |
+| Model Fabric | [docs/MODEL_FABRIC.md](docs/MODEL_FABRIC.md) |
+| Visual Engine | [docs/VISUAL_ENGINE.md](docs/VISUAL_ENGINE.md) |
 | Task orchestration | [docs/TASK_ORCHESTRATOR.md](docs/TASK_ORCHESTRATOR.md) |
 | Continuous Memory | [docs/CONTINUOUS_MEMORY.md](docs/CONTINUOUS_MEMORY.md) |
 | Agents | [docs/AGENT_FABRIC.md](docs/AGENT_FABRIC.md) |
@@ -406,7 +433,9 @@ Security vulnerabilities must follow [SECURITY.md](SECURITY.md).
 
 **Construisez des workflows IA qui distinguent clairement ce qui est disponible, ce qui est autorisé, ce qui a réellement été exécuté et ce qui a été vérifié.**
 
-**Version publique actuelle :** [Dernière release GitHub](https://github.com/Mistermode45/FuryPipe/releases/latest) · [package npm](https://www.npmjs.com/package/furypipe)
+**Version publique actuelle :** [FuryPipe v0.15.0](https://github.com/LegendeUrbaine/FuryPipe/releases/tag/v0.15.0) · [package npm](https://www.npmjs.com/package/furypipe)
+
+**Release candidate 0.16.0 :** le candidat exact est validé dans la [PR #250](https://github.com/LegendeUrbaine/FuryPipe/pull/250) et n’est pas publié.
 
 FuryPipe est encore en pré-1.0. Les API publiques peuvent évoluer. La publication du package reste également distincte d’un déploiement en production et de la vérification des intégrations externes optionnelles.
 
@@ -502,11 +531,15 @@ furypipe export --git
 
 Selon l’entrée, l’export peut produire des artefacts comme `page-*.png`, `factsheet.txt` et `prompt.txt` pour inspection ou handoff.
 
-#### Portée des modèles par défaut
+#### Politique modèles par défaut
 
-La portée runtime par défaut est `FURYPIPE_MODELS=claude-fable-5,gemini`.
+La politique par défaut combine **découverte dynamique + AUTO evidence-first**.
 
-Cette valeur est un contrat runtime, pas une revendication de benchmark. Elle doit être surchargée explicitement lorsqu’un workflow nécessite une autre portée provider/modèle.
+Le Model Fabric découvre/observe les modèles indépendamment de l'autorisation de compression. En `AUTO`, les profils visuels dont la qualité est vérifiée **ou calibrée** peuvent être transformés sans surcharge explicite. Les catalogues providers peuvent faire apparaître de nouveaux modèles sans nouvelle release, mais `découvert != vision-capable != calibré != qualité vérifiée`.
+
+`FURYPIPE_VISUAL_POLICY=max_savings` élargit l'éligibilité aux modèles dont l'entrée image est positivement prouvée **et** dont le pricing image est connu via une preuve adaptée au provider. ExactGuard, la protection de l'état protocolaire, les budgets image/octets et la rentabilité restent obligatoires. `safe_exact` est plus strict qu'AUTO et exige un profil quality-verified ; `text_only` coupe globalement la transformation visuelle.
+
+`FURYPIPE_MODELS` reste une surcharge de portée rétrocompatible. Un CSV sélectionne les bases de modèles ; `off` désactive la compression visuelle.
 
 ---
 
@@ -658,9 +691,11 @@ Commandes principales :
 furypipe setup [--lang=fr|en] [--plain] [--no-color] [--yes]
 furypipe start
 furypipe doctor [--json] [--locale=<BCP-47>]
+furypipe beta status|opt-in|opt-out|legacy [--json]
+furypipe task --plan <objective> [--json] [--task-first|--legacy|--expert]
 furypipe stats [--json] [--file <path>]
 furypipe export [...]
-furypipe warp [...] -- <agent>
+furypipe link [--route PATTERN=TARGET]... [--] <agent> [args...]
 ```
 
 Consultez [docs/CLI.md](docs/CLI.md) pour le contrat CLI public de référence.
@@ -705,7 +740,7 @@ Prérequis :
 - pnpm **10.21.0**
 
 ```bash
-git clone https://github.com/Mistermode45/FuryPipe.git
+git clone https://github.com/LegendeUrbaine/FuryPipe.git
 cd FuryPipe
 pnpm install --frozen-lockfile
 pnpm run typecheck
@@ -724,15 +759,15 @@ Un build local vert ne remplace pas les checks GitHub Actions requis.
 
 | Surface | Statut |
 |---|---|
-| Package npm | **Publié — package actuel sur npm** |
-| GitHub Release | **Publiée — dernière release GitHub** |
-| Gates principales de release | **Vérifiées pour le release candidate** |
-| Conformance Hosted MCP | **Vérifiée pour le release candidate** |
-| Conformance Hosted Web Studio | **Vérifiée pour le release candidate** |
+| Package npm | **Candidat 0.16.0 NON PUBLIÉ ; installation registry à vérifier séparément** |
+| GitHub Release | **v0.15.0 est la dernière release publique ; 0.16.0 NON PUBLIÉE** |
+| Gates principales de release | **PASS pour le périmètre CI du candidat exact** |
+| Conformance Hosted MCP | **NOT_EXECUTED — aucune cible hosted configurée** |
+| Conformance Hosted Web Studio | **NOT_EXECUTED — aucune cible hosted configurée** |
 | Flux OAuth Authorization Server | **NOT_EXECUTED** |
 | Connectivité Figma externe | **NOT_EXECUTED** |
 | Revendications de performance provider | **NOT_EXECUTED / aucune revendication de performance pour la release** |
-| Déploiement production | **État de cycle de vie séparé ; non déduit de la publication** |
+| Déploiement production | **NOT_EXECUTED — aucun déploiement effectué** |
 
 Les détails de release sont documentés dans [CHANGELOG.md](CHANGELOG.md) et [docs/RELEASE_SECURITY.md](docs/RELEASE_SECURITY.md).
 
@@ -750,6 +785,8 @@ Les détails de release sont documentés dans [CHANGELOG.md](CHANGELOG.md) et [d
 | Routage des capacités | [docs/CAPABILITY_ROUTER.md](docs/CAPABILITY_ROUTER.md) |
 | Composition des instructions | [docs/INSTRUCTION_FABRIC.md](docs/INSTRUCTION_FABRIC.md) |
 | Optimisation du contexte | [docs/CONTEXT_OPTIMIZER.md](docs/CONTEXT_OPTIMIZER.md) |
+| Model Fabric | [docs/MODEL_FABRIC.md](docs/MODEL_FABRIC.md) |
+| Visual Engine | [docs/VISUAL_ENGINE.md](docs/VISUAL_ENGINE.md) |
 | Orchestration des tâches | [docs/TASK_ORCHESTRATOR.md](docs/TASK_ORCHESTRATOR.md) |
 | Continuous Memory | [docs/CONTINUOUS_MEMORY.md](docs/CONTINUOUS_MEMORY.md) |
 | Agents | [docs/AGENT_FABRIC.md](docs/AGENT_FABRIC.md) |

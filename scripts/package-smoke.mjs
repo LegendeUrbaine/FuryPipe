@@ -84,6 +84,9 @@ try {
   const formerPortForChecks = ['478', '21'].join('');
   assert(!packedFiles.has(`docs/${legacyEnvForChecks}GAP_ANALYSIS.md`), 'historical gap analysis leaked into the public package');
   assert(packedFiles.has('docs/CLI.md'), 'FuryPipe CLI documentation is missing from the public package');
+  assert(packedFiles.has('docs/FURYPIPE_VNEXT_PHASE10_BETA_2026.md'), 'Phase 10 beta architecture documentation is missing from the public package');
+  assert(packedFiles.has('docs/FURYPIPE_VNEXT_PHASE10_OPERATOR.md'), 'Phase 10 beta operator runbook is missing from the public package');
+  assert(packedFiles.has('docs/VISUAL_ENGINE.md'), 'Visual Engine documentation is missing from the public package');
   assert(packedFiles.has('docs/MODEL_ADAPTERS.md'), 'Model Adapter documentation is missing from the public package');
   assert(packedFiles.has('docs/CAPABILITY_CATALOG.md'), 'Capability Catalog documentation is missing from the public package');
   assert(packedFiles.has('docs/ECOSYSTEM_INGESTION.md'), 'Ecosystem Ingestion documentation is missing from the public package');
@@ -131,6 +134,29 @@ try {
   const setupHelp = await run(process.execPath, [cli, 'setup', '--help'], installDir);
   assert(/FuryPipe setup/u.test(setupHelp.stdout), 'setup help is missing FuryPipe branding');
   assert(/--lang=fr\|en/u.test(setupHelp.stdout), 'setup help is missing bilingual language selection');
+
+  const linkHelp = await run(process.execPath, [cli, 'link', '--help'], installDir);
+  assert(/FuryLink/u.test(linkHelp.stdout), 'FuryLink help is missing FuryPipe link branding');
+  assert(/furypipe link codex/u.test(linkHelp.stdout), 'FuryLink help is missing separator-free Windows syntax');
+  assert(!/furypipe warp/u.test(linkHelp.stdout), 'retired warp command leaked into FuryLink help');
+
+  // Cross-platform launcher smoke. On Windows npm is normally an npm.cmd shim;
+  // this proves FuryLink resolves PATHEXT launchers instead of falling through
+  // to a POSIX /bin/sh path. The child makes no provider request, so a running
+  // FuryPipe listener is not required for this launcher-only check.
+  const linkLaunch = await run(process.execPath, [cli, 'link', 'npm', '--version'], installDir, {
+    ...process.env,
+    CI: '1',
+    NO_COLOR: '1',
+  });
+  assert(/^\d+\.\d+/u.test(linkLaunch.stdout.trim()), `FuryLink did not launch npm: ${linkLaunch.stdout}`);
+  assert(/FuryLink exec/u.test(linkLaunch.stderr), 'FuryLink launcher did not emit its execution receipt');
+  if (process.platform === 'win32') {
+    assert(
+      !/no public root bundle available|no system root bundle found/u.test(linkLaunch.stderr),
+      'FuryLink Windows child received a CA-only replacement trust bundle',
+    );
+  }
 
   const setupConfig = path.join(installDir, 'furypipe-setup-smoke.json');
   const occupied = createServer();
@@ -199,10 +225,73 @@ try {
   const doctorEnv = { ...process.env };
   delete doctorEnv.FURYPIPE_PORT;
   delete doctorEnv.FURYPIPE_HOST;
+  doctorEnv.FURYPIPE_CONFIG = setupConfig;
   const doctor = await run(process.execPath, [cli, 'doctor', '--json'], installDir, doctorEnv);
   const report = JSON.parse(doctor.stdout);
   assert(report.runtime?.node, 'doctor smoke returned no Node runtime');
   assert(report.network?.port === 48721, `doctor reported unexpected default FuryPipe port: ${report.network?.port}`);
+  assert(report.betaConfig?.status, 'doctor smoke returned no beta config observation');
+  assert(report.betaReadiness?.taskReady === true, 'doctor smoke did not report task-ready local startup');
+  assert(report.betaReadiness?.authority === 'readiness-observation-only', 'doctor smoke exposed beta authority');
+
+  const betaConfigEnv = { ...doctorEnv, FURYPIPE_CONFIG: setupConfig };
+  const betaStatus = await run(process.execPath, [cli, 'beta', 'status', '--json'], installDir, betaConfigEnv);
+  const betaStatusReport = JSON.parse(betaStatus.stdout);
+  assert(betaStatusReport.entry?.entryPath === 'legacy-expert', 'legacy setup did not retain the legacy/expert beta entry');
+  assert(betaStatusReport.entry?.executionAuthority === false, 'beta status exposed execution authority');
+  const betaOptIn = await run(process.execPath, [cli, 'beta', 'opt-in', '--json'], installDir, betaConfigEnv);
+  const betaOptInReport = JSON.parse(betaOptIn.stdout);
+  assert(betaOptInReport.result?.mode === 'recommended', 'beta opt-in did not write the recommended mode');
+  const planned = await run(
+    process.execPath,
+    [cli, 'task', '--plan', 'inspect installed package', '--json'],
+    installDir,
+    betaConfigEnv,
+  );
+  const plannedReport = JSON.parse(planned.stdout);
+  assert(plannedReport.selection === 'not-run', 'task plan performed capability selection');
+  assert(plannedReport.execution === 'not-authorized', 'task plan exposed execution authority');
+  assert(!Object.prototype.hasOwnProperty.call(plannedReport, 'objective'), 'task plan leaked the objective text');
+  let missingPlanError;
+  try {
+    await run(process.execPath, [cli, 'task', 'without-explicit-plan'], installDir, betaConfigEnv);
+  } catch (error) {
+    missingPlanError = error;
+  }
+  assert(missingPlanError, 'task command accepted an implicit execution/planning mode');
+  assert(String(missingPlanError.stderr ?? '').includes('explicit --plan'), 'task command did not explain the required planning boundary');
+  const betaOptOut = await run(process.execPath, [cli, 'beta', 'opt-out', '--json'], installDir, betaConfigEnv);
+  const betaOptOutReport = JSON.parse(betaOptOut.stdout);
+  assert(betaOptOutReport.result?.mode === 'opted-out', 'beta opt-out did not persist the opt-out mode');
+  const betaLegacy = await run(process.execPath, [cli, 'beta', 'legacy', '--json'], installDir, betaConfigEnv);
+  assert(JSON.parse(betaLegacy.stdout).observation?.mode === 'legacy', 'beta legacy path did not restore the reversible legacy mode');
+  const betaLegacyRollback = await run(
+    process.execPath,
+    [cli, 'config', 'rollback-beta', '--json'],
+    installDir,
+    betaConfigEnv,
+  );
+  assert(JSON.parse(betaLegacyRollback.stdout).result?.status === 'rolled-back', 'beta experience rollback did not remove only the owned marker');
+  const migratedBeta = await run(
+    process.execPath,
+    [cli, 'config', 'migrate-beta', '--json'],
+    installDir,
+    betaConfigEnv,
+  );
+  const migratedBetaReport = JSON.parse(migratedBeta.stdout);
+  assert(migratedBetaReport.result?.status === 'migrated', 'beta config migration did not report migrated');
+  assert(migratedBetaReport.observation?.status === 'current', 'beta config migration did not produce current marker');
+  const rolledBackBeta = await run(
+    process.execPath,
+    [cli, 'config', 'rollback-beta', '--json'],
+    installDir,
+    betaConfigEnv,
+  );
+  const rolledBackBetaReport = JSON.parse(rolledBackBeta.stdout);
+  assert(rolledBackBetaReport.result?.status === 'rolled-back', 'beta config rollback did not report rolled-back');
+  assert(rolledBackBetaReport.observation?.status === 'legacy', 'beta config rollback did not restore legacy state');
+  const rolledBackConfig = JSON.parse(await readFile(setupConfig, 'utf8'));
+  assert(rolledBackConfig.locale === 'fr' && rolledBackConfig.setup?.completed === true, 'beta rollback changed setup-owned state');
   const httpExport = await run(process.execPath, [
     '--input-type=module',
     '-e',
@@ -215,6 +304,36 @@ try {
     "const m = await import('furypipe/mcp-http-node'); if (typeof m.listenMcpHttpNode !== 'function') process.exit(1);",
   ], installDir);
   assert(nodeHttpExport.stderr === '', `Node MCP HTTP package export wrote stderr: ${nodeHttpExport.stderr}`);
+  const directMcpClientExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/mcp-direct-client-node'); if (typeof m.probeMcpDirectInventory !== 'function' || typeof m.deriveMcpDirectEndpointFingerprint !== 'function') process.exit(1);",
+  ], installDir);
+  assert(directMcpClientExport.stderr === '', `Direct MCP client package export wrote stderr: ${directMcpClientExport.stderr}`);
+  const directMcpPolicyExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/mcp-direct-policy'); if (typeof m.selectMcpDirectTool !== 'function' || typeof m.createMcpDirectToolProposal !== 'function' || typeof m.evaluateMcpDirectPolicy !== 'function' || typeof m.approveMcpDirectPolicyDecision !== 'function' || typeof m.resolveMcpDirectProposalArguments !== 'undefined') process.exit(1);",
+  ], installDir);
+  assert(directMcpPolicyExport.stderr === '', `Direct MCP policy package export wrote stderr: ${directMcpPolicyExport.stderr}`);
+  const directMcpExecutorExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/mcp-direct-executor-node'); if (typeof m.executeMcpDirectApprovedTool !== 'function' || typeof m.executeMcpDirectReplay !== 'function' || typeof m.createMcpDirectReplayIntent !== 'function' || typeof m.McpDirectReplayGovernanceError !== 'function' || typeof m.McpDirectExecutionPreCallRejectedError !== 'function' || typeof m.McpDirectExecutionOutcomeUnknownError !== 'function' || typeof m.McpDirectExecutionVerificationError !== 'function' || typeof m.McpDirectExecutionEvidenceError !== 'function' || typeof m.McpDirectExecutionDurabilityError !== 'function') process.exit(1);",
+  ], installDir);
+  assert(directMcpExecutorExport.stderr === '', `Direct MCP executor package export wrote stderr: ${directMcpExecutorExport.stderr}`);
+  const directMcpDurableReplayExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/mcp-direct-durable-replay-node'); if (typeof m.createMcpDirectDurableReplayCoordinator !== 'function' || typeof m.inspectMcpDirectDurableReplayStatus !== 'function' || typeof m.reclaimMcpDirectDurableExpiredPreCall !== 'function' || typeof m.McpDirectDurableReplayError !== 'function' || typeof m.reserveMcpDirectDurableExecution !== 'undefined' || typeof m.armMcpDirectDurableExecution !== 'undefined' || typeof m.settleMcpDirectDurableExecution !== 'undefined') process.exit(1);",
+  ], installDir);
+  assert(directMcpDurableReplayExport.stderr === '', `Direct MCP durable replay package export wrote stderr: ${directMcpDurableReplayExport.stderr}`);
+  const directMcpHiddenExports = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "for (const subpath of ['mcp-direct-governance','mcp-direct-client-node-internal','mcp-direct-policy-internal','mcp-direct-executor-node-internal','mcp-direct-replay-internal','mcp-direct-durable-replay-internal','mcp-direct-catalog','mcp-direct-json']) { try { await import('furypipe/' + subpath); process.exit(2); } catch (error) { if (error?.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED') throw error; } }",
+  ], installDir);
+  assert(directMcpHiddenExports.stderr === '', `Hidden Direct MCP package path smoke wrote stderr: ${directMcpHiddenExports.stderr}`);
   const furyPromptExport = await run(process.execPath, [
     '--input-type=module',
     '-e',
@@ -233,6 +352,298 @@ try {
     "const m = await import('furypipe/agent-runtime'); if (typeof m.runAgent !== 'function') process.exit(1);",
   ], installDir);
   assert(agentRuntimeExport.stderr === '', `Agent runtime package export wrote stderr: ${agentRuntimeExport.stderr}`);
+  const furyKernelExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-kernel'); if (typeof m.createFuryKernelConversationStore !== 'function' || typeof m.FuryKernelConversationError !== 'function') process.exit(1);",
+  ], installDir);
+  assert(furyKernelExport.stderr === '', `Fury Kernel package export wrote stderr: ${furyKernelExport.stderr}`);
+  const gatewayConversationAdapterExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-conversation-adapter-node'); if (typeof m.createFuryGatewayConversationAdapter !== 'function' || !Array.isArray(m.FURY_GATEWAY_CONVERSATION_COMMAND_NAMES) || !Array.isArray(m.FURY_GATEWAY_CONVERSATION_COMMAND_DEFINITIONS)) process.exit(1);",
+  ], installDir);
+  assert(gatewayConversationAdapterExport.stderr === '', `Gateway conversation adapter package export wrote stderr: ${gatewayConversationAdapterExport.stderr}`);
+  const gatewayWebChatExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-webchat-node'); if (typeof m.createFuryGatewayWebChatHandler !== 'function' || m.FURY_GATEWAY_WEBCHAT_PATH !== '/gateway/webchat/') process.exit(1);",
+  ], installDir);
+  assert(gatewayWebChatExport.stderr === '', `Gateway WebChat package export wrote stderr: ${gatewayWebChatExport.stderr}`);
+  const providerResponseTextExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/provider-response-text'); if (typeof m.decodeFuryProviderResponseText !== 'function' || typeof m.FuryProviderResponseTextError !== 'function') process.exit(1);",
+  ], installDir);
+  assert(providerResponseTextExport.stderr === '', `Provider response text export wrote stderr: ${providerResponseTextExport.stderr}`);
+  const furyKernelModelBridgeExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-kernel-model-bridge'); if (typeof m.createFuryKernelModelBridge !== 'function' || m.FURY_KERNEL_MODEL_BRIDGE_FORMAT !== 'furypipe-kernel-model-bridge-result/v1') process.exit(1);",
+  ], installDir);
+  assert(furyKernelModelBridgeExport.stderr === '', `Fury Kernel model bridge export wrote stderr: ${furyKernelModelBridgeExport.stderr}`);
+  const gatewayModelCommandExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-model-command-node'); if (!Array.isArray(m.FURY_GATEWAY_MODEL_EXECUTION_COMMAND_NAMES) || !Array.isArray(m.FURY_GATEWAY_MODEL_EXECUTION_COMMAND_DEFINITIONS)) process.exit(1);",
+  ], installDir);
+  assert(gatewayModelCommandExport.stderr === '', `Gateway model command export wrote stderr: ${gatewayModelCommandExport.stderr}`);
+  const gatewayLocalModelRuntimeExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-local-model-runtime-node'); if (typeof m.createFuryGatewayLocalModelRuntime !== 'function') process.exit(1);",
+  ], installDir);
+  assert(gatewayLocalModelRuntimeExport.stderr === '', `Gateway local model runtime export wrote stderr: ${gatewayLocalModelRuntimeExport.stderr}`);
+  const furyKernelToolBridgeExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-kernel-tool-bridge-node'); if (typeof m.createFuryKernelToolBridge !== 'function' || m.FURY_KERNEL_TOOL_BRIDGE_FORMAT !== 'furypipe-kernel-tool-bridge/v1') process.exit(1);",
+  ], installDir);
+  assert(furyKernelToolBridgeExport.stderr === '', `Fury Kernel tool bridge export wrote stderr: ${furyKernelToolBridgeExport.stderr}`);
+  const gatewayToolCommandExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-tool-command-node'); if (!Array.isArray(m.FURY_GATEWAY_TOOL_COMMAND_NAMES) || !Array.isArray(m.FURY_GATEWAY_TOOL_COMMAND_DEFINITIONS)) process.exit(1);",
+  ], installDir);
+  assert(gatewayToolCommandExport.stderr === '', `Gateway tool command export wrote stderr: ${gatewayToolCommandExport.stderr}`);
+
+  const gatewayToolBridgeAdapterExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-tool-bridge-adapter-node'); if (typeof m.createFuryGatewayToolBridgeAdapter !== 'function' || m.FURY_GATEWAY_TOOL_RESULT_FORMAT !== 'furypipe-gateway-tool-result/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayToolBridgeAdapterExport.stderr === '', `Gateway tool bridge adapter export wrote stderr: ${gatewayToolBridgeAdapterExport.stderr}`);
+
+  const gatewayLocalToolRuntimeExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-local-tool-runtime-node'); if (typeof m.createFuryGatewayLocalToolRuntime !== 'function' || m.FURY_GATEWAY_LOCAL_TOOL_CONFIG_FORMAT !== 'furypipe-gateway-local-tool-config/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayLocalToolRuntimeExport.stderr === '', `Gateway local tool runtime export wrote stderr: ${gatewayLocalToolRuntimeExport.stderr}`);
+
+  const furyCodeAdvancedExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-code-advanced-node'); if (typeof m.createFuryCodeAdvanced !== 'function' || m.FURY_CODE_EDIT_PLAN_FORMAT !== 'furypipe-code-edit-plan/v1' || m.FURY_CODE_SCRIPT_PLAN_FORMAT !== 'furypipe-code-script-plan/v1') process.exit(1);",
+  ], installDir);
+  assert(furyCodeAdvancedExport.stderr === '', `FuryCode Advanced package export wrote stderr: ${furyCodeAdvancedExport.stderr}`);
+
+  const browserPlaywrightHostExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/browser-playwright-host-node'); if (typeof m.createPlaywrightBrowserHost !== 'function' || typeof m.createPinnedBrowserNetworkTransport !== 'function' || m.FURY_PLAYWRIGHT_BROWSER_HOST_FORMAT !== 'furypipe-playwright-browser-host/v1') process.exit(1);",
+  ], installDir);
+  assert(browserPlaywrightHostExport.stderr === '', `Playwright browser host package export wrote stderr: ${browserPlaywrightHostExport.stderr}`);
+
+  const furyVideoTimelineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-video-timeline'); if (typeof m.createFuryVideoTimelinePreview !== 'function' || m.FURY_VIDEO_TIMELINE_FORMAT !== 'furypipe-furyvideo-timeline/v1') process.exit(1);",
+  ], installDir);
+  assert(furyVideoTimelineExport.stderr === '', `FuryVideo timeline package export wrote stderr: ${furyVideoTimelineExport.stderr}`);
+
+  const furyObservabilityExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-observability'); if (typeof m.createFuryObservabilityRegistry !== 'function' || m.FURY_OBSERVABILITY_SNAPSHOT_FORMAT !== 'furypipe-observability-snapshot/v1') process.exit(1);",
+  ], installDir);
+  assert(furyObservabilityExport.stderr === '', `FuryObservability package export wrote stderr: ${furyObservabilityExport.stderr}`);
+
+  const capabilityIndexExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/capability-index'); if (typeof m.createFuryCapabilityIndex !== 'function' || m.FURY_CAPABILITY_INDEX_ENTRY_FORMAT !== 'furypipe-capability-index-entry/v1') process.exit(1);",
+  ], installDir);
+  assert(capabilityIndexExport.stderr === '', `Capability index export wrote stderr: ${capabilityIndexExport.stderr}`);
+
+  const capabilityAutopilotExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/capability-autopilot'); if (typeof m.selectFuryCapabilitiesForTask !== 'function' || m.FURY_CAPABILITY_SELECTION_FORMAT !== 'furypipe-capability-selection/v1') process.exit(1);",
+  ], installDir);
+  assert(capabilityAutopilotExport.stderr === '', `Capability Autopilot export wrote stderr: ${capabilityAutopilotExport.stderr}`);
+
+  const capabilityRouterAutopilotExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/capability-router-autopilot'); if (typeof m.createFuryCapabilityRouterAutopilot !== 'function' || m.FURY_CAPABILITY_ROUTER_AUTOPILOT_DOMAIN !== 'capability-index-autopilot') process.exit(1);",
+  ], installDir);
+  assert(capabilityRouterAutopilotExport.stderr === '', `Capability Router Autopilot export wrote stderr: ${capabilityRouterAutopilotExport.stderr}`);
+
+  const capabilityAdaptersExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/capability-index-adapters'); if (typeof m.projectSkillsIntoCapabilityIndex !== 'function' || typeof m.revalidateFuryCapabilitySelection !== 'function' || m.FURY_CAPABILITY_REVALIDATION_FORMAT !== 'furypipe-capability-revalidation/v1') process.exit(1);",
+  ], installDir);
+  assert(capabilityAdaptersExport.stderr === '', `Capability index adapters export wrote stderr: ${capabilityAdaptersExport.stderr}`);
+
+  const capabilitySemanticAnalyzerExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/capability-semantic-analyzer'); if (typeof m.createGovernedFuryCapabilitySemanticAnalyzer !== 'function' || typeof m.isGeneratedFuryCapabilitySemanticAnalysis !== 'function' || m.FURY_CAPABILITY_SEMANTIC_ANALYSIS_FORMAT !== 'furypipe-capability-semantic-analysis/v1') process.exit(1);",
+  ], installDir);
+  assert(capabilitySemanticAnalyzerExport.stderr === '', `Capability semantic analyzer export wrote stderr: ${capabilitySemanticAnalyzerExport.stderr}`);
+
+  const capabilitySignalsExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/capability-signals'); if (typeof m.createFuryCapabilitySignalRegistry !== 'function' || m.FURY_CAPABILITY_SIGNAL_FORMAT !== 'furypipe-capability-signal/v1') process.exit(1);",
+  ], installDir);
+  assert(capabilitySignalsExport.stderr === '', `Capability signals export wrote stderr: ${capabilitySignalsExport.stderr}`);
+
+  const capabilitySignalAdaptersExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/capability-signal-adapters'); if (typeof m.projectProviderRuntimeModelSignals !== 'function' || m.FURY_CAPABILITY_SIGNAL_PROJECTION_FORMAT !== 'furypipe-capability-signal-projection/v1') process.exit(1);",
+  ], installDir);
+  assert(capabilitySignalAdaptersExport.stderr === '', `Capability signal adapters export wrote stderr: ${capabilitySignalAdaptersExport.stderr}`);
+
+  const capabilityExposureExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-kernel-capability-exposure'); if (typeof m.createFuryKernelCapabilityExposurePlan !== 'function' || typeof m.isGeneratedFuryKernelCapabilityExposurePlan !== 'function' || m.FURY_KERNEL_CAPABILITY_EXPOSURE_FORMAT !== 'furypipe-kernel-capability-exposure/v1') process.exit(1);",
+  ], installDir);
+  assert(capabilityExposureExport.stderr === '', `Fury Kernel capability exposure export wrote stderr: ${capabilityExposureExport.stderr}`);
+
+  const gatewayChannelAdapterExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-channel-adapter-node'); if (typeof m.createFuryGatewayChannelAdapterRegistry !== 'function' || typeof m.isGeneratedFuryGatewayChannelInboundEvent !== 'function' || m.FURY_GATEWAY_CHANNEL_ADAPTER_FORMAT !== 'furypipe-gateway-channel-adapter/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayChannelAdapterExport.stderr === '', `Gateway channel adapter export wrote stderr: ${gatewayChannelAdapterExport.stderr}`);
+
+  const gatewayChannelPrincipalBindingExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-channel-principal-binding-node'); if (typeof m.createFuryGatewayChannelPrincipalBindingCoordinator !== 'function' || typeof m.isGeneratedFuryGatewayChannelPrincipalBinding !== 'function' || typeof m.isGeneratedFuryGatewayChannelPrincipalBindingCoordinator !== 'function' || m.FURY_GATEWAY_CHANNEL_PRINCIPAL_BINDING_FORMAT !== 'furypipe-gateway-channel-principal-binding/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayChannelPrincipalBindingExport.stderr === '', `Gateway channel principal binding export wrote stderr: ${gatewayChannelPrincipalBindingExport.stderr}`);
+
+  const gatewayChannelDeliveryExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-channel-delivery-node'); if (typeof m.createFuryGatewayChannelDeliveryCoordinator !== 'function' || typeof m.isGeneratedFuryGatewayChannelDeliveryPermit !== 'function' || typeof m.isGeneratedFuryGatewayChannelDeliveryCoordinator !== 'function' || m.FURY_GATEWAY_CHANNEL_DELIVERY_PERMIT_FORMAT !== 'furypipe-gateway-channel-delivery-permit/v1' || m.FURY_GATEWAY_CHANNEL_DELIVERY_RECEIPT_FORMAT !== 'furypipe-gateway-channel-delivery-receipt/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayChannelDeliveryExport.stderr === '', `Gateway channel delivery export wrote stderr: ${gatewayChannelDeliveryExport.stderr}`);
+
+  const gatewayChannelObservabilityCommandExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-channel-observability-command-node'); if (!Array.isArray(m.FURY_GATEWAY_CHANNEL_OBSERVABILITY_COMMAND_DEFINITIONS) || m.FURY_GATEWAY_CHANNEL_OBSERVABILITY_COMMAND_DEFINITIONS[0]?.name !== 'channels.status') process.exit(1);",
+  ], installDir);
+  assert(gatewayChannelObservabilityCommandExport.stderr === '', `Gateway channel observability command export wrote stderr: ${gatewayChannelObservabilityCommandExport.stderr}`);
+
+  const gatewayChannelObservabilityExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-channel-observability-node'); if (typeof m.createFuryGatewayChannelObservability !== 'function' || typeof m.isGeneratedFuryGatewayChannelObservability !== 'function' || m.FURY_GATEWAY_CHANNEL_OBSERVABILITY_FORMAT !== 'furypipe-gateway-channel-observability/v1' || m.FURY_GATEWAY_CHANNEL_OBSERVABILITY_RESULT_FORMAT !== 'furypipe-gateway-channel-observability-result/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayChannelObservabilityExport.stderr === '', `Gateway channel observability export wrote stderr: ${gatewayChannelObservabilityExport.stderr}`);
+
+  const gatewayAutomationDefinitionExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-automation-definition-node'); if (typeof m.createFuryGatewayAutomationDefinitionStore !== 'function' || typeof m.isGeneratedFuryGatewayAutomationDefinitionStore !== 'function' || m.FURY_GATEWAY_AUTOMATION_DEFINITION_FORMAT !== 'furypipe-gateway-automation-definition/v1' || m.FURY_GATEWAY_AUTOMATION_DEFINITION_INSPECTION_FORMAT !== 'furypipe-gateway-automation-definition-inspection/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayAutomationDefinitionExport.stderr === '', `Gateway automation definition export wrote stderr: ${gatewayAutomationDefinitionExport.stderr}`);
+
+  const gatewayAutomationRunLedgerExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-automation-run-ledger-node'); if (typeof m.createFuryGatewayAutomationRunLedger !== 'function' || typeof m.isGeneratedFuryGatewayAutomationRunLedger !== 'function' || m.FURY_GATEWAY_AUTOMATION_TRIGGER_RECORD_FORMAT !== 'furypipe-gateway-automation-trigger-record/v1' || m.FURY_GATEWAY_AUTOMATION_RUN_STATUS_FORMAT !== 'furypipe-gateway-automation-run-status/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayAutomationRunLedgerExport.stderr === '', `Gateway automation run ledger export wrote stderr: ${gatewayAutomationRunLedgerExport.stderr}`);
+
+  const gatewayAutomationSchedulerExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-automation-scheduler-node'); if (typeof m.createFuryGatewayAutomationScheduler !== 'function' || typeof m.isGeneratedFuryGatewayAutomationScheduler !== 'function' || m.FURY_GATEWAY_AUTOMATION_SCHEDULER_TICK_FORMAT !== 'furypipe-gateway-automation-scheduler-tick/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayAutomationSchedulerExport.stderr === '', `Gateway automation scheduler export wrote stderr: ${gatewayAutomationSchedulerExport.stderr}`);
+
+  const gatewayAutomationCronExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-automation-cron-node'); if (typeof m.normalizeFuryGatewayCronSchedule !== 'function' || typeof m.findFuryGatewayCronOccurrenceAtOrBefore !== 'function' || typeof m.findNextFuryGatewayCronOccurrence !== 'function' || m.FURY_GATEWAY_CRON_FORMAT !== 'furypipe-gateway-cron/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayAutomationCronExport.stderr === '', `Gateway automation cron export wrote stderr: ${gatewayAutomationCronExport.stderr}`);
+
+  const gatewayAutomationRunAdmissionExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-automation-run-admission-node'); if (typeof m.createFuryGatewayAutomationRunAdmissionCoordinator !== 'function' || typeof m.isGeneratedFuryGatewayAutomationRunPermit !== 'function' || m.FURY_GATEWAY_AUTOMATION_RUN_ADMISSION_FORMAT !== 'furypipe-gateway-automation-run-admission/v1' || m.FURY_GATEWAY_AUTOMATION_RUN_PERMIT_FORMAT !== 'furypipe-gateway-automation-run-permit/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayAutomationRunAdmissionExport.stderr === '', `Gateway automation run admission export wrote stderr: ${gatewayAutomationRunAdmissionExport.stderr}`);
+
+  const gatewayAutomationWebhookExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-automation-webhook-node'); if (typeof m.createFuryGatewayAutomationWebhookCoordinator !== 'function' || typeof m.signFuryGatewayAutomationWebhookRequest !== 'function' || typeof m.isGeneratedFuryGatewayAutomationWebhookCoordinator !== 'function' || m.FURY_GATEWAY_AUTOMATION_WEBHOOK_EVENT_FORMAT !== 'furypipe-gateway-automation-webhook-event/v1' || m.FURY_GATEWAY_AUTOMATION_WEBHOOK_RECEIPT_FORMAT !== 'furypipe-gateway-automation-webhook-receipt/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayAutomationWebhookExport.stderr === '', `Gateway automation webhook export wrote stderr: ${gatewayAutomationWebhookExport.stderr}`);
+
+  const gatewayAutomationObservabilityExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-automation-observability-node'); if (typeof m.createFuryGatewayAutomationObservability !== 'function' || typeof m.isGeneratedFuryGatewayAutomationObservability !== 'function' || m.FURY_GATEWAY_AUTOMATION_OBSERVABILITY_FORMAT !== 'furypipe-gateway-automation-observability/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayAutomationObservabilityExport.stderr === '', `Gateway automation observability export wrote stderr: ${gatewayAutomationObservabilityExport.stderr}`);
+
+  const gatewayAutomationObservabilityCommandExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-automation-observability-command-node'); if (!Array.isArray(m.FURY_GATEWAY_AUTOMATION_OBSERVABILITY_COMMAND_DEFINITIONS) || !Array.isArray(m.FURY_GATEWAY_AUTOMATION_OBSERVABILITY_STATE_COMMAND_NAMES)) process.exit(1);",
+  ], installDir);
+  assert(gatewayAutomationObservabilityCommandExport.stderr === '', `Gateway automation observability command export wrote stderr: ${gatewayAutomationObservabilityCommandExport.stderr}`);
+
+  const gatewayAutomationNotificationExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-automation-notification-node'); if (typeof m.createFuryGatewayAutomationNotificationBridge !== 'function' || typeof m.isGeneratedFuryGatewayAutomationNotificationBridge !== 'function' || m.FURY_GATEWAY_AUTOMATION_NOTIFICATION_INTENT_FORMAT !== 'furypipe-gateway-automation-notification-intent/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayAutomationNotificationExport.stderr === '', `Gateway automation notification export wrote stderr: ${gatewayAutomationNotificationExport.stderr}`);
+
+  const gatewayNotificationExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-notification-node'); if (typeof m.createFuryGatewayNotificationCoordinator !== 'function' || typeof m.isGeneratedFuryGatewayNotification !== 'function' || typeof m.isGeneratedFuryGatewayNotificationRoutePlan !== 'function' || typeof m.isGeneratedFuryGatewayNotificationCoordinator !== 'function' || m.FURY_GATEWAY_NOTIFICATION_FORMAT !== 'furypipe-gateway-notification/v1' || m.FURY_GATEWAY_NOTIFICATION_DELIVERY_RECEIPT_FORMAT !== 'furypipe-gateway-notification-delivery-receipt/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayNotificationExport.stderr === '', `Gateway notification export wrote stderr: ${gatewayNotificationExport.stderr}`);
+
+  const gatewayDiscordAdapterExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-discord-adapter-node'); if (typeof m.createFuryGatewayDiscordAdapter !== 'function' || typeof m.isGeneratedFuryGatewayDiscordAdapter !== 'function' || typeof m.isGeneratedFuryGatewayDiscordServiceAuthentication !== 'function' || typeof m.isGeneratedFuryGatewayDiscordInboundEvent !== 'function' || m.FURY_GATEWAY_DISCORD_SERVICE_AUTH_FORMAT !== 'furypipe-gateway-discord-service-auth/v1' || m.FURY_GATEWAY_DISCORD_EVENT_FORMAT !== 'furypipe-gateway-discord-event/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayDiscordAdapterExport.stderr === '', `Gateway Discord adapter export wrote stderr: ${gatewayDiscordAdapterExport.stderr}`);
+
+  const gatewayLocalMemoryRuntimeExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-local-memory-runtime-node'); if (typeof m.createFuryGatewayLocalMemoryRuntime !== 'function' || m.FURY_GATEWAY_LOCAL_MEMORY_CONFIG_FORMAT !== 'furypipe-gateway-local-memory-config/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayLocalMemoryRuntimeExport.stderr === '', `Gateway local memory runtime export wrote stderr: ${gatewayLocalMemoryRuntimeExport.stderr}`);
+
+  const furyKernelMemoryBridgeExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-kernel-memory-bridge-node'); if (typeof m.createFuryKernelMemoryBridge !== 'function' || m.FURY_KERNEL_MEMORY_BRIDGE_FORMAT !== 'furypipe-kernel-memory-bridge/v1') process.exit(1);",
+  ], installDir);
+  assert(furyKernelMemoryBridgeExport.stderr === '', `Fury Kernel memory bridge export wrote stderr: ${furyKernelMemoryBridgeExport.stderr}`);
+
+  const gatewayMemoryCommandExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-memory-command-node'); if (!Array.isArray(m.FURY_GATEWAY_MEMORY_COMMAND_NAMES) || !Array.isArray(m.FURY_GATEWAY_MEMORY_COMMAND_DEFINITIONS)) process.exit(1);",
+  ], installDir);
+  assert(gatewayMemoryCommandExport.stderr === '', `Gateway memory command export wrote stderr: ${gatewayMemoryCommandExport.stderr}`);
+
+  const gatewayMemoryAdapterExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway-memory-adapter-node'); if (typeof m.createFuryGatewayMemoryAdapter !== 'function' || m.FURY_GATEWAY_MEMORY_RESULT_FORMAT !== 'furypipe-gateway-memory-result/v1') process.exit(1);",
+  ], installDir);
+  assert(gatewayMemoryAdapterExport.stderr === '', `Gateway memory adapter export wrote stderr: ${gatewayMemoryAdapterExport.stderr}`);
   const skillRegistryExport = await run(process.execPath, [
     '--input-type=module',
     '-e',
@@ -287,6 +698,42 @@ try {
     "const m = await import('furypipe/long-term-memory'); if (typeof m.createLongTermMemoryStore !== 'function' || typeof m.promoteValidatedLessonToLongTermMemory !== 'function') process.exit(1);",
   ], installDir);
   assert(longTermMemoryExport.stderr === '', `Long-term memory package export wrote stderr: ${longTermMemoryExport.stderr}`);
+  const memoryTimeMachineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-memory-time-machine'); if (typeof m.createFuryMemoryTimeMachine !== 'function' || m.FURY_MEMORY_SNAPSHOT_FORMAT !== 'furypipe-memory-snapshot/v1') process.exit(1);",
+  ], installDir);
+  assert(memoryTimeMachineExport.stderr === '', `Memory Time Machine package export wrote stderr: ${memoryTimeMachineExport.stderr}`);
+  const marketplaceExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-marketplace'); if (typeof m.createFuryMarketplaceCatalog !== 'function' || typeof m.verifyFuryMarketplaceSource !== 'function' || m.FURY_MARKETPLACE_CATALOG_FORMAT !== 'furypipe-marketplace-catalog/v1') process.exit(1);",
+  ], installDir);
+  assert(marketplaceExport.stderr === '', `Marketplace package export wrote stderr: ${marketplaceExport.stderr}`);
+  const providerSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-provider-sdk'); if (typeof m.defineFuryProviderAdapter !== 'function' || typeof m.compileFuryProviderSdkManifest !== 'function' || m.FURY_PROVIDER_SDK_MANIFEST_FORMAT !== 'furypipe-provider-sdk-manifest/v1') process.exit(1);",
+  ], installDir);
+  assert(providerSdkExport.stderr === '', `Provider SDK package export wrote stderr: ${providerSdkExport.stderr}`);
+  const agentSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-agent-sdk'); if (typeof m.defineFuryAgentContract !== 'function' || typeof m.compileFuryAgentSdkManifest !== 'function' || m.FURY_AGENT_SDK_MANIFEST_FORMAT !== 'furypipe-agent-sdk-manifest/v1') process.exit(1);",
+  ], installDir);
+  assert(agentSdkExport.stderr === '', `Agent SDK package export wrote stderr: ${agentSdkExport.stderr}`);
+  const workflowSdkExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-workflow-sdk'); if (typeof m.compileFuryWorkflowAutomationPlan !== 'function' || m.FURY_WORKFLOW_AUTOMATION_PLAN_FORMAT !== 'furypipe-workflow-automation-plan/v1') process.exit(1);",
+  ], installDir);
+  assert(workflowSdkExport.stderr === '', `Workflow SDK package export wrote stderr: ${workflowSdkExport.stderr}`);
+  const headlessExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-headless'); if (typeof m.executeFuryHeadless !== 'function' || m.FURY_HEADLESS_REQUEST_FORMAT !== 'furypipe-headless-request/v1' || m.FURY_HEADLESS_RESPONSE_FORMAT !== 'furypipe-headless-response/v1') process.exit(1);",
+  ], installDir);
+  assert(headlessExport.stderr === '', `Headless package export wrote stderr: ${headlessExport.stderr}`);
   const controlRoomEvidenceExport = await run(process.execPath, [
     '--input-type=module',
     '-e',
@@ -299,6 +746,24 @@ try {
     "const m = await import('furypipe/control-room-security-evidence'); if (typeof m.parseControlRoomSecurityCiEvidence !== 'function' || typeof m.createControlRoomSecurityCiSnapshot !== 'function' || typeof m.createControlRoomSecurityCiSnapshotFromUnknown !== 'function') process.exit(1);",
   ], installDir);
   assert(controlRoomSecurityEvidenceExport.stderr === '', `Control Room security evidence package export wrote stderr: ${controlRoomSecurityEvidenceExport.stderr}`);
+  const controlPlaneExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/control-plane'); if (typeof m.createControlPlaneSnapshot !== 'function' || !Array.isArray(m.CONTROL_PLANE_LIFECYCLE)) process.exit(1);",
+  ], installDir);
+  assert(controlPlaneExport.stderr === '', `Control Plane package export wrote stderr: ${controlPlaneExport.stderr}`);
+  const gatewayExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/gateway'); if (typeof m.parseFuryGatewayConnectEnvelope !== 'function' || typeof m.deriveFuryGatewayConnectFingerprint !== 'function' || typeof m.createFuryGatewayHealthSnapshot !== 'function' || typeof m.FuryGatewayProtocolError !== 'function' || typeof m.authenticateGatewayConnection !== 'undefined' || typeof m.pairGatewayDevice !== 'undefined' || typeof m.executeGatewayCommand !== 'undefined') process.exit(1);",
+  ], installDir);
+  assert(gatewayExport.stderr === '', `Fury Gateway package export wrote stderr: ${gatewayExport.stderr}`);
+  const gatewayHiddenExports = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "for (const subpath of ['gateway-auth-node','gateway-pairing-node','gateway-principal-node','gateway-session-node','gateway-command-authorization-node','gateway-transport-node','gateway-websocket-host-node','gateway-runtime-daemon-node','gateway-local-operator-bootstrap-node','gateway-local-config-node','gateway-local-cli-node']) { try { await import('furypipe/' + subpath); process.exit(2); } catch (error) { if (error?.code !== 'ERR_PACKAGE_PATH_NOT_EXPORTED') throw error; } }",
+  ], installDir);
+  assert(gatewayHiddenExports.stderr === '', `Hidden Gateway authority package paths wrote stderr: ${gatewayHiddenExports.stderr}`);
   const providerRuntimeExport = await run(process.execPath, [
     '--input-type=module',
     '-e',
@@ -323,6 +788,24 @@ try {
     "const m = await import('furypipe/provider-stream-transports'); if (typeof m.createOpenAIProviderStreamTransport !== 'function' || typeof m.createAnthropicProviderStreamTransport !== 'function' || typeof m.createGoogleProviderStreamTransport !== 'function') process.exit(1);",
   ], installDir);
   assert(providerStreamTransportsExport.stderr === '', `Provider stream transports package export wrote stderr: ${providerStreamTransportsExport.stderr}`);
+  const furyEvalHistoryExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-eval-history'); if (typeof m.createFuryEvalHistoryRepository !== 'function' || m.FURY_EVAL_HISTORY_RECORD_FORMAT !== 'furypipe-eval-history-record/v1') process.exit(1);",
+  ], installDir);
+  assert(furyEvalHistoryExport.stderr === '', `FuryEval history package export wrote stderr: ${furyEvalHistoryExport.stderr}`);
+  const externalEffectLedgerExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/fury-external-effect-ledger'); if (typeof m.createFuryExternalEffectLedger !== 'function' || m.FURY_EXTERNAL_EFFECT_LEDGER_FORMAT !== 'furypipe-external-effect-ledger/v1') process.exit(1);",
+  ], installDir);
+  assert(externalEffectLedgerExport.stderr === '', `External effect ledger package export wrote stderr: ${externalEffectLedgerExport.stderr}`);
+  const mediaGenerationJobEngineExport = await run(process.execPath, [
+    '--input-type=module',
+    '-e',
+    "const m = await import('furypipe/media-generation-job-engine'); if (typeof m.createFuryMediaGenerationJobEngine !== 'function' || m.FURY_MEDIA_GENERATION_JOB_FORMAT !== 'furypipe-media-generation-job/v1') process.exit(1);",
+  ], installDir);
+  assert(mediaGenerationJobEngineExport.stderr === '', `Media generation job engine package export wrote stderr: ${mediaGenerationJobEngineExport.stderr}`);
   const omniRouteExport = await run(process.execPath, [
     '--input-type=module',
     '-e',

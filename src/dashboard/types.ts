@@ -71,6 +71,10 @@ export interface RecentRow {
   status: number;
   size_in?: number;
   compressed: boolean;
+  /** Exact transform/pass-through reason when the Visual Engine did not externalize text. */
+  reason?: string;
+  /** Stable eligibility cause, kept separate from the legacy free-form reason. */
+  eligibility_cause?: 'operator_scope_excluded';
   cc_added?: number;
   input_tokens?: number;
   output_tokens?: number;
@@ -168,4 +172,16 @@ export interface CurrentSessionPayload {
   rawBaselineTokens?: number;
   /** Raw output tokens — shown as an "untouched" note; output is never compressed. */
   rawOutputTokens?: number;
+}
+
+/** Runtime activity observed by FuryPipe for one exact model id.
+ * Catalog capability metadata and runtime execution evidence intentionally stay separate. */
+export interface ModelRuntimeActivity {
+  requests: number;
+  compressedRequests: number;
+  passthroughRequests: number;
+  recentSkipReasons: Readonly<Record<string, number>>;
+  recentEligibilityCauses: Readonly<Record<string, number>>;
+  lastReason?: string;
+  lastObservedAt?: string;
 }

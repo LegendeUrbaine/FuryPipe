@@ -263,3 +263,192 @@ Baseline d'intégration : `v5-production-hardening` / `bc92bef794df25b2a7c541846
 | Portée PR | REVIEWED | 18 fichiers au total (16 fichiers de transports/executor/docs/tests + `BASELINE.md` et `WORKLOG.md`); fichiers réservés, manifest, lockfile et smoke script exclus |
 | CI GitHub / PR | PASS / OPEN DRAFT | PR #111 vers `v5-production-hardening`, head `5e09fd436b750530319ea242b6d0c1ffac0b6d55`; 20 contrôles PASS, matrice 9/9; Dependency Review et attestation du tarball `SKIPPED` conditionnellement; PR non fusionnée |
 | Publish / release / tag / production deploy | NOT_EXECUTED | explicitement hors de ce travail |
+
+## FuryPipe VNext Phase 6 Browser + Coding Runtime — 2026-09-21
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Source de vérité | PASS exact HEAD | PR #216 Phase 5 revalidée sur son head courant `672a57a83c33990eb2be71f656929a1ed7ed5ae5`; aucun fichier Phase 5 concurrent n’a été réécrit |
+| Branche / parent | PASS exact HEAD | `vnext-phase6-browser-coding-runtime`; synchronisation normale avec le head Phase 5 via `8b0cbc532eee3ca5d66d45ba220a1891c5edfe1d`; descendant local Phase 5 `3beec507992f4cb698c2ceda4190dca9a2e6c6a5` préservé hors piste |
+| Architecture / threat model | PASS local borné | `docs/FURYPIPE_VNEXT_PHASE6_BROWSER_CODING_RUNTIME_2026.md`; aucune seconde Gateway/Kernel/RecoveryStore, observations data-only, états unknown et frontières de publication explicites |
+| Browser runtime | PASS local borné | lifecycle, permits WeakMap one-shot, SSRF/DNS mixte/redirect, observations non fiables, upload/download et receipts testés par `tests/browser-runtime.test.ts` |
+| Coding runtime | PASS local borné | repository/worktree, sandbox, process shell-free borné, patch engine exact-base/exact-file, CodeGraph V1 et verification coordinator testés par les quatre fichiers Phase 6 |
+| `pnpm install --frozen-lockfile` | PASS | lockfile inchangé |
+| Tests ciblés Phase 6 | PASS | 4 fichiers ; 18 tests |
+| `pnpm test` | PASS | 249 fichiers ; 2 865 tests ; sortie 0 |
+| `pnpm run typecheck` | PASS | TypeScript principal + hosted MCP ; sortie 0 |
+| `pnpm run build` | PASS | dist bibliothèque/déclarations + Node/MCP + version smoke `0.15.0` |
+| Phase 6 package smoke | PASS | `scripts/phase6-package-smoke.mjs` ; six exports importés depuis un tarball installé |
+| `pnpm run package:smoke` complet | PASS | package, Phase 6, benchmark-claim, provider-attempt et governed-provider smoke ; sorties 0 |
+| `pnpm run audit` | PASS | aucune vulnérabilité connue dans les dépendances production |
+| `git diff --check` | PASS | sortie sans erreur après les dernières écritures locales |
+| CI GitHub exact HEAD | PASS / OPEN DRAFT | PR #217 ; base `672a57a83c33990eb2be71f656929a1ed7ed5ae5`; head `2a67a417a6ebeed2885c35284f7537c1519eea86`; merge state `CLEAN`; 15/15 checks PASS |
+| Secret Scan / Benchmark Contract / RC Preparation | PASS exact HEAD | checks GitHub `gitleaks`, `contract` et `prepare` PASS sur le head `2a67a417a6ebeed2885c35284f7537c1519eea86` |
+| Browser QA hébergée | PASS exact HEAD | Dashboard Browser QA et Web Studio Browser QA PASS ; Cross-Browser QA PASS après rerun du job hébergé, 117/117 cas cross-engine et 15/15 cas Gateway WebChat réels |
+| Provider/Git/junction/production runtime | RUNTIME_VALIDATION_REQUIRED | les harnesses browser hébergés ne prouvent pas un provider OAuth réel, un Git provider réel, le DNS pinning d’un host concret, les junction/reparse multi-OS ou un déploiement production |
+| Merge / release / tag / npm publish / deploy | NOT_EXECUTED | interdits par le périmètre de cette phase |
+
+| Phase 7 Memory VNext | READY_TO_START / NOT_STARTED | gates Phase 6 exact-head vertes ; Phase 7 n’a pas encore modifié ce track |
+
+## FuryPipe VNext Phase 7 Memory VNext — 2026-09-21
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Base exacte | PASS | track empilé sur le HEAD Phase 6 validé `51839182066a4520fed29cf396856495d8400fc3` |
+| Architecture / provenance | PASS local borné | `docs/FURYPIPE_VNEXT_PHASE7_MEMORY_VNEXT_2026.md`; pas de second RecoveryStore, Gateway ou policy engine |
+| Record / candidate schema | PASS local | `src/memory-vnext.ts` : champs exacts, provenance digested, acceptance distincte, retention/visibility/state discriminés |
+| Gouvernance | PASS local borné | authorizer host-owned default-deny ; external/model evidence exige `user-confirmed` ; observation non persistée |
+| Durable store / restart | PASS local borné | révisions Recovery bornées, tombstone avant purge locale, blocage de résurrection après réouverture |
+| Retrieval / context | PASS local borné | scope exact, source revoke, TTL, score déterministe et `optimizeContext()` partagé ; budget UTF-8 final contrôlé |
+| Tests ciblés | PASS local | `tests/memory-vnext.test.ts` : 6/6 |
+| Suite complète | PASS local | 250 fichiers ; 2 871 tests ; sortie 0 |
+| `pnpm run typecheck` | PASS local | TypeScript principal + hosted MCP ; sortie 0 |
+| `pnpm run build` | PASS local | bibliothèque/déclarations + Node/MCP ; version smoke `0.15.0` |
+| `pnpm run audit` | PASS local | aucune vulnérabilité connue dans les dépendances production |
+| Package smoke | PASS local | package, Phase 6, Phase 7, benchmark-claim, provider-attempt et governed-provider ; tarball installé contrôlé |
+| CI GitHub / exact head implementation | PASS / OPEN DRAFT | PR #218 ; base `51839182066a4520fed29cf396856495d8400fc3`; head `0fd246b9b5afe5de90dccb0556a4c7470eeab807`; merge state `CLEAN`; 15/15 checks PASS |
+| Secret Scan / Browser QA | PASS exact head implementation | `gitleaks`, `contract`, `prepare`, deux Chromium et Cross-Browser QA PASS ; matrice 9/9 OS × Node PASS |
+| Copies externes / providers / runtime | NOT_EXECUTED | aucune source externe, provider, OAuth, déploiement ou suppression distante appelée |
+| Merge / release / tag / npm publish / deploy | NOT_EXECUTED | interdits par le périmètre |
+
+## FuryPipe VNext Phase 10 Gate 10.2 — 2026-09-24 — local completion slice
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Source de vérité / exact head | PASS exact | parent PR #223 `OPEN + DRAFT`, base Phase 9 `c3c3f5370c10ee414e685b9f422cd4fd8a022e55`, parent Phase 10 `4de5c3e75df4de720cb330dadda86515042e79c6`; PR #224 `OPEN + DRAFT`, base `4de5c3e75df4de720cb330dadda86515042e79c6`, head `80cceadab1d60f5ce1130bae7f24aaac8dbd6dcc`; worktree isolé |
+| Cause racine | CONFIRMÉE | `src/beta-readiness.ts` n’était consommé ni par `doctor`, ni par startup, ni par une migration/config governance |
+| Beta config governance | PASS local borné | observation <=1 MiB, symlink/non-file/future schema fail-closed, migration explicit/idempotent, atomic temp+fsync+rename, rollback own-marker only |
+| Startup / doctor | PASS local borné | `doctor` expose `betaConfig`/`betaReadiness`; exit 2 si required blocker; startup refuse config/runtime blocker; optional unprobed reste degraded/task-ready |
+| Secret boundary | PASS local borné | tests vérifient absence de credential values; snapshot contient uniquement états/reasons/digests; aucun provider probe |
+| Tests ciblés | PASS local | 3 fichiers / 21 tests beta+doctor ; `tests/node-security.test.ts` 14/14 |
+| `pnpm install --frozen-lockfile` | PASS | exécuté sur le parent exact avant modification; lockfile inchangé |
+| `pnpm run typecheck` | PASS | TypeScript principal + hosted MCP |
+| `pnpm test` | PASS | 280 fichiers ; 3 208 tests ; sortie 0 |
+| `pnpm run build` | PASS | dist bibliothèque/déclarations + Node/MCP ; version smoke `0.15.0` |
+| `pnpm run package:smoke` | PASS | package, Phase 6, Phase 7, Phase 8 ACP, benchmark-claim, provider-attempt, governed-provider; migration/rollback depuis tarball |
+| `pnpm run audit` | PASS | aucune vulnérabilité production connue |
+| Secret scan | PASS hébergé / PARTIAL local | `gitleaks` absent localement; hosted Secret Scan exact-head PR #224 `35993617547` PASS |
+| Browser QA | PASS hébergé exact-head | aucune surface visuelle modifiée; Dashboard `35993617584`, Web Studio `35993617772`, Cross-Browser `35993617660` PASS |
+| CI exact-head | PASS hébergé | Benchmark Contract `35993617851`, RC Preparation `35993617553`, CI `35993617806`, matrice 9/9 PASS |
+| Publication / mutation externe | NOT_EXECUTED | pas de merge, release, tag, npm publish, deploy, restart production, force push ou migration de données réelle |
+
+## FuryPipe 0.16.0 RC — 2026-09-25 — Gateway installé + identité du paquet
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Source de vérité | PASS exact | PR #226 `OPEN + DRAFT`, base `eed62617…`; head code `f41aa957619a0d4b468f81a5d627b4980f783ac1` |
+| Gateway installé (bundle) | PASS 3 OS × 3 Node | `gateway start --json` ready, loopback, arrêt propre, 0 dynamic require |
+| MCP stdio installé via Gateway | PASS 3 OS × 3 Node | bootstrap + cookie → WebSocket `tools.source.inspect.stdio` → enfant MCP stdio → inventaire → fermeture |
+| Preuve négative bundle | FAIL attendu | `external: []` → `Dynamic require of "events" is not supported` |
+| Dashboard Browser QA | PASS | budget CDP 30 s; local 39/39; hébergé PASS |
+| Reproductibilité paquet | PASS | 9/9 jobs CI + RC Preparation : SHA-256 `99feb17f…`, 5 404 064 octets, content `30108a5f…`, 614 fichiers mode 644, 0 CR |
+| Tests | PASS | 284 fichiers / 3 223 tests |
+| typecheck / build / audit | PASS | aucune vulnérabilité production connue |
+| package:smoke / clean-room / upgrade-rollback / recovery / gateway / local-contracts | PASS local + hébergé | 0.15.0 → 0.16.0 → 0.15.0, config et données préservées |
+| FuryBench | PASS local + hébergé | 3 rounds appariés, p95 candidat ≤ baseline × 1,25, 0 régression; mesure hors provider/production |
+| Accessibilité automatisée | PASS local (Chromium) + hébergé | lecteur d’écran humain non remplacé |
+| Cross-browser / WebChat | PASS hébergé | Firefox/WebKit indisponibles localement |
+| Registre npm | 0.16.0 absent | `latest` = 0.15.0 |
+| Publication / mutation externe | NOT_EXECUTED | aucun merge, tag, release, publish, deploy |
+
+## FuryPipe Ultimate Complete Product Finalization — 2026-10-02 — état avant journal-only commit
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Source de vérité / exact head | PASS exact | PR #238 `OPEN + DRAFT`, base `ebaa8e41fd2a5820fbd33fbfc04aecf8dbb4ca57`, code head `100d3fff5e53b79cf03632f929fbc2c98c73c553`, worktree isolé propre |
+| Installation déterministe | PASS local | `pnpm install --frozen-lockfile` avec pnpm projet `10.21.0`; lockfile inchangé; shim global pnpm défectueux, écart consigné |
+| Tests | PASS local | 357 fichiers ; 3 628 réussis ; 6 ignorés ; 3 634 total |
+| Typecheck / lint / build | PASS local | typecheck principal + hosted MCP ; ESLint `--max-warnings 0` ; dist Node/MCP + déclarations ; version `0.16.0` |
+| Audit production | PASS local | `pnpm audit --prod --audit-level high`, aucune vulnérabilité connue |
+| Package / Gateway installé | PASS local + hébergé | `package:smoke`, Gateway installé, MCP stdio, loopback, arrêt propre, 0 dynamic require ; Windows CI Node 22/24/26 PASS |
+| Démarrage package réel | PASS local borné | `pnpm run start`, endpoints HTTP principaux et routes Studio/doctor en 200, arrêt propre |
+| Browser QA | PASS automatisé | Dashboard `117/117`, Web Studio `120/120`, Studio `3` moteurs, WebChat `15/15`, host `12/12`; external provider/OAuth/hosted checks non exécutés |
+| CI exact-head | PASS hébergé sur le code head | PR #238 ; tous les checks visibles PASS, matrice OS/Node, clean-room, tarball, browser, contracts, gitleaks, SBOM/audit et prepare |
+| Runtime catalog / FuryEval / fixtures | PASS ciblé | catalogue runtime raccordé aux routes Studio/autopilot ; digest dataset stable et comparabilité fail-closed ; fixtures vidéo Windows sans symlink privilégié |
+| Human/client/provider gates | NOT VERIFIED / NOT EXECUTED | validation visuelle humaine, lecteur d’écran, client externe, provider/OAuth, hosted MCP/OpenClaw/Figma non réalisés |
+| Release / provenance / mutation externe | NOT EXECUTED | PR Draft sans review ; pas de merge, release, tag, npm publish, deploy ni attestation signée candidate |
+| Intégrations restantes | PARTIAL | wiring Gateway/provider, Graphify UI, historique FuryEval, reconcile automation et index média non déclarés complets sans preuve runtime |
+
+## FuryPipe Final Product Integration & Release Closure — 2026-10-02 — slice local non poussé
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Worktree / exact local state | PASS local | worktree isolé `C:\Users\loicd\.codex\worktrees\furypipe-production-finalization\FuryPipe`, branche `codex/furypipe-production-finalization-2026`, HEAD `191f29c2010d5fce77095525576ec61186e8f135`; PR #238 distante précédemment vérifiée `OPEN + DRAFT` sur `100d3fff5e53b79cf03632f929fbc2c98c73c553`; modifications actuelles non commitées et non poussées |
+| Provider/Gateway/WebSocket | PASS local borné | stream planner/context/request/gate/transport, événement borné, annulation, terminal/error/ambiguous fail-closed, un seul appel sans retry/fallback ; `executionAuthority=false` |
+| Kernel/WebChat durable | PASS local borné | snapshot atomique, récupération après restart, tour accepté interrompu terminalisé `recovered-process-restart`, aucun replay/permit/credential persisté |
+| Governed WebChat workflow | PASS browser local | approbation → exécution → résultat vérifié exercé dans les cas outils WebChat ; modèle streamé observé via transport de test |
+| Outcome-unknown durable | PASS local borné | ledger automation réconciliable après restart par preuve SHA-256 + confirmation opérateur ; identité d’exécution conservée, replay et seconde réconciliation refusés |
+| Graphify UI | PASS browser local | plan lifecycle, confirmation refresh et routes existantes raccordés ; Studio browser QA passe sur les 3 moteurs |
+| FuryEval history | PASS local borné | RecoveryStore, append/list/get exact/compare, redémarrage et routes Studio testés ; `executionAuthorized=false` |
+| Media artifact index/recovery | PASS local borné | inspection stockage + artifact pointer/provenance ; `VERIFIED`/`MISSING`/`CORRUPT`, preview/export après vérification, cleanup plan-only ; redémarrage et missing testés |
+| Installation déterministe | PASS local | `pnpm install --frozen-lockfile`, pnpm `10.21.0`, lockfile inchangé ; Node `26.8.2`; npm observé `12.0.2` vs référence documentaire `11.14.1` |
+| Suite complète finale | PASS local | `pnpm test` : 358 fichiers ; 3 632 réussis ; 6 ignorés ; 3 638 total |
+| Typecheck / lint | PASS local | `pnpm run typecheck` principal + hosted MCP ; `pnpm run lint --max-warnings 0` |
+| Build | PASS local | `pnpm run build` : dist bibliothèque/déclarations + Node/MCP ; version smoke `0.16.0` |
+| Audit production | PASS local | `pnpm audit --prod --audit-level high` : `No known vulnerabilities found` |
+| Tests ciblés post-patch | PASS local | média + Studio API : 2 fichiers / 34 tests |
+| Browser Studio | PASS automatisé local | `pnpm run browser:studio:qa` : Chromium, Firefox, WebKit |
+| Gateway WebChat browser | PASS automatisé local | `pnpm run browser:webchat:qa` : 15/15 cas, 3 moteurs, desktop/mobile, modèle/outils/mémoire/resynchronisation |
+| Package / installed runtime | PASS local | `pnpm run package:smoke` : tarball `furypipe-0.16.0.tgz`, imports installés `fury-eval-history` + `media-generation-job-engine`, Gateway loopback/ready/clean shutdown, MCP stdio, phases 6–8, provider-attempt et governed-provider ; tarball SHA-256 `bb201ebec42b1eb047d6348186c71d45b24a4b903be7c8d552bb4b1c02df1f8d` |
+| `git diff --check` | PASS local | aucune erreur après journalisation |
+| Browser/coding durable reconciliation | NOT IMPLEMENTED / EXPLICIT LIMIT | `browser-runtime.ts` et `coding-runtime.ts` conservent leurs `outcome-unknown` process-local sur timeout/overflow ; aucune replay automatique |
+| Provider/OAuth/hosted/client/human gates | NOT VERIFIED | aucun provider payant/OAuth réel, hosted MCP/OpenClaw/Figma, client externe, lecteur d’écran humain ou validation visuelle humaine |
+| Cleanup / release / mutation externe | NOT EXECUTED | cleanup média uniquement planifié ; pas de suppression de référence, commit, push, merge, release, tag, npm publish ou deploy |
+
+## FuryPipe Final Product Integration — durable effects, Studio primary UX et preuve locale finale — 2026-10-02
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Worktree / parent exact | PASS local | worktree isolé `C:\Users\loicd\.codex\worktrees\furypipe-production-finalization\FuryPipe`, branche `codex/furypipe-production-finalization-2026`, code produit `8f5a7bcd2b7378d45e79116612adaf1fad9fb13f`, parent `191f29c2010d5fce77095525576ec61186e8f135`; les commits ultérieurs sont documentaires |
+| External effect ledger | PASS local borné | `src/fury-external-effect-ledger.ts`, RecoveryStore durable, digest-only, replay automatique refusé, reconciliation après restart avec preuve SHA-256 + `operator-confirmed`; tests ciblés inclus dans la suite complète |
+| Browser/coding reconciliation | PASS local borné | `browser-runtime.ts` et `coding-runtime.ts` exposent list/inspect/reconcile quand un store est injecté ; un effet non résolu bloque une seconde exécution identique |
+| Studio media execution boundary | PASS local borné | route `/api/studio/media/generate`, confirmation obligatoire, `NOT_CONFIGURED` sans runtime injecté, runtime réel uniquement par injection, `executionAuthority=false` |
+| Studio primary UX | PASS automatisé local | disclosure runtime/permissions, preview média séparé de la soumission provider ; `browser:studio:qa` passe sur 3 moteurs |
+| Agent/MCP continuation | PASS unitaire production | résultat de `lookup` consommé par `expand`, appels et capability executions vérifiés dans l’ordre |
+| Document summary | NOT_CONFIGURED explicite | script réel local OpenAI-compatible présent et testé ; aucune base URL/modèle configuré, aucun fixture promu en preuve d’inférence |
+| Installation déterministe | PASS local | `pnpm install --frozen-lockfile`, pnpm `10.21.0`, lockfile inchangé |
+| Tests | PASS local | `pnpm test` : 359 fichiers ; 3 637 réussis ; 6 ignorés ; 3 643 total |
+| Typecheck / lint / build | PASS local | typecheck principal + hosted MCP ; ESLint `--max-warnings 0` ; dist Node/MCP + déclarations ; version `0.16.0` |
+| Audit production | PASS local | `pnpm audit --prod --audit-level high`, aucune vulnérabilité connue |
+| Browser Studio / WebChat / host | PASS automatisé local | Studio 3 moteurs ; WebChat `15/15` ; host `12/12` |
+| Cross-browser full source QA | PASS exact local | `FURYPIPE_SOURCE_COMMIT=8f5a7bcd2b7378d45e79116612adaf1fad9fb13f`, Dashboard `117/117`, Web Studio `120/120`, Chromium/Firefox/WebKit ; premier essai non retenu car la chaîne fournie n’était pas le SHA Git réel |
+| CI exact-head PR #238 | PASS hébergé | base `ebaa8e41fd2a5820fbd33fbfc04aecf8dbb4ca57`; code produit `8f5a7bcd2b7378d45e79116612adaf1fad9fb13f` puis commits documentaires sans source produit, chacun observé à `31 SUCCESS`; timeout Firefox loopback du premier run résolu par rerun ciblé |
+| Paquet installé | PASS local | `package:smoke`, Gateway loopback/clean shutdown, MCP stdio, phases et exports ; tarball SHA-256 `4038f2d166b4c09efa08aba55faaadff17e8479cfb7942854cb377f7e7ae3058` |
+| `git diff --check` | PASS local | aucune erreur |
+| Provider / OAuth / hosted / client / humain / production | NOT VERIFIED | aucune exécution externe réelle ni validation humaine/client |
+| Publication / mutation externe | NOT EXECUTED | aucun npm publish, release, merge, deploy ou claim `500x` |
+
+## FuryPipe Final Real-World Acceptance & Release Closure — 2026-10-02 — local-first, gates externes séparés
+
+| Vérification | Résultat | Mesure / preuve |
+|---|---|---|
+| Ollama installé / modèle local | PASS local réel | Ollama `0.32.15`; `qwen3.5:latest` et `qwen3-coder:30b` déjà présents; aucun téléchargement; Fury discovery classe les deux `MAY_BE_SLOW` |
+| Résumé Markdown par modèle réel | PASS local réel | `/api/chat`, `qwen3.5:latest`, phrase factuelle unique, Atlas/14:17/Nora/journal signé; `3 092 ms`; fixture SHA-256 `3722ac64…`; conversation sauvegardée puis rouverte |
+| Studio chat SSE réel | PASS local réel | `createStudioApi.handle(chat)`, `/v1/chat/completions`, `qwen3-coder:30b`, HTTP 200, `text/event-stream`, `29 823 ms`, persistance et provenance `local`, `executionAuthority=false` |
+| Agent request → intent → skill → MCP → model → tool → continuation | PASS local borné | action réelle `CHAIN_LOOKUP`; `lookup` → `expand`; RecoveryStore rouvert avec 5 records; artefact SHA-256 `9835f404…`; aucune autorité implicite |
+| Crash/restart/recovery | PASS local borné | recovery resilience PASS `15 502 ms`; gateway restart PASS `878 ms`; kill, writes interrompus, old-valid-or-new-valid, deduplication, replay denial et stale origin refusé |
+| Tests de frontières Kernel/Recovery/effects | PASS local | 4 fichiers / 47 tests ciblés |
+| Tests média | PASS local | 11 fichiers / 130 tests ciblés; aucune exécution provider réelle prétendue |
+| Paquet installé clean-room | PASS local | `furypipe@0.16.0`, setup/doctor/start/stop/restart/persistence/rollback/reinstall; tarball SHA-256 `4038f2d1…` |
+| Hôte média normal | NOT_CONFIGURED explicite | `src/node.ts` n’injecte aucun runtime/adapters média; `/media-preview` preview-only; `/media-generate` confirmé `409 NOT_CONFIGURED`; aucun faux provider |
+| Release split | LOCAL_FIRST_PACKAGE_READY | preuve locale installée acquise; publication externe bloquée par PR Draft, ownership/metadata npm, provenance signée, intégrations externes et validations client/humaine |
+| Service Ollama temporaire | PASS nettoyage | démarré uniquement pour l’acceptation locale puis arrêté; `127.0.0.1:11434` inaccessible après clôture |
+| Worktree concurrent | PRÉSERVÉ / ORIGINE_INCONNUE | changements `validation-command`, `corepack.cmd` et rapport Playwright non touchés et non commités |
+| Publication / mutation externe | NOT EXECUTED | aucun merge, tag, GitHub Release, npm publish, deploy, provider payant ou appel API payant |
+
+## FuryPipe Local Gates — 2026-10-02 — exact-head Windows validation repair
+
+Cette entrée complète les précédentes sans les remplacer. La preuve détaillée
+est dans [`docs/evidence/FURYPIPE_LOCAL_GATES_2026-10-02.md`](docs/evidence/FURYPIPE_LOCAL_GATES_2026-10-02.md).
+
+| Vérification | Résultat | Preuve |
+|---|---|---|
+| HEAD source avant ce patch | PASS | `6f250b6acbf511d99e19b2637adb167a83af381e` |
+| Resolver pnpm Windows | PASS | `corepack.cmd` avec `shell:true` ; le chemin précédent échouait `EINVAL` ; test ciblé `3/3` |
+| Suite locale | PASS | `359` fichiers ; `3 638` PASS ; `6` ignorés ; `3 644` total |
+| Typecheck / lint / build | PASS | hosted MCP inclus ; ESLint `--max-warnings 0` ; dist `0.16.0` |
+| Package / clean-room / rollback | PASS | tarball `4038f2d166b4c09efa08aba55faaadff17e8479cfb7942854cb377f7e7ae3058` ; upgrade/rollback lié à `6f250b6a` |
+| FuryBench | PASS après rerun | 3 rounds, 25 échantillons par métrique, seuil p95 `×1,25` ; premier run instable conservé comme observation |
+| Audit / SBOM | PASS borné | aucune vulnérabilité prod connue ; CycloneDX `305` composants / `356` edges ; signature `UNSIGNED` |
+| Externes | NOT VERIFIED | provider/OAuth/hosted MCP/OpenClaw/Figma, humain/client et production non exécutés |
+| Publication | NOT EXECUTED | PR reste Draft ; aucun merge, tag, release, npm publish ou deploy |

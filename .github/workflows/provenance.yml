@@ -2,9 +2,9 @@ name: Provenance Attestation
 
 on:
   pull_request:
-    branches: [v5-production-hardening, v5-chatgpt-post-codex-integrity-final-validation]
+    branches: [v5-codex-review-clean, v5-production-hardening, v5-chatgpt-post-codex-integrity-final-validation]
   push:
-    branches: [v5-production-hardening]
+    branches: [v5-codex-review-clean, v5-production-hardening]
   workflow_dispatch:
 
 concurrency:
@@ -23,6 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Setup pnpm
@@ -60,6 +61,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
 
       - name: Setup pnpm

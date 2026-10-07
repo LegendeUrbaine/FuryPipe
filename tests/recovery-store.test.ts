@@ -13,8 +13,7 @@ const roots: string[] = [];
 
 async function runRecoveryWorker(request: Record<string, unknown>): Promise<{ code: number; stdout: string; stderr: string }> {
   const worker = fileURLToPath(new URL('./fixtures/recovery-worker.ts', import.meta.url));
-  const tsx = join(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
-  const child = spawn(process.execPath, [tsx, worker, JSON.stringify(request)], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['--import', 'tsx/esm', worker, JSON.stringify(request)], { stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
   let timedOut = false;
@@ -170,6 +169,82 @@ describe('Recovery Store', () => {
       { source: 'sequenced', runId: 'run-1', sequence: 3 },
       bound(3),
     )).rejects.toThrow(/matching-object limit exceeded/);
+  });
+
+  it('enforces atomic presence and absence predicates for bounded put/delete transitions', async () => {
+    const { root, store } = await createStoreFixture();
+    const peer = createRecoveryStore(root, { namespace: 'test-tenant' });
+
+    const reservationMetadata = {
+      source: 'atomic-transition',
+      key: 'key-1',
+      recordType: 'reservation',
+    };
+    const armedMetadata = {
+      source: 'atomic-transition',
+      key: 'key-1',
+      recordType: 'armed',
+    };
+    const reservation = await store.put(
+      new TextEncoder().encode('reservation'),
+      reservationMetadata,
+    );
+
+    const race = await Promise.allSettled([
+      peer.deleteBounded!(
+        reservation,
+        {
+          matchConstraints: [
+            { metadata: reservationMetadata, minMatches: 1, maxMatches: 1 },
+            { metadata: armedMetadata, maxMatches: 0 },
+          ],
+        },
+      ),
+      store.putBounded!(
+        new TextEncoder().encode('armed'),
+        armedMetadata,
+        {
+          metadata: armedMetadata,
+          maxMatches: 1,
+          matchConstraints: [
+            { metadata: reservationMetadata, minMatches: 1, maxMatches: 1 },
+          ],
+        },
+      ),
+    ]);
+
+    expect(race.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(race.filter(result => result.status === 'rejected')).toHaveLength(1);
+
+    const reservations = await store.list?.({ metadata: reservationMetadata });
+    const armed = await store.list?.({ metadata: armedMetadata });
+
+    if ((armed?.length ?? 0) === 1) {
+      expect(reservations).toHaveLength(1);
+      await expect(peer.deleteBounded!(
+        reservation,
+        {
+          matchConstraints: [
+            { metadata: reservationMetadata, minMatches: 1, maxMatches: 1 },
+            { metadata: armedMetadata, maxMatches: 0 },
+          ],
+        },
+      )).rejects.toThrow(/match constraint failed/);
+    } else {
+      expect(reservations).toHaveLength(0);
+      expect(armed).toHaveLength(0);
+      await expect(store.putBounded!(
+        new TextEncoder().encode('late-armed'),
+        armedMetadata,
+        {
+          metadata: armedMetadata,
+          maxMatches: 1,
+          matchConstraints: [
+            { metadata: reservationMetadata, minMatches: 1, maxMatches: 1 },
+          ],
+        },
+      )).rejects.toThrow(/match constraint failed/);
+    }
   });
 
   it('keeps a collision-free immutable object and rejects malformed handles', async () => {

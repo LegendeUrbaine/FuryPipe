@@ -58,7 +58,7 @@ import { visionTokens, type VisionPricing } from './vision-cost.js';
 import { CLAUDE_PROFILE } from './claude-model-profiles.js';
 import { resolveGptProfile } from './gpt-model-profiles.js';
 import type { CompressionReceipt } from './receipt.js';
-import { detectProtectedSpans, exactGuardOptionsForMode, type ExactGuardMode, type ExactGuardOptions } from './exact-guard.js';
+import { detectProtectedSpans, exactGuardOptionsForMode, type ExactGuardMode, type ExactGuardOptions, type ExactnessClass } from './exact-guard.js';
 import { analyzeContextFabric, finalizeContextFabricAnalysis, type ContextFabricAnalysis } from './context-fabric.js';
 import type { RecoveryHandle, RecoveryStore } from './recovery-store.js';
 import { compileFuryPrompt, type FuryPromptCompileInput, type FuryPromptCompilation } from '../fury-prompt.js';
@@ -354,6 +354,74 @@ function imageTokensCost(
   return imageTokensForRows(rows, effectiveCols, imageCountCap, maxCharsPerImage, geometry);
 }
 
+export interface VisualColumnPlan {
+  readonly cols: number;
+  readonly visualRows: number;
+  readonly imageCount: number;
+  readonly imageTokens: number;
+}
+
+/**
+ * FuryPipe Visual Planner.
+ *
+ * The old path always rendered at the natural/widest-line width. That is
+ * deterministic, but it is not necessarily the cheapest vision geometry once
+ * patch rounding and page padding are included. Evaluate a small bounded set of
+ * widths and choose the lowest provider-priced image-token plan. The incumbent
+ * width is always a candidate, so the planner cannot choose a plan with a higher
+ * estimated image-token cost. Ties prefer fewer pages, then wider pages for
+ * readability.
+ */
+export function planVisualColumns(
+  text: string,
+  maxCols: number,
+  style: RenderStyle = DENSE_RENDER_STYLE,
+  pricing: VisionPricing = CLAUDE_PROFILE,
+  maxHeightPx: number = MAX_HEIGHT_PX,
+): VisualColumnPlan {
+  const natural = shrinkColsToContent(text, Math.max(1, maxCols), 1, style.font);
+  const floor = Math.min(natural, 96);
+  const candidates = new Set<number>([natural, floor]);
+  for (const cols of [288, 256, 224, 192, 160, 128, 112, 96]) {
+    if (cols >= floor && cols <= natural) candidates.add(cols);
+  }
+
+  let best: VisualColumnPlan | undefined;
+  for (const cols of candidates) {
+    const visualRows = countVisualRows(text, cols);
+    const cellH = renderCellHeight(style);
+    const hardLinesPerImage = Math.max(1, Math.floor((maxHeightPx - 2 * PAD_Y) / cellH));
+    const readableLinesPerImage = Math.max(1, Math.floor(READABLE_CHARS_PER_IMAGE / cols));
+    const linesPerImage = Math.min(hardLinesPerImage, readableLinesPerImage);
+    const imageCount = visualRows <= 0 ? 0 : Math.ceil(visualRows / linesPerImage);
+    const geometry: GateGeometry = {
+      cols,
+      maxHeightPx,
+      maxChars: maxCharsPerImage(cols),
+      style,
+      pricing,
+    };
+    const imageTokens = imageTokensForRows(
+      visualRows,
+      cols,
+      undefined,
+      maxCharsPerImage(cols),
+      geometry,
+    );
+    const plan = { cols, visualRows, imageCount, imageTokens };
+    if (
+      best === undefined ||
+      plan.imageTokens < best.imageTokens ||
+      (plan.imageTokens === best.imageTokens && plan.imageCount < best.imageCount) ||
+      (plan.imageTokens === best.imageTokens && plan.imageCount === best.imageCount && plan.cols > best.cols)
+    ) {
+      best = plan;
+    }
+  }
+
+  return best ?? { cols: natural, visualRows: 0, imageCount: 0, imageTokens: 0 };
+}
+
 /** Gate geometry for collapsed history.
  *
  *  Identical to {@link denseGateGeometry} unless the model profile sets
@@ -564,6 +632,18 @@ function bumpPassthrough(
   info.passthroughReasons[reason] = (info.passthroughReasons[reason] ?? 0) + 1;
 }
 
+/** Plaintext-free ExactGuard attribution used only for counts in telemetry. */
+type ExactGuardClassCounts = Partial<Record<ExactnessClass, number>>;
+type ExactGuardRegion = 'system' | 'messages' | 'tools' | 'top_level_other';
+type ExactGuardRegionCounts = Partial<Record<ExactGuardRegion, number>>;
+
+function exactGuardRegionForTopLevelKey(key: string): ExactGuardRegion {
+  if (key === 'system') return 'system';
+  if (key === 'messages') return 'messages';
+  if (key === 'tools') return 'tools';
+  return 'top_level_other';
+}
+
 /** Count protected spans without retaining their plaintext in telemetry. */
 function countProtectedRequestSpans(
   value: unknown,
@@ -571,6 +651,9 @@ function countProtectedRequestSpans(
   depth = 0,
   key?: string,
   skipToolResultContent = false,
+  classCounts?: ExactGuardClassCounts,
+  regionCounts?: ExactGuardRegionCounts,
+  region: ExactGuardRegion = 'top_level_other',
 ): number {
   if (depth > 8) return 0;
   // This header is consumed as transport metadata before the lossy stages;
@@ -586,7 +669,16 @@ function countProtectedRequestSpans(
       /(?:^|\r?\n)x-anthropic-billing-header:[^\r\n]*/gi,
       '',
     );
-    return detectProtectedSpans(semanticText, options).length;
+    const spans = detectProtectedSpans(semanticText, options);
+    if (classCounts) {
+      for (const span of spans) {
+        classCounts[span.class] = (classCounts[span.class] ?? 0) + 1;
+      }
+    }
+    if (regionCounts && spans.length > 0) {
+      regionCounts[region] = (regionCounts[region] ?? 0) + spans.length;
+    }
+    return spans.length;
   }
   if (!value || typeof value !== 'object') return 0;
   // Live tool-result text has its own per-block gate. Keeping it out of the
@@ -596,17 +688,18 @@ function countProtectedRequestSpans(
     let metadataCount = 0;
     for (const [childKey, item] of Object.entries(value as Record<string, unknown>)) {
       if (childKey !== 'content') {
-        metadataCount += countProtectedRequestSpans(item, options, depth + 1, childKey, skipToolResultContent);
+        metadataCount += countProtectedRequestSpans(item, options, depth + 1, childKey, skipToolResultContent, classCounts, regionCounts, region);
       }
     }
     return metadataCount;
   }
   let count = 0;
   if (Array.isArray(value)) {
-    for (const item of value) count += countProtectedRequestSpans(item, options, depth + 1, undefined, skipToolResultContent);
+    for (const item of value) count += countProtectedRequestSpans(item, options, depth + 1, undefined, skipToolResultContent, classCounts, regionCounts, region);
   } else {
     for (const [childKey, item] of Object.entries(value as Record<string, unknown>)) {
-      count += countProtectedRequestSpans(item, options, depth + 1, childKey, skipToolResultContent);
+      const childRegion = depth === 0 ? exactGuardRegionForTopLevelKey(childKey) : region;
+      count += countProtectedRequestSpans(item, options, depth + 1, childKey, skipToolResultContent, classCounts, regionCounts, childRegion);
     }
   }
   return count;
@@ -794,6 +887,9 @@ export interface EnvFields {
 export interface TransformInfo {
   compressed: boolean;
   reason?: string;
+  /** Stable, bounded cause for a model-scope exclusion. `reason` remains the
+   *  backward-compatible top-level transform reason and may contain detail. */
+  eligibilityCause?: 'operator_scope_excluded';
   /** Optional plaintext-free audit receipt, populated by provider wrappers on request. */
   receipt?: CompressionReceipt;
   /** Shared Context Fabric decision, exposed for safe per-request diagnostics. */
@@ -941,6 +1037,10 @@ export interface TransformInfo {
     protectedSpans: number;
     action: 'preserve_native' | 'externalize';
     recoveryHandles?: readonly string[];
+    /** Plaintext-free count by ExactGuard class; values only, never matched text. */
+    classes?: Partial<Record<ExactnessClass, number>>;
+    /** Plaintext-free count by request region; never stores keys below the top-level bucket. */
+    regions?: Partial<Record<'system' | 'messages' | 'tools' | 'top_level_other', number>>;
   };
   /** Slab gate diagnostics — imageTokens, textTokens, burn terms, and verdict.
    *  Lets hosts measure flap-prevention efficacy and tune amortization horizon. */
@@ -1134,6 +1234,14 @@ const DYNAMIC_BLOCK_TAGS = [
   'cc_automode_permissions',
   'severity',
   'category',
+  // FuryPipe-owned compact-human generation guidance. It must remain native
+  // text: hiding the policy inside a Visual Engine image would make exact/
+  // machine-sensitive output boundaries less reliable.
+  'furypipe_runtime_instruction',
+  // Activated Agent Skill bodies are trusted instruction content only after
+  // host-side discovery/trust/selection. Keep them native for behavioral
+  // salience; do not bury instructions inside a Visual Engine image.
+  'furypipe_active_skill',
 ] as const;
 
 // Known-static slab tags — suppresses first-sighting `unknownStaticTags` noise
@@ -2431,22 +2539,35 @@ export async function transformRequest(
     return { body: outBody, info };
   };
 
-  // ExactGuard is a real strategy gate, not receipt decoration. Until a
-  // reversible externalize/redact adapter is selected, preserve the complete
-  // native request whenever a configured rule detects a protected value.
-  // Counting only hashes/spans keeps this diagnostic plaintext-free.
+  // ExactGuard is a real strategy gate, not receipt decoration. Automatic
+  // safety modes only block on regions FuryPipe can actually transform
+  // (system/messages/tools). Protected values in untouched top-level provider
+  // metadata stay native and exact, but do not disable safe-region compression.
+  // An explicitly supplied ExactGuard policy retains historical whole-request
+  // strictness. Counting only classes/regions keeps diagnostics plaintext-free.
+  // Retarget note: this invariant is intentionally re-checked against the integration branch.
   const activeExactGuard = opts.exactGuard !== undefined
     ? opts.exactGuard
     : o.safetyMode === false ? false : exactGuardOptionsForMode(o.safetyMode);
   if (activeExactGuard !== false) {
+    const exactGuardClasses: ExactGuardClassCounts = {};
+    const exactGuardRegions: ExactGuardRegionCounts = {};
     const protectedSpans = countProtectedRequestSpans(
       req,
       activeExactGuard,
       0,
       undefined,
       opts.exactGuard === undefined,
+      exactGuardClasses,
+      exactGuardRegions,
     );
-    if (protectedSpans > 0) {
+    const automaticScope = opts.exactGuard === undefined;
+    const nativeMetadataSpans = automaticScope
+      ? (exactGuardRegions.top_level_other ?? 0)
+      : 0;
+    const blockingProtectedSpans = protectedSpans - nativeMetadataSpans;
+
+    if (blockingProtectedSpans > 0) {
       if (activeExactGuard.representationPolicy === 'externalize' && opts.recoveryStore) {
         try {
           if (!hasExternalizationBlocker(req, activeExactGuard)) {
@@ -2458,6 +2579,8 @@ export async function transformRequest(
                 protectedSpans: externalized.protectedSpans,
                 action: 'externalize',
                 recoveryHandles: externalized.recoveryHandles,
+                classes: exactGuardClasses,
+                regions: exactGuardRegions,
               };
               bumpPassthrough(info, 'exact_guard');
               return finish(externalizedBody);
@@ -2468,7 +2591,12 @@ export async function transformRequest(
         }
       }
       info.reason = `exact_guard (preserve_native, spans=${protectedSpans})`;
-      info.exactGuard = { protectedSpans, action: 'preserve_native' };
+      info.exactGuard = {
+        protectedSpans,
+        action: 'preserve_native',
+        classes: exactGuardClasses,
+        regions: exactGuardRegions,
+      };
       bumpPassthrough(info, 'exact_guard');
       return finish(exactGuardBody);
     }
@@ -2739,7 +2867,14 @@ export async function transformRequest(
   // so the gate's prediction and the renderer's output agree at the smallest
   // legible width. The banner above sets the natural floor — no separate
   // minWidth knob needed.
-  const slabCols = shrinkColsToContent(combinedWithHeader, o.cols, 1, denseGeo.style.font);
+  const slabPlan = planVisualColumns(
+    combinedWithHeader,
+    o.cols,
+    denseGeo.style,
+    denseGeo.pricing,
+    denseGeo.maxHeightPx,
+  );
+  const slabCols = slabPlan.cols;
   const slabGateEval = evalCompressionProfitability(
     combinedWithHeader, slabCols, undefined, slabCpt, o.priorWarmTokens, o.priorWarmImageTokens,
     false, // already shrunk — don't double-shrink
@@ -3047,10 +3182,22 @@ export async function transformRequest(
             const inner = compactSlabWhitespace(innerRaw);
             // classifyContent sees pre-reflow `inner` so shape bucketing reflects real structure.
             const innerR = maybeReflow(inner, o.reflow);
+            const innerPlan = planVisualColumns(
+              innerR,
+              denseGeo.cols,
+              denseGeo.style,
+              denseGeo.pricing,
+              denseGeo.maxHeightPx,
+            );
+            const innerGeo: GateGeometry = {
+              ...denseGeo,
+              cols: innerPlan.cols,
+              maxChars: maxCharsPerImage(innerPlan.cols),
+            };
             if (innerR.length < o.minToolResultChars) {
               bumpPassthrough(info, 'below_threshold');
               rewritten.push(blk);
-            } else if (!isCompressionProfitable(innerR, denseGeo.cols, o.maxImagesPerToolResult, o.charsPerToken, 0, 0, true, denseGeo.maxChars, denseGeo)) {
+            } else if (!isCompressionProfitable(innerR, innerPlan.cols, o.maxImagesPerToolResult, o.charsPerToken, 0, 0, false, innerGeo.maxChars, innerGeo)) {
               bumpPassthrough(info, 'not_profitable');
               rewritten.push(blk);
             } else {
@@ -3061,13 +3208,13 @@ export async function transformRequest(
               const resultImageCap = Math.min(o.maxImagesPerToolResult, imageHeadroom(info));
               const linesPerImage = Math.max(
                 1,
-                Math.floor((denseGeo.maxHeightPx - 2 * PAD_Y) / renderCellHeight(denseGeo.style)),
+                Math.floor((innerGeo.maxHeightPx - 2 * PAD_Y) / renderCellHeight(innerGeo.style)),
               );
               const paged = truncateForBudget(
                 innerR,
                 resultImageCap,
-                denseGeo.cols,
-                denseGeo.maxChars,
+                innerPlan.cols,
+                innerGeo.maxChars,
                 linesPerImage,
               );
               if (paged.truncated) {
@@ -3077,10 +3224,10 @@ export async function transformRequest(
               const { blocks: imgs, pngs: rawPngs, dims: rawDims, droppedChars, droppedCodepoints: dcp, pixels } =
                 await textToImageBlocks(
                   paged.text,
-                  o.cols,
-                  true,
-                  denseGeo.style,
-                  denseGeo.maxHeightPx,
+                  innerPlan.cols,
+                  false,
+                  innerGeo.style,
+                  innerGeo.maxHeightPx,
                 );
               // Paging is budgeted at denseGeo.cols but rendering happens at
               // o.cols; when they differ the real page count can exceed the plan.
@@ -3159,26 +3306,38 @@ export async function transformRequest(
               const innerText = compactSlabWhitespace(innerTextRaw);
               // R3: gate/page/render on reflowed text; classify pre-reflow.
               const innerTextR = maybeReflow(innerText, o.reflow);
+              const partPlan = planVisualColumns(
+                innerTextR,
+                denseGeo.cols,
+                denseGeo.style,
+                denseGeo.pricing,
+                denseGeo.maxHeightPx,
+              );
+              const partGeo: GateGeometry = {
+                ...denseGeo,
+                cols: partPlan.cols,
+                maxChars: maxCharsPerImage(partPlan.cols),
+              };
               if (innerTextR.length < o.minToolResultChars) {
                 bumpPassthrough(info, 'below_threshold');
                 newInner.push(ib as TextBlock | ImageBlock);
                 continue;
               }
-              if (!isCompressionProfitable(innerTextR, denseGeo.cols, o.maxImagesPerToolResult, o.charsPerToken, 0, 0, true, denseGeo.maxChars, denseGeo)) {
+              if (!isCompressionProfitable(innerTextR, partPlan.cols, o.maxImagesPerToolResult, o.charsPerToken, 0, 0, false, partGeo.maxChars, partGeo)) {
                 bumpPassthrough(info, 'not_profitable');
                 newInner.push(ib as TextBlock | ImageBlock);
                 continue;
               }
               const linesPerImage = Math.max(
                 1,
-                Math.floor((denseGeo.maxHeightPx - 2 * PAD_Y) / renderCellHeight(denseGeo.style)),
+                Math.floor((partGeo.maxHeightPx - 2 * PAD_Y) / renderCellHeight(partGeo.style)),
               );
               const resultImageCap = Math.min(o.maxImagesPerToolResult, imageHeadroom(info));
               const paged = truncateForBudget(
                 innerTextR,
                 resultImageCap,
-                denseGeo.cols,
-                denseGeo.maxChars,
+                partPlan.cols,
+                partGeo.maxChars,
                 linesPerImage,
               );
               if (paged.truncated) {
@@ -3188,10 +3347,10 @@ export async function transformRequest(
               const { blocks: imgs, pngs: rawPngs, dims: rawDims, droppedChars, droppedCodepoints: dcp, pixels } =
                 await textToImageBlocks(
                   paged.text,
-                  o.cols,
-                  true,
-                  denseGeo.style,
-                  denseGeo.maxHeightPx,
+                  partPlan.cols,
+                  false,
+                  partGeo.style,
+                  partGeo.maxHeightPx,
                 );
               // Paging is budgeted at denseGeo.cols but rendering happens at
               // o.cols; when they differ the real page count can exceed the plan.

@@ -8,7 +8,6 @@ import * as net from 'node:net';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const tsxCli = path.join(repoRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 const CHILD_START_TIMEOUT_MS = process.platform === 'win32' ? 30_000 : 15_000;
 
 // NTFS has no POSIX permission bits: Node reports 0o666 for every file and
@@ -82,14 +81,16 @@ async function freePort(): Promise<number> {
   return port;
 }
 
-async function startNode(extraEnv: Record<string, string> = {}): Promise<{
+async function startNode(
+  extraEnv: Record<string, string | undefined> = {},
+  initialConfig?: Record<string, unknown>,
+): Promise<{
   base: string;
   eventsFile: string;
   configFile: string;
   output: () => string;
 }> {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'furypipe-node-security-'));
-  const port = await freePort();
   const upstreamPort = await freePort();
   upstream = createServer((req, res) => {
     res.setHeader('content-type', 'application/json');
@@ -110,54 +111,79 @@ async function startNode(extraEnv: Record<string, string> = {}): Promise<{
   await new Promise<void>((resolve) => upstream!.listen(upstreamPort, '127.0.0.1', resolve));
   const eventsFile = path.join(dir, 'data', 'events.jsonl');
   const configFile = path.join(dir, 'config', 'config.json');
-  child = spawn(process.execPath, [tsxCli, 'src/node.ts'], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      FURYPIPE_PORT: String(port),
-      FURYPIPE_HOST: '127.0.0.1',
-      FURYPIPE_LOG: eventsFile,
-      FURYPIPE_CONFIG: configFile,
-      FURYPIPE_MODELS: 'claude-fable-5',
-      ANTHROPIC_UPSTREAM: `http://127.0.0.1:${upstreamPort}`,
-      ...extraEnv,
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  const output: string[] = [];
-  child.stdout?.on('data', (b) => output.push(String(b)));
-  child.stderr?.on('data', (b) => output.push(String(b)));
-  await new Promise<void>((resolve, reject) => {
-    const deadline = setTimeout(
-      () => reject(new Error(`child did not report listening within ${CHILD_START_TIMEOUT_MS}ms\n${output.join('')}`)),
-      CHILD_START_TIMEOUT_MS,
-    );
-    const poll = () => {
-      if (output.join('').includes('[furypipe] listening on')) {
-        clearTimeout(deadline);
-        resolve();
-        return;
+  if (initialConfig !== undefined) {
+    fs.mkdirSync(path.dirname(configFile), { recursive: true });
+    fs.writeFileSync(configFile, JSON.stringify(initialConfig));
+  }
+  const baseChildEnv: NodeJS.ProcessEnv = { ...process.env, ...extraEnv };
+  for (const [key, value] of Object.entries(extraEnv)) {
+    if (value === undefined) delete baseChildEnv[key];
+  }
+  if (!Object.prototype.hasOwnProperty.call(extraEnv, 'FURYPIPE_MODELS')) {
+    baseChildEnv.FURYPIPE_MODELS = 'claude-fable-5';
+  }
+  baseChildEnv.FURYPIPE_HOST = '127.0.0.1';
+  baseChildEnv.FURYPIPE_LOG = eventsFile;
+  baseChildEnv.FURYPIPE_CONFIG = configFile;
+  baseChildEnv.ANTHROPIC_UPSTREAM = `http://127.0.0.1:${upstreamPort}`;
+
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const port = await freePort();
+    const childEnv: NodeJS.ProcessEnv = { ...baseChildEnv, FURYPIPE_PORT: String(port) };
+    child = spawn(process.execPath, ['--import', 'tsx/esm', 'src/node.ts'], {
+      cwd: repoRoot,
+      env: childEnv,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const output: string[] = [];
+    child.stdout?.on('data', (b) => output.push(String(b)));
+    child.stderr?.on('data', (b) => output.push(String(b)));
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const deadline = setTimeout(
+          () => reject(new Error(`child did not report listening within ${CHILD_START_TIMEOUT_MS}ms\n${output.join('')}`)),
+          CHILD_START_TIMEOUT_MS,
+        );
+        const poll = () => {
+          if (output.join('').includes('[furypipe] listening on')) {
+            clearTimeout(deadline);
+            resolve();
+            return;
+          }
+          if (child?.exitCode !== null) {
+            clearTimeout(deadline);
+            reject(new Error(output.join('')));
+            return;
+          }
+          setTimeout(poll, 10);
+        };
+        poll();
+      });
+      return {
+        base: `http://127.0.0.1:${port}`,
+        eventsFile,
+        configFile,
+        output: () => output.join(''),
+      };
+    } catch (caught) {
+      const error = caught instanceof Error ? caught : new Error(String(caught));
+      lastError = error;
+      const addressRace = output.join('').includes(' is already in use');
+      if (!addressRace || attempt === 2) throw error;
+      if (child?.exitCode === null) {
+        child.kill('SIGTERM');
+        await new Promise<void>((resolve) => child!.once('close', () => resolve()));
       }
-      if (child?.exitCode !== null) {
-        clearTimeout(deadline);
-        reject(new Error(output.join('')));
-        return;
-      }
-      setTimeout(poll, 10);
-    };
-    poll();
-  });
-  return {
-    base: `http://127.0.0.1:${port}`,
-    eventsFile,
-    configFile,
-    output: () => output.join(''),
-  };
+      child = undefined;
+    }
+  }
+  throw lastError ?? new Error('failed to start FuryPipe node host');
 }
 
 describe('Node CLI evidence help', () => {
   it('documents the source-bound Security CI evidence environment variable', () => {
-    const result = spawnSync(process.execPath, [tsxCli, 'src/node.ts', '--help'], {
+    const result = spawnSync(process.execPath, ['--import', 'tsx/esm', 'src/node.ts', '--help'], {
       cwd: repoRoot,
       env: process.env,
       encoding: 'utf8',
@@ -168,6 +194,43 @@ describe('Node CLI evidence help', () => {
     expect(result.stdout).toContain('FURYPIPE_CONTROL_ROOM_EVIDENCE');
     expect(result.stdout).toContain('FURYPIPE_CONTROL_ROOM_SECURITY_CI_EVIDENCE');
     expect(result.stdout).toContain('exact-source CI security');
+  });
+});
+
+describe('Node beta readiness startup gate', () => {
+  it('refuses an invalid required config before binding the runtime port', async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'furypipe-beta-startup-'));
+    const configFile = path.join(dir, 'config.json');
+    fs.writeFileSync(configFile, '[]', { encoding: 'utf8', mode: 0o600 });
+    const port = await freePort();
+    const output: string[] = [];
+    child = spawn(process.execPath, ['--import', 'tsx/esm', 'src/node.ts'], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        FURYPIPE_CONFIG: configFile,
+        FURYPIPE_HOST: '127.0.0.1',
+        FURYPIPE_MODELS: 'claude-fable-5',
+        FURYPIPE_PORT: String(port),
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stdout?.on('data', (chunk) => output.push(String(chunk)));
+    child.stderr?.on('data', (chunk) => output.push(String(chunk)));
+    const result = await new Promise<{ code: number | null; output: string }>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        child?.kill('SIGTERM');
+        reject(new Error(`invalid-config startup did not terminate\n${output.join('')}`));
+      }, CHILD_START_TIMEOUT_MS);
+      child!.once('close', (code) => {
+        clearTimeout(timer);
+        resolve({ code, output: output.join('') });
+      });
+    });
+
+    expect(result.code).toBe(2);
+    expect(result.output).toContain('beta readiness blocked; startup refused');
+    expect(result.output).not.toContain('[furypipe] listening on');
   });
 });
 
@@ -304,6 +367,98 @@ describe('Node Control Room Security CI ingestion', () => {
 });
 
 describe('Node dashboard security', () => {
+  it('rejects unknown or contradictory model-scope commands before mutation', async () => {
+    const { base, configFile } = await startNode();
+    const headers = {
+      'content-type': 'application/json',
+      origin: base,
+      'sec-fetch-site': 'same-origin',
+    };
+    const unknown = await fetch(`${base}/fragments/models`, {
+      method: 'POST', headers, body: JSON.stringify({ mode: 'future', list: 'off' }),
+    });
+    expect(unknown.status).toBe(400);
+    expect(fs.existsSync(configFile)).toBe(false);
+    const contradictory = await fetch(`${base}/fragments/models`, {
+      method: 'POST', headers, body: JSON.stringify({ mode: 'automatic', list: 'claude-fable-5' }),
+    });
+    expect(contradictory.status).toBe(400);
+    expect(fs.existsSync(configFile)).toBe(false);
+  });
+
+  it('does not apply a visual policy when the model-scope command is contradictory', async () => {
+    const { base, configFile } = await startNode();
+    const headers = {
+      'content-type': 'application/json',
+      origin: base,
+      'sec-fetch-site': 'same-origin',
+    };
+    const response = await fetch(`${base}/fragments/models`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ mode: 'automatic', list: 'claude-fable-5', policy: 'text_only' }),
+    });
+    expect(response.status).toBe(400);
+    expect(fs.existsSync(configFile)).toBe(false);
+    const fragment = await (await fetch(`${base}/fragments/models`)).text();
+    expect(fragment).toContain('<option value="auto" selected>AUTO</option>');
+  });
+
+  it('rejects an oversized model scope before policy or persistence mutation', async () => {
+    const { base, configFile } = await startNode();
+    const headers = {
+      'content-type': 'application/json',
+      origin: base,
+      'sec-fetch-site': 'same-origin',
+    };
+    const list = Array.from({ length: 65 }, (_, index) => `model-${index}`).join(',');
+    const response = await fetch(`${base}/fragments/models`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ mode: 'explicit', list, policy: 'text_only' }),
+    });
+    expect(response.status).toBe(400);
+    expect(fs.existsSync(configFile)).toBe(false);
+    const fragment = await (await fetch(`${base}/fragments/models`)).text();
+    expect(fragment).toContain('<option value="auto" selected>AUTO</option>');
+  });
+
+  it('honors persisted off when the environment variable is present but empty', async () => {
+    const { base, output } = await startNode(
+      { FURYPIPE_MODELS: '' },
+      { modelScopeMode: 'off' },
+    );
+    const models = await (await fetch(`${base}/api/models.json`)).json() as { scopeMode: string };
+    expect(models.scopeMode).toBe('off');
+    expect(output()).toContain('model scope: off (source=config)');
+  });
+
+  it('returns to automatic after a persisted scope was injected at startup', async () => {
+    const { base, configFile, output } = await startNode(
+      { FURYPIPE_MODELS: undefined },
+      { modelScopeMode: 'explicit', models: ['claude-fable-5'], modelScopeExplicit: true },
+    );
+    const response = await fetch(`${base}/fragments/models`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        origin: base,
+        'sec-fetch-site': 'same-origin',
+      },
+      body: JSON.stringify({ mode: 'automatic' }),
+    });
+    expect(response.status).toBe(200);
+    const fragment = await response.text();
+    expect(fragment).toContain('data-model-scope="automatic"');
+    const models = await (await fetch(`${base}/api/models.json`)).json() as { scopeMode: string };
+    expect(models.scopeMode).toBe('automatic');
+    const persisted = JSON.parse(fs.readFileSync(configFile, 'utf8')) as Record<string, unknown>;
+    expect(persisted.modelScopeMode).toBe('automatic');
+    expect(persisted.models).toBeUndefined();
+    expect(persisted.modelScopeExplicit).toBeUndefined();
+    expect(output()).toContain('model scope: explicit (source=config)');
+  });
+
   it('rejects cross-origin mutations and accepts same-origin mutations', async () => {
     const { base, configFile } = await startNode();
     const denied = await fetch(`${base}/fragments/models`, {
@@ -394,5 +549,40 @@ describe('Node dashboard security', () => {
     expect(files.length, output()).toBeGreaterThan(0);
     expectMode(path.join(dumpDir, files[0]!), 0o600);
     await removeTempTree(dumpDir);
+  });
+});
+
+describe('Node host serves FuryPipe Studio', () => {
+  it('serves Studio at / with a nonce CSP and the dashboard at /control-plane', async () => {
+    const { base } = await startNode();
+    const studio = await fetch(`${base}/`);
+    expect(studio.status).toBe(200);
+    const csp = studio.headers.get('content-security-policy') ?? '';
+    expect(csp).toMatch(/script-src 'nonce-[A-Za-z0-9+/=]+'/u);
+    expect(csp).toContain("default-src 'none'");
+    const html = await studio.text();
+    expect(html).toContain('FuryPipe Studio');
+    for (const view of ['chat', 'cowork', 'code', 'agents', 'automations']) expect(html).toContain(`data-view="${view}"`);
+    expect(html).toContain('href="/control-plane"');
+    const controlPlane = await fetch(`${base}/control-plane`);
+    expect(controlPlane.status).toBe(200);
+    expect(await controlPlane.text()).not.toContain('FuryPipe Studio</title>');
+    expect((await fetch(`${base}/`, { method: 'POST' })).status).toBe(405);
+  });
+
+  it('guards the Studio API: method, same-origin POST, JSON only and preview-only dispatch', async () => {
+    const { base } = await startNode();
+    const harnesses = await fetch(`${base}/api/studio/harnesses.json`);
+    expect(harnesses.status).toBe(200);
+    expect(((await harnesses.json()) as { harnesses: { id: string }[] }).harnesses.map((h) => h.id)).toContain('furypipe-native');
+    expect((await fetch(`${base}/api/studio/harnesses.json`, { method: 'POST' })).status).toBe(405);
+    const crossOrigin = await fetch(`${base}/api/studio/dispatch-preview`, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body: '{}' });
+    expect(crossOrigin.status).toBe(403);
+    const notJson = await fetch(`${base}/api/studio/dispatch-preview`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: '{}' });
+    expect(notJson.status).toBe(415);
+    const badIr = await fetch(`${base}/api/studio/dispatch-preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ir: { format: 'x' } }) });
+    expect(badIr.status).toBe(422);
+    const chatToCloud = await fetch(`${base}/api/studio/chat`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ baseUrl: 'https://api.openai.com', model: 'm', messages: [{ role: 'user', content: 'hi' }] }) });
+    expect(chatToCloud.status).toBe(403);
   });
 });

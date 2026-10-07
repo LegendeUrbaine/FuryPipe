@@ -29,44 +29,45 @@ afterEach(() => {
 });
 
 describe('public library API', () => {
-  it('recognizes the default scope (Fable 5 + Gemini 3.6 Flash + Gemini 3.7 Flash); Opus is OFF by default', () => {
+  it('AUTO recognizes verified/calibrated readers without treating arbitrary names as proof', () => {
     expect(isFuryPipeSupportedModel('claude-fable-5')).toBe(true);
     expect(isFuryPipeSupportedModel('claude-fable-5-high')).toBe(true);
     expect(isFuryPipeSupportedModel('google/gemini-3.6-flash')).toBe(true);
     expect(isFuryPipeSupportedModel('google/gemini-3.7-flash')).toBe(true);
     expect(isFuryPipeSupportedModel('gemini-3.6-flash-preview')).toBe(false);
     expect(isFuryPipeSupportedModel('gemini-3.7-flash-preview')).toBe(false);
-    // Any prefix depth is stripped to the last segment, because real gateway
-    // ids nest more than one level (`workers-ai/@cf/moonshotai/kimi-k3`). The
-    // vendor segments pick an upstream, not a geometry, so they do not gate
-    // scope — an unrecognized prefix in front of a known id still matches.
+    // Gateway prefixes do not change the measured reader identity.
     expect(isFuryPipeSupportedModel('untrusted/google/gemini-3.6-flash')).toBe(true);
     expect(isFuryPipeSupportedModel('untrusted/google/gemini-3.7-flash')).toBe(true);
-    // Opus 5 is OPT-IN, not in the default scope: it reads imaged context at
-    // 2/15 exact recall vs Fable's 13/15, so compressing it by default hands
-    // the operator's main driver a silent-misread failure mode.
-    expect(isFuryPipeSupportedModel('claude-opus-5')).toBe(false);
-    // Opus 4.8 is OPT-IN, not in the default scope — same pipeline/render as
-    // Fable, but it reads imaged content at a tax (FINDINGS.md 2026-06-16), so
-    // the default doesn't silently compress the operator's main driver. Enable
-    // it via FURYPIPE_MODELS or the dashboard "compress models" chips.
-    expect(isFuryPipeSupportedModel('claude-opus-4-8')).toBe(false);
-    // older Opus + other families are not in the default scope
-    expect(isFuryPipeSupportedModel('claude-opus-4-7')).toBe(false);
-    expect(isFuryPipeSupportedModel('claude-opus-4-6')).toBe(false);
+
+    // Only Claude readers with model-specific calibration/verification evidence
+    // participate in AUTO. Vision capability alone is not reader-quality proof.
+    expect(isFuryPipeSupportedModel('claude-opus-5')).toBe(true);
     expect(isFuryPipeSupportedModel('claude-mythos-5')).toBe(false);
-    expect(isFuryPipeSupportedModel('claude-fable-50')).toBe(false);
+    expect(isFuryPipeSupportedModel('claude-sonnet-5')).toBe(false);
+    expect(isFuryPipeSupportedModel('claude-haiku-4-5-20251001')).toBe(false);
+    expect(isFuryPipeSupportedModel('claude-opus-4-8')).toBe(true);
+    expect(isFuryPipeSupportedModel('claude-opus-4-7')).toBe(true);
+    expect(isFuryPipeSupportedModel('claude-opus-4-6')).toBe(true);
+    expect(isFuryPipeSupportedModel('claude-sonnet-4-6')).toBe(false);
+
+    // Current Mythos 5 is vision-capable but remains UNPROFILED; invented
+    // future-looking ids are not capability evidence either.
+    expect(isFuryPipeSupportedModel('claude-mythos-5')).toBe(false);
     expect(isFuryPipeSupportedModel('claude-sonnet-4-7')).toBe(false);
+    expect(isFuryPipeSupportedModel('claude-fable-50')).toBe(false);
     expect(isFuryPipeSupportedModel(null)).toBe(false);
   });
 
   it('strips bracketed variant tags like [1m] before matching', () => {
     expect(isFuryPipeSupportedModel('claude-fable-5[1m]')).toBe(true);
     expect(isFuryPipeSupportedModel('claude-fable-5-high[1m]')).toBe(true);
-    expect(isFuryPipeSupportedModel('claude-opus-5[1m]')).toBe(false);   // Opus 5 opt-in, off by default
-    expect(isFuryPipeSupportedModel('claude-opus-4-8[1m]')).toBe(false); // legacy Opus opt-in, off by default
-    // a non-scoped base is still rejected even with a variant tag
-    expect(isFuryPipeSupportedModel('claude-opus-4-7[1m]')).toBe(false);
+    expect(isFuryPipeSupportedModel('claude-opus-5[1m]')).toBe(true);
+    expect(isFuryPipeSupportedModel('claude-opus-4-8[1m]')).toBe(true);
+    expect(isFuryPipeSupportedModel('claude-opus-4-7[1m]')).toBe(true);
+    expect(isFuryPipeSupportedModel('claude-mythos-5[1m]')).toBe(false);
+    // Bracket stripping cannot turn an invented family into proven capability.
+    expect(isFuryPipeSupportedModel('claude-fable-50[1m]')).toBe(false);
   });
 
   it('honors FURYPIPE_MODELS to override the default scope', () => {
@@ -95,26 +96,27 @@ describe('public library API', () => {
       // empty list = compress nothing
       setAllowedModelBases([]);
       expect(isFuryPipeSupportedModel('claude-fable-5')).toBe(false);
-      // null clears the override → back to the default scope (Fable 5 + Gemini)
+      // null clears the explicit override → back to automatic Model Fabric policy.
       setAllowedModelBases(null);
       expect(isFuryPipeSupportedModel('claude-fable-5')).toBe(true);
-      expect(isFuryPipeSupportedGptModel('gpt-5.6-sol')).toBe(false);
+      expect(isFuryPipeSupportedGptModel('gpt-5.6-sol')).toBe(true);
       expect(isFuryPipeSupportedGptModel('grok-4.5')).toBe(false);
-      expect(isFuryPipeSupportedModel('claude-opus-4-8')).toBe(false);
+      expect(isFuryPipeSupportedModel('claude-opus-4-8')).toBe(true);
     } finally {
       setAllowedModelBases(null); // never leak the override into other tests
     }
   });
 
-  it('keeps GPT 5.6 Sol aliases opt-in by default', () => {
+  it('AUTO keeps unprofiled OpenAI readers native while calibrated Sol remains eligible', () => {
     expect(isFuryPipeSupportedGptModel('gpt-5')).toBe(false);
     expect(isFuryPipeSupportedGptModel('gpt-5.5')).toBe(false);
     expect(isFuryPipeSupportedGptModel('gpt-5.5-codex')).toBe(false);
     expect(isFuryPipeSupportedGptModel('gpt-5.6')).toBe(false);
-    expect(isFuryPipeSupportedGptModel('gpt-5.6-sol')).toBe(false);
-    expect(isFuryPipeSupportedGptModel('gpt-5.6-sol-codex')).toBe(false);
+    expect(isFuryPipeSupportedGptModel('gpt-5.6-sol')).toBe(true);
+    expect(isFuryPipeSupportedGptModel('gpt-5.6-sol-codex')).toBe(true);
     expect(isFuryPipeSupportedGptModel('gpt-5.6-terra')).toBe(false);
     expect(isFuryPipeSupportedGptModel('gpt-5-mini')).toBe(false);
+    expect(isFuryPipeSupportedGptModel('gpt-6-astra')).toBe(false);
     expect(isFuryPipeSupportedGptModel('gpt-4o')).toBe(false);
 
     process.env.FURYPIPE_MODELS = 'gpt-5.6-sol';
@@ -126,18 +128,15 @@ describe('public library API', () => {
     expect(isFuryPipeSupportedGptModel('gpt-5.6-terra')).toBe(false);
   });
 
-  it('keeps Grok and Sol opt-in by default', () => {
-    // Grok remains opt-in because its arithmetic, gist, and state results are
-    // below the Fable bar.
+  it('AUTO admits Grok 4.6 only where both vision capability and calibrated pricing are known', () => {
     const prev = process.env.FURYPIPE_MODELS;
     try {
       delete process.env.FURYPIPE_MODELS;
       expect(isFuryPipeSupportedGptModel('grok-4.5')).toBe(false);
-      expect(isFuryPipeSupportedGptModel('grok-4.6')).toBe(false);
+      expect(isFuryPipeSupportedGptModel('grok-4.6')).toBe(true);
       expect(isFuryPipeSupportedGptModel('grok-4')).toBe(false);
       expect(isFuryPipeSupportedGptModel('grok-4.20')).toBe(false);
-      expect(getAllowedModelBases()).not.toContain('grok-4.5');
-      expect(getAllowedModelBases()).not.toContain('grok-4.6');
+      // The compatibility seed is not the dynamic model catalog.
       expect(getAllowedModelBases()).toEqual(['claude-fable-5', 'gemini']);
 
       process.env.FURYPIPE_MODELS = 'claude-fable-5,gpt-5.6-sol,grok-4.6';
@@ -296,13 +295,13 @@ describe('public library API', () => {
 
   it('wraps the transformer with model gating and cache ownership metadata', async () => {
     const unsupported = enc.encode(JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-fable-50',
       system: 'x'.repeat(20_000),
       messages: [{ role: 'user', content: 'hello' }],
     }));
-    const skipped = await transformAnthropicMessages({ body: unsupported, model: 'claude-sonnet-4-6' });
+    const skipped = await transformAnthropicMessages({ body: unsupported, model: 'claude-fable-50' });
     expect(skipped.applied).toBe(false);
-    expect(skipped.reason).toBe('unsupported_model');
+    expect(skipped.reason).toBe('vision_capability_unknown');
     expect(skipped.body).toBe(unsupported);
 
     const supported = enc.encode(JSON.stringify({

@@ -186,6 +186,11 @@ const GPT5_PRICING = { cacheReadRate: 0.1, outputRate: 8 };
 /**
  * Conservative fallback for unrecognized models: tile 85/170 over-states cost,
  * which biases the gate toward pass-through (safe). Matches gpt-4o/4.1/4.5.
+ *
+ * Do not use a high-density or model-specific geometry as the universal
+ * fallback: Model Fabric discovery is broader than visual-profile evidence.
+ * Newly discovered readers enter MAX_SAVINGS through explicit capability
+ * policy, while named canary profiles can select more legible geometry.
  */
 export const DEFAULT_GPT_PROFILE: GptModelProfile = {
   vision: { regime: 'tile', base: 85, perTile: 170 },
@@ -197,6 +202,29 @@ export const DEFAULT_GPT_PROFILE: GptModelProfile = {
   history: BASE_HISTORY,
   style: BASE_STYLE,
 };
+
+const OPENAI_CURRENT_LEGIBLE_STYLE: GptRenderStyle = {
+  ...BASE_STYLE,
+  font: 'jetbrains-mono-14',
+  cellWBonus: 0,
+  cellHBonus: 0,
+};
+
+function currentOpenAIProfile(
+  vision: GptVisionCost,
+  pricing: { cacheReadRate: number; outputRate: number },
+): GptModelProfile {
+  return {
+    vision,
+    ...pricing,
+    stripCols: 84,
+    maxHeightPx: 1954,
+    minCompressTokens: 500,
+    factSheetFormat: 'full',
+    history: { ...NATIVE_14PX_HISTORY, maxImages: 64 },
+    style: { ...OPENAI_CURRENT_LEGIBLE_STYLE },
+  };
+}
 
 const GPT56_SOL_PROFILE: GptModelProfile = {
   // GPT-5.6 original detail bills the submitted 32px patches without a patch cap.
@@ -236,8 +264,14 @@ interface ProfileRule {
 const isMiniNanoPatch = (m: string): boolean =>
   /^(?:gpt-5(?:\.\d+)?|gpt-4\.1)-(?:mini|nano)/.test(m) || /^o4-mini/.test(m);
 
-/** Grok ids FuryPipe has a measured profile for. */
+/** Grok ids routed to the xAI render profile. */
 const isGrokModel = (m: string): boolean => /^grok-/.test(m);
+
+/** Grok variants for which FuryPipe has actual image-cost evidence.
+ * Keep this narrower than isGrokModel(): a future Grok id may share a family
+ * name while changing visual token accounting. */
+const isMeasuredGrokPricingId = (m: string): boolean =>
+  /^grok-4(?:\.(?:5|6))?(?:-|$)/.test(m);
 
 /** Qwen 3.8 27B ids — the only Qwen geometry FuryPipe has measured. Other Qwen
  *  variants deliberately do NOT match: the family-id guard below refuses them
@@ -293,12 +327,26 @@ const BUILTIN_RULES: ProfileRule[] = [
     test: (m) => m === 'gpt-5.6-sol' || m.startsWith('gpt-5.6-sol-'),
     profile: GPT56_SOL_PROFILE,
   },
-  // 5.x flagship (gpt-5.4/5.5/…, no -mini/-nano): patch, multiplier 1, detail:original cap
+  // Current 6.x OpenAI readers are vision-capable, but FuryPipe does not yet
+  // have source-bound image-token economics for this family. Keep a legible
+  // geometry fallback for explicit/operator-owned experiments only; the
+  // applicability gate treats GPT-6 visual pricing as UNKNOWN until an
+  // operator profile or provider-backed pricing profile supplies evidence.
+  {
+    test: (m) => /^gpt-6(?:\.|-|$)/.test(m),
+    profile: currentOpenAIProfile({ regime: 'tile', base: 85, perTile: 170 }, {
+      cacheReadRate: 0.1,
+      outputRate: 5,
+    }),
+  },
+  // 5.x flagship (gpt-5.4/5.5/5.6 variants, no mini/nano): preserve
+  // the validated dense geometry. Only exact model profiles (for example Sol)
+  // may opt into a different reader geometry.
   {
     test: (m) => /^gpt-5\.\d/.test(m),
     profile: { vision: { regime: 'patch', multiplier: 1, patchCap: 10000 }, ...GPT5_PRICING, stripCols: C, maxHeightPx: H, minCompressTokens: 500, factSheetFormat: 'full', history: BASE_HISTORY, style: BASE_STYLE },
   },
-  // gpt-5 / gpt-5-chat-latest: tile 70/140
+  // gpt-5 / gpt-5-chat-latest.
   {
     test: (m) => /^gpt-5/.test(m),
     profile: { vision: { regime: 'tile', base: 70, perTile: 140 }, ...GPT5_PRICING, stripCols: C, maxHeightPx: H, minCompressTokens: 500, factSheetFormat: 'full', history: BASE_HISTORY, style: BASE_STYLE },
@@ -390,6 +438,50 @@ function hasDeclaredProfile(m: string): boolean {
   const ids = candidateIds(m);
   for (const k of env.keys()) if (ids.some((id) => id.startsWith(k))) return true;
   return false;
+}
+
+export type FuryVisionPricingEvidence =
+  | 'operator_profile'
+  | 'provider_profile'
+  | 'conservative_openai'
+  | 'unknown';
+
+/**
+ * Tell applicability whether the profitability gate has a provider-appropriate
+ * image-token cost model for this ID.
+ *
+ * This is intentionally separate from "image input supported". A provider
+ * catalog can prove that Mistral/OpenRouter model X accepts images without
+ * proving that OpenAI tile pricing applies to it. Automatic MAX_SAVINGS must
+ * never turn that capability fact into fabricated economics.
+ */
+export function resolveVisionPricingEvidence(
+  model: string | null | undefined,
+): FuryVisionPricingEvidence {
+  const m = stripBracketedSegments((model ?? '').toLowerCase());
+  if (!m) return 'unknown';
+  if (hasDeclaredProfile(m)) return 'operator_profile';
+
+  const ids = candidateIds(m);
+  if (ids.some((id) => isClaudeModel(id))) return 'provider_profile';
+  if (ids.some((id) => hasGeminiMeasuredProfile(id))) return 'provider_profile';
+  if (ids.some((id) => isMeasuredGrokPricingId(id))) return 'provider_profile';
+  if (ids.some((id) => isQwenModel(id))) return 'provider_profile';
+
+  // GPT-6 is known as an OpenAI family, but family identity is not evidence for
+  // its image-token accounting. Do not turn the internal conservative geometry
+  // fallback into a profitability claim.
+  if (ids.some((id) => /^gpt-6(?:\.|-|$)/u.test(id))) return 'unknown';
+
+  // DEFAULT_GPT_PROFILE is deliberately an OpenAI-only conservative fallback
+  // for older/current families whose image-token regime FuryPipe already uses
+  // as an explicit compatibility contract.
+  if (ids.some((id) =>
+    /^(?:gpt-|chat-latest$|o(?:1|3|4)(?:-|$))/u.test(id))) {
+    return 'conservative_openai';
+  }
+
+  return 'unknown';
 }
 
 /**

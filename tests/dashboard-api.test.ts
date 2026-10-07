@@ -11,7 +11,19 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { DashboardState, dashboardPath, dashboardHostLabel } from '../src/dashboard.js';
-import { getAllowedModelBases, isFuryPipeSupportedModel, setAllowedModelBases } from '../src/core/applicability.js';
+import {
+  getAllowedModelBases,
+  getFuryPipeModelScopeMode,
+  getFuryPipeVisualPolicy,
+  isFuryPipeSupportedModel,
+  setAllowedModelBases,
+  setFuryPipeVisualPolicy,
+} from '../src/core/applicability.js';
+import {
+  normalizeOpenAIModelsPayload,
+  registerRuntimeModelCatalog,
+  resetRuntimeModelFabricForTests,
+} from '../src/core/model-fabric.js';
 import type { SessionsPaths } from '../src/sessions.js';
 import type { TrackEvent } from '../src/core/tracker.js';
 import { createControlRoomSnapshot, type ControlRoomSnapshot } from '../src/control-room/index.js';
@@ -71,6 +83,15 @@ function controlRoomSnapshot(): ControlRoomSnapshot {
       contextUsedTokens: 20,
       persistedMemory: 'PARTIAL',
       distributedHandoff: 'NOT_EXECUTED',
+      skillExecutions: 1,
+      mcpExecutions: 1,
+      subagentExecutions: 0,
+      automaticCapabilityExecutions: 1,
+      manualCapabilityExecutions: 1,
+      recentCapabilityExecutions: [
+        { kind: 'skill', id: 'repo-reader', stage: 'research', invocation: 'automatic' },
+        { kind: 'mcp', id: 'github', stage: 'research', invocation: 'manual' },
+      ],
     },
     learning: { humanTopics: 1, agentLessons: 1, reusedLessons: 0, durableStore: 'PARTIAL', semanticRetrieval: 'NOT_EXECUTED' },
     mcp: { stdio: 'VERIFIED', http: 'VERIFIED', bearerAuth: 'VERIFIED', oauth: 'PARTIAL', externalConformance: 'NOT_EXECUTED' },
@@ -108,6 +129,9 @@ beforeEach(() => {
 });
 afterEach(() => {
   setAllowedModelBases(null);
+  setFuryPipeVisualPolicy(null);
+  delete process.env.FURYPIPE_VISUAL_POLICY;
+  resetRuntimeModelFabricForTests();
   try {
     fs.rmSync(path.dirname(tmp.eventsFile), { recursive: true, force: true });
   } catch {
@@ -119,7 +143,8 @@ afterEach(() => {
 
 describe('dashboardPath()', () => {
   it('matches the main HTML routes', () => {
-    expect(dashboardPath('/')?.kind).toBe('html');
+    expect(dashboardPath('/')).toBeNull();
+    expect(dashboardPath('/control-plane')?.kind).toBe('html');
     expect(dashboardPath('/dashboard')?.kind).toBe('html');
   });
 
@@ -132,7 +157,9 @@ describe('dashboardPath()', () => {
   it('matches the new /api/* routes', () => {
     expect(dashboardPath('/api/sessions.json')?.kind).toBe('api-sessions');
     expect(dashboardPath('/api/stats.json')?.kind).toBe('api-stats');
+    expect(dashboardPath('/api/models.json')?.kind).toBe('api-models');
     expect(dashboardPath('/api/control-room.json')?.kind).toBe('api-control-room');
+    expect(dashboardPath('/api/control-plane.json')?.kind).toBe('api-control-plane');
   });
 
   it('returns null for unknown paths', () => {
@@ -182,6 +209,93 @@ describe('serveSessionsJson', () => {
   });
 });
 
+// ---- /api/models.json ----------------------------------------------------
+
+describe('serveModelsJson', () => {
+  it('keeps catalog capability separate from observed per-model compression activity', async () => {
+    registerRuntimeModelCatalog(normalizeOpenAIModelsPayload({
+      data: [{ id: 'gpt-6-astra', owned_by: 'openai' }],
+    }, '2026-09-16T00:00:00.000Z'));
+    writeEvents(tmp, [
+      ev({ model: 'gpt-6-astra', compressed: true, reason: undefined }),
+      ev({ model: 'gpt-6-astra', compressed: false, reason: 'visual_pricing_unknown', ts: '2026-05-19T00:01:00Z' }),
+      ev({ model: 'gpt-6-astra', compressed: false, reason: 'exact_guard', ts: '2026-05-19T00:02:00Z' }),
+    ]);
+    await dash.replay(tmp.eventsFile);
+
+    const body = await dash.serveModelsJson().json();
+    expect(body.models[0]).toMatchObject({
+      id: 'gpt-6-astra',
+      modalities: { imageInput: 'unknown' },
+      runtime: {
+        requests: 3,
+        compressedRequests: 1,
+        passthroughRequests: 2,
+        recentSkipReasons: {
+          visual_pricing_unknown: 1,
+          exact_guard: 1,
+        },
+        recentEligibilityCauses: {},
+        lastReason: 'exact_guard',
+        lastObservedAt: '2026-05-19T00:02:00.000Z',
+      },
+    });
+
+    const html = await (await dash.serveFragment(
+      'models',
+      new URL('http://localhost/fragments/models?locale=en'),
+      1234,
+    )).text();
+    expect(html).toContain('Runtime activity');
+    expect(html).toContain('3 req · 1 visual · 2 text · exact_guard');
+  });
+
+  it('keeps operator-scope exclusions visible as a stable runtime cause', async () => {
+    registerRuntimeModelCatalog(normalizeOpenAIModelsPayload({
+      data: [{ id: 'gpt-6-astra', owned_by: 'openai' }],
+    }, '2026-09-16T00:00:00.000Z'));
+    writeEvents(tmp, [
+      ev({ model: 'gpt-6-astra', compressed: false, reason: 'unsupported_model', eligibility_cause: 'operator_scope_excluded' }),
+    ]);
+    await dash.replay(tmp.eventsFile);
+
+    const body = await dash.serveModelsJson().json();
+    expect(body.models[0].runtime).toMatchObject({
+      recentSkipReasons: { unsupported_model: 1 },
+      recentEligibilityCauses: { operator_scope_excluded: 1 },
+    });
+    const html = await (await dash.serveFragment(
+      'models',
+      new URL('http://localhost/fragments/models?locale=en'),
+      1234,
+    )).text();
+    expect(html).toContain('excluded by operator scope');
+  });
+
+  it('returns a bounded secret-free Model Fabric snapshot', async () => {
+    registerRuntimeModelCatalog(normalizeOpenAIModelsPayload({
+      data: [{ id: 'gpt-6-astra', owned_by: 'openai' }],
+    }, '2026-09-16T00:00:00.000Z'));
+
+    const res = dash.serveModelsJson();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({
+      format: 'furypipe-model-catalog/v1',
+      total: 1,
+      returned: 1,
+      truncated: false,
+    });
+    expect(body.models[0]).toMatchObject({
+      provider: 'openai',
+      id: 'gpt-6-astra',
+      modalities: { imageInput: 'unknown' },
+    });
+    expect(JSON.stringify(body)).not.toContain('apiKey');
+    expect(JSON.stringify(body)).not.toContain('authorization');
+  });
+});
+
 // ---- /api/control-room.json ----------------------------------------------
 
 describe('serveControlRoomJson', () => {
@@ -215,6 +329,11 @@ describe('serveControlRoomJson', () => {
     expect(html).toContain('Release readiness · <strong>NOT_AVAILABLE</strong>');
     expect(html).toContain('release actions executed: no');
     expect(html).toContain('Provider benchmarks are not verified');
+    expect(html).toContain('Capability executions');
+    expect(html).toContain('skills 1');
+    expect(html).toContain('MCP calls 1');
+    expect(html).toContain('<code>skill:repo-reader</code>');
+    expect(html).toContain('<code>mcp:github</code>');
   });
 
   it('localizes Control Room human labels without translating machine statuses', async () => {
@@ -231,6 +350,34 @@ describe('serveControlRoomJson', () => {
     expect(html).toContain('actions de release exécutées : non');
     expect(html).toContain('<strong>NOT_AVAILABLE</strong>');
     expect(html).toContain('commit <code>aaaaaaaaaaaa</code>');
+    expect(html).toContain('Exécutions de capacités');
+    expect(html).toContain('appels MCP 1');
+    expect(html).toContain('Exécutions vérifiées récentes');
+  });
+});
+
+describe('serveControlPlaneJson', () => {
+  it('returns a bounded read-only projection and does not promote an unwired Control Room', async () => {
+    const res = await dash.serveControlPlaneJson(48721);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.format).toBe('furypipe-control-plane/v2');
+    expect(body.runtime.port).toBe(48721);
+    expect(body.sourceCommit).toBeNull();
+    expect(body.domains.find((domain: { id: string }) => domain.id === 'skills').status).toBe('NOT_AVAILABLE');
+  });
+
+  it('renders the localized Control Plane fragment from the same source-bound snapshot', async () => {
+    const withControlRoom = new DashboardState(tmp, async () => new Map(), undefined, controlRoomSnapshot);
+    const html = await (await withControlRoom.serveFragment(
+      'control-plane',
+      new URL('http://localhost/fragments/control-plane?locale=fr'),
+      48721,
+    )).text();
+    expect(html).toContain('SHA source');
+    expect(html).toContain('Moteur visuel');
+    expect(html).toContain('aaaaaaaaaaaa');
+    expect(html).toContain('NOT_AVAILABLE');
   });
 });
 
@@ -271,57 +418,79 @@ describe('serveFragment', () => {
     expect(dashboardPath('/fragments/header')).toEqual({ kind: 'fragment', name: 'header' });
     expect(dashboardPath('/fragments/latest')).toEqual({ kind: 'fragment', name: 'latest' });
     expect(dashboardPath('/fragments/control-room')).toEqual({ kind: 'fragment', name: 'control-room' });
+    expect(dashboardPath('/fragments/control-plane')).toEqual({ kind: 'fragment', name: 'control-plane' });
+    expect(dashboardPath('/fragments/control-plane-overview')).toEqual({ kind: 'fragment', name: 'control-plane-overview' });
+    expect(dashboardPath('/fragments/control-plane-capabilities')).toEqual({ kind: 'fragment', name: 'control-plane-capabilities' });
+  });
+
+  it('renders each converged Control Plane surface from the source-bound snapshot', async () => {
+    const withControlRoom = new DashboardState(tmp, async () => new Map(), undefined, controlRoomSnapshot);
+    const surfaces = [
+      ['control-plane-overview', 'Rail runtime'],
+      ['control-plane-visual-engine', 'Lens de décision'],
+      ['control-plane-capabilities', 'Explorateur de capacités'],
+      ['control-plane-topology', 'Fury Graph'],
+      ['control-plane-evidence', 'Sécurité et preuves'],
+    ] as const;
+    for (const [name, marker] of surfaces) {
+      const html = await (await withControlRoom.serveFragment(
+        name,
+        new URL(`http://localhost/fragments/${name}?locale=fr`),
+        48721,
+      )).text();
+      expect(html, name).toContain(marker);
+      if (name === 'control-plane-overview' || name === 'control-plane-evidence') {
+        expect(html, name).toContain('aaaaaaaaaaaa');
+      }
+    }
   });
 
   it('renders the toggle fragment reflecting compression state', async () => {
     const on = await dash.serveFragment('toggle', url, 1234);
     expect(on.headers.get('content-type')).toContain('text/html');
-    expect(await on.text()).toContain('Disable compression');
+    expect(await on.text()).toContain('Bypass Visual Engine');
     dash.handleCompressionToggle({ enabled: false });
     const off = await dash.serveFragment('toggle', url, 1234);
     const offHtml = await off.text();
-    expect(offHtml).toContain('PASSTHROUGH MODE');
-    expect(offHtml).toContain('Enable compression');
+    expect(offHtml).toContain('VISUAL ENGINE BYPASS');
+    expect(offHtml).toContain('Enable Visual Engine');
     dash.handleCompressionToggle({ enabled: true });
   });
 
-  it('renders opt-in GPT 5.5/5.6 chips and mutates the single model scope', async () => {
+  it('uses discovered models for manual scope controls instead of a release-time compatibility chip list', async () => {
     const prev = process.env.FURYPIPE_MODELS;
     try {
       delete process.env.FURYPIPE_MODELS;
-      setAllowedModelBases(null); // reset to built-in Fable-only default
-      const off = await (await dash.serveFragment('models', url, 1234)).text();
-      expect(off).toContain('Image OpenAI Responses models');
-      expect(off).not.toContain('<div class="models" style="display:none">');
-      // FURYPIPE_MODELS textbox mirrors the live scope as CSV.
-      expect(off).toContain('name="list"');
-      expect(off).toContain('value="claude-fable-5,gemini"');
-      expect(off).toContain('GPT 5.6 Sol</button>');
-      expect(off).toContain('GPT 5.5</button>');
-      // Family chip is lit by default; per-version chips exist for narrowing.
-      expect(off).toContain('Gemini (all versions) ✓</button>');
-      expect(off).toContain('Gemini 3.8 Flash</button>');
-      // Sol remains available and ordered before GPT 5.5.
-      expect(off.indexOf('GPT 5.6 Sol')).toBeLessThan(off.indexOf('GPT 5.5'));
-      expect(getAllowedModelBases()).toContain('claude-fable-5');
-      expect(getAllowedModelBases()).not.toContain('grok-4.5');
-      expect(getAllowedModelBases()).not.toContain('gpt-5.6-sol');
-      expect(getAllowedModelBases()).not.toContain('gpt-5.5');
+      setAllowedModelBases(null);
+      registerRuntimeModelCatalog(normalizeOpenAIModelsPayload({
+        data: [
+          { id: 'gpt-5.6-sol', owned_by: 'openai' },
+          { id: 'gpt-5.5', owned_by: 'openai' },
+        ],
+      }, '2026-09-16T00:00:00.000Z'));
+
+      const initial = await (await dash.serveFragment('models', url, 1234)).text();
+      expect(initial).toContain('Model Fabric');
+      expect(initial).toContain('gpt-5.6-sol');
+      expect(initial).toContain('gpt-5.5');
+      expect(initial).not.toContain('OpenAI Responses visual profiles');
+      expect(initial).not.toContain('GPT 5.6 Sol</button>');
+      expect(initial).not.toContain('Gemini 3.8 Flash</button>');
+      expect(initial).toContain('name="list"');
+      expect(initial).toContain('value="claude-fable-5,gemini"');
 
       dash.handleModelsToggle('gpt-5.6-sol', true);
       dash.handleModelsToggle('gpt-5.5', true);
       const onBoth = await (await dash.serveFragment('models', url, 1234)).text();
-      expect(onBoth).toContain('GPT 5.5 ✓');
-      expect(onBoth).toContain('GPT 5.6 Sol ✓');
+      expect(onBoth).toContain('gpt-5.6-sol ✓');
+      expect(onBoth).toContain('gpt-5.5 ✓');
       expect(getAllowedModelBases()).toContain('gpt-5.5');
       expect(getAllowedModelBases()).toContain('gpt-5.6-sol');
-      // Chip flips are reflected back into the textbox CSV.
       expect(onBoth).toContain('value="claude-fable-5,gemini,gpt-5.6-sol,gpt-5.5"');
-      // Opting the Gemini family off is a real opt-out: the chip unlights and
-      // the base leaves the scope.
+
       dash.handleModelsToggle('gemini', false);
       const geminiOff = await (await dash.serveFragment('models', url, 1234)).text();
-      expect(geminiOff).toContain('Gemini (all versions)</button>');
+      expect(geminiOff).toContain('>gemini</button>');
       expect(getAllowedModelBases()).not.toContain('gemini');
       expect(isFuryPipeSupportedModel('gemini-4')).toBe(false);
     } finally {
@@ -329,6 +498,41 @@ describe('serveFragment', () => {
       if (prev === undefined) delete process.env.FURYPIPE_MODELS;
       else process.env.FURYPIPE_MODELS = prev;
     }
+  });
+
+  it('renders observed Model Fabric entries and persists visual policy changes', async () => {
+    registerRuntimeModelCatalog(normalizeOpenAIModelsPayload({
+      data: [{ id: 'gpt-6-astra', owned_by: 'openai' }],
+    }, '2026-09-16T00:00:00.000Z'));
+
+    const saved: string[] = [];
+    const policyDash = new DashboardState(
+      tmp,
+      async () => new Map(),
+      undefined,
+      undefined,
+      (policy) => saved.push(policy),
+    );
+
+    const initial = await (await policyDash.serveFragment('models', url, 1234)).text();
+    expect(initial).toContain('Model Fabric');
+    expect(initial).toContain('gpt-6-astra');
+    expect(initial).toContain('IMAGE UNKNOWN');
+    expect(initial).toContain('UNPROFILED');
+    expect(initial).toContain('<option value="auto" selected>AUTO</option>');
+
+    expect(policyDash.handleVisualPolicySet('max_savings')).toBe('max_savings');
+    expect(getFuryPipeVisualPolicy()).toBe('max_savings');
+    expect(saved).toEqual(['max_savings']);
+
+    const max = await (await policyDash.serveFragment('models', url, 1234)).text();
+    expect(max).toContain('<option value="max_savings" selected>MAX SAVINGS</option>');
+
+    // Invalid values fail closed to the conservative default rather than
+    // becoming an unrecognised permissive mode.
+    expect(policyDash.handleVisualPolicySet('anything')).toBe('auto');
+    expect(getFuryPipeVisualPolicy()).toBe('auto');
+    expect(saved).toEqual(['max_savings', 'auto']);
   });
 
   it('replaces the whole scope from the FURYPIPE_MODELS textbox CSV', async () => {
@@ -339,12 +543,20 @@ describe('serveFragment', () => {
       expect(getAllowedModelBases()).toEqual(['claude-fable-5', 'grok-4.5']);
       const html = await (await dash.serveFragment('models', url, 1234)).text();
       expect(html).toContain('value="claude-fable-5,grok-4.5"');
-      expect(html).toContain('Grok 4.5 ✓');
+      expect(html).toContain('grok-4.5 ✓');
       // Same falsey vocabulary as the env var: off/false/0 → compress nothing.
       dash.handleModelsSet('off');
       expect(getAllowedModelBases()).toEqual([]);
       dash.handleModelsSet('');
       expect(getAllowedModelBases()).toEqual([]);
+      expect(getFuryPipeModelScopeMode()).toBe('off');
+
+      dash.handleModelsAutomatic();
+      expect(getFuryPipeModelScopeMode()).toBe('automatic');
+      const automatic = await (await dash.serveFragment('models', url, 1234)).text();
+      expect(automatic).toContain('data-model-scope="automatic"');
+      expect(automatic).toContain('Automatic · Model Fabric');
+      expect(automatic).not.toContain('Use automatic');
     } finally {
       setAllowedModelBases(null);
       if (prev === undefined) delete process.env.FURYPIPE_MODELS;
@@ -357,9 +569,9 @@ describe('serveFragment', () => {
     try {
       delete process.env.FURYPIPE_MODELS;
       setAllowedModelBases(null);
-      const saved: string[][] = [];
+      const saved: Array<readonly string[] | null> = [];
       const persisting = new DashboardState(tmp, async () => new Map(), (bases) => {
-        saved.push([...bases]);
+        saved.push(bases === null ? null : [...bases]);
       });
 
       persisting.handleModelsToggle('gpt-5.6-sol', true);
@@ -370,6 +582,10 @@ describe('serveFragment', () => {
       persisting.handleModelsSet('off');
       expect(saved.at(-1)).toEqual([]);
       expect(saved).toHaveLength(3);
+
+      persisting.handleModelsAutomatic();
+      expect(saved.at(-1)).toBeNull();
+      expect(getFuryPipeModelScopeMode()).toBe('automatic');
 
       // A throwing hook must not break the live flip or the endpoint.
       const throwing = new DashboardState(tmp, async () => new Map(), () => {
@@ -446,6 +662,21 @@ describe('serveFragment', () => {
     expect(header).toContain('aria-label=');
   });
 
+  it('renders gallery pages as keyboard-activatable controls', async () => {
+    dash.update({
+      method: 'POST', path: '/v1/messages', model: 'claude-opus-5', status: 200,
+      durationMs: 1,
+      usage: { input_tokens: 10, output_tokens: 1 },
+      info: {
+        compressed: true, imageCount: 1, imagePngs: [new Uint8Array([1])],
+        imageDims: [{ width: 10, height: 10 }], imageSourceText: 'gallery source',
+      },
+    } as never);
+    const html = await (await dash.serveFragment('context-map', url, 4711)).text();
+    expect(html).toContain('role="button" tabindex="0"');
+    expect(html).toContain("onkeydown=\"if(event.key==='Enter'||event.key===' ')");
+  });
+
   it('uses source text parallel to each captured PNG', async () => {
     const ids = dash.captureImage({
       imagePngs: [new Uint8Array([1]), new Uint8Array([2])],
@@ -460,6 +691,15 @@ describe('serveFragment', () => {
     )).text();
     expect(html).toContain('history section source');
     expect(html).not.toContain('slab source');
+  });
+
+  it('evicts dense PNGs by byte budget instead of retaining an unbounded ring', async () => {
+    const png = new Uint8Array(1024 * 1024);
+    for (let i = 0; i < 65; i++) {
+      dash.captureImage({ imagePngs: [png], imageDims: [{ width: 1, height: 1 }] } as never);
+    }
+    const recent = await dash.serveRecent().json() as { image_ids: number[] };
+    expect(recent.image_ids).toHaveLength(64);
   });
 
   it('escapes HTML in latest source text', async () => {
@@ -486,17 +726,18 @@ describe('dashboard localized fragments', () => {
     const localeUrl = new URL('http://localhost/fragments/toggle?locale=fr');
 
     const toggle = await (await dash.serveFragment('toggle', localeUrl, 1)).text();
-    expect(toggle).toContain('MODE PASSTHROUGH');
-    expect(toggle).toContain('Compression désactivée');
-    expect(toggle).toContain('Activer la compression');
+    expect(toggle).toContain('CONTOURNEMENT DU MOTEUR VISUEL');
+    expect(toggle).toContain('Moteur visuel contourné');
+    expect(toggle).toContain('Activer le moteur visuel');
 
     const models = await (await dash.serveFragment(
       'models',
       new URL('http://localhost/fragments/models?locale=fr'),
       1,
     )).text();
-    expect(models).toContain('Modèles Claude en image');
-    expect(models).toContain('les modèles non listés restent en texte brut');
+    expect(models).toContain('Catalogue des modèles');
+    expect(models).toContain('catalogue runtime découvert/observé');
+    expect(models).toContain('Périmètre du moteur visuel');
 
     const recent = await (await dash.serveFragment(
       'recent',
@@ -574,7 +815,7 @@ describe('dashboard locale surface', () => {
     const html = await (await dash.serveHtml(48721, undefined, 'en-US;q=0.3, fr-CA;q=0.9')).text();
     expect(html).toContain('<html lang="fr" dir="ltr">');
     expect(html).toContain('Tableau de bord FuryPipe</title>');
-    expect(html).toContain('window.ppLocale = "fr"');
+    expect(html).toContain('window.furyLocale = "fr"');
   });
 
   it('keeps an explicit locale authoritative over Accept-Language, including pseudo-locales', async () => {
@@ -597,18 +838,41 @@ describe('dashboard locale surface', () => {
     const html = renderPage(48721, '', 'fr');
     expect(html).toContain('<html lang="fr" dir="ltr">');
     expect(html).toContain('<title>FuryPipe — tableau de bord en direct</title>');
-    expect(html).toContain('Voir exactement ce qui a été transformé et pourquoi.');
+    expect(html).toContain('Intelligence de contexte, optimisation visuelle, routage des agents et preuves runtime vérifiables.');
     expect(html).toContain('Langue <select');
     expect(html).toContain('furypipe-locale');
-    expect(html).toContain('window.ppLocale = "fr"');
-    expect(html).toContain("event.detail.parameters.locale = window.ppLocale");
+    expect(html).toContain('window.furyLocale = "fr"');
+    expect(html).toContain("event.detail.parameters.locale = window.furyLocale");
     expect(html).toContain('Connecter un agent');
-    expect(html).toContain('Périmètre des modèles imagés');
+    expect(html).toContain('Périmètre du moteur visuel');
     expect(html).toContain('Router Claude Code vers des modèles OpenAI / Cloudflare');
     expect(html).toContain('Chargement des preuves Control Room');
+    expect(html).toContain('Palette de commandes');
+    expect(html).toContain('href="#capabilities"');
+    expect(html).toContain('href="#visual-engine"');
+    expect(html).toContain('href="#evidence"');
+    expect(html).toContain('data-command-open');
+    expect(html).toContain('prefers-reduced-motion: reduce');
     expect(html).toContain('OPENAI_MODELS');
     expect(html).toContain('ANTHROPIC_BASE_URL');
     expect(html).not.toContain('Connect an agent');
+  });
+
+  it('uses the Control Plane as the only page shell and moves retained legacy observations into it', () => {
+    const html = renderPage(48721);
+    expect(html).toContain('id="frag-cp-overview"');
+    expect(html).toContain('id="frag-cp-capabilities"');
+    expect(html).toContain('id="frag-cp-visual-engine"');
+    expect(html).toContain('id="frag-cp-topology"');
+    expect(html).toContain('id="frag-cp-evidence"');
+    expect(html).toContain('<details class="cp-disclosure" id="observe" open>');
+    expect(html).toContain('id="frag-sessions"');
+    expect(html).toContain('id="frag-control-room"');
+    expect(html).toContain('id="frag-stats"');
+    expect(html).toContain('id="frag-toggle"');
+    expect(html).not.toContain('id="frag-session"');
+    expect(html).not.toContain('id="control-plane"');
+    expect(html).not.toContain('id="history"');
   });
 
   it('marks the bidi pseudo-locale RTL and falls back safely for invalid tags', () => {

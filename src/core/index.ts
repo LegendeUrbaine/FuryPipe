@@ -5,9 +5,40 @@ export {
   isFuryPipeSupportedModel,
   setAllowedModelBases,
   shouldTransformAnthropicMessages,
+  resolveFuryPipeModelEligibility,
   type FuryPipeApplicabilityInput,
+  type FuryPipeModelEligibility,
   type FuryPipeApplicabilityReason,
 } from './applicability.js';
+export {
+  MODEL_FABRIC_PROVIDERS,
+  RUNTIME_MODEL_FABRIC,
+  createModelFabricRegistry,
+  inspectRuntimeModels,
+  normalizeAnthropicModelsPayload,
+  normalizeGeminiModelsPayload,
+  normalizeMistralModelsPayload,
+  normalizeOpenAIModelsPayload,
+  normalizeOpenRouterModelsPayload,
+  normalizeXaiModelsPayload,
+  observeRuntimeModel,
+  registerRuntimeModelCatalog,
+  resolveRuntimeVisualModel,
+  type ModelFabricCapabilities,
+  type ModelFabricCapability,
+  type ModelFabricEntry,
+  type ModelFabricEvidence,
+  type ModelFabricEvidenceKind,
+  type ModelFabricLifecycle,
+  type ModelFabricLimits,
+  type ModelFabricModalities,
+  type ModelFabricPricing,
+  type ModelFabricProvider,
+  type ModelFabricRegistry,
+  type ModelVisualPolicy,
+  type ModelVisualProfileState,
+  type ModelVisualResolution,
+} from './model-fabric.js';
 export {
   buildCountTokensBodies,
   buildBaselineCountTokensBody,
@@ -84,6 +115,10 @@ export {
   type RecoveryEncryptionOptions,
   type RecoveryStorage,
   type RecoveryRekeySummary,
+  type RecoveryCapacityBound,
+  type RecoveryMatchConstraint,
+  type RecoveryPutBound,
+  type RecoveryDeleteBound,
 } from './recovery-store.js';
 export {
   createContextIR,
@@ -229,6 +264,7 @@ export {
   createRecoveryAgentMemoryStore,
   createInMemoryAgentMemoryStore,
   runAgent,
+  type AgentCapabilityExecutionReceipt,
   type AgentMemoryRecord,
   type AgentMemoryStore,
   type AgentMcpExecutionContext,
@@ -292,3 +328,138 @@ export {
   type HumanLearningTopic,
   type HumanLearningTopicId,
 } from '../learning.js';
+export {
+  parseAgentSkillManifest,
+  inspectAgentSkillMetadata,
+  type AgentSkillStandardMetadata,
+  type ParsedAgentSkillManifest,
+} from '../agent-skills-standard.js';
+export {
+  FURY_COMPACT_HUMAN_INSTRUCTION,
+  resolveFuryHumanOutputPolicy,
+  type FuryHumanOutputMode,
+  type FuryHumanOutputPolicyDecision,
+  type FuryHumanOutputPolicyInput,
+} from '../human-output-policy.js';
+export {
+  extractProxyTaskEnvelope,
+  type ProxyTaskEnvelope,
+  type ProxyTaskWire,
+  type ProxyToolMetadata,
+} from '../proxy-task-envelope.js';
+export {
+  createAgentSkillActivationReceipt,
+  type AgentSkillActivationReceipt,
+} from '../agent-skill-activation.js';
+export {
+  selectAgentSkillsForTask,
+  type AgentSkillSelectionCandidate,
+  type AgentSkillSelectionOptions,
+  type AgentSkillSelectionPlan,
+  type AgentSkillSelectionReason,
+  type BlockedAgentSkillSelection,
+  type SelectedAgentSkill,
+} from '../agent-skill-selector.js';
+export {
+  validateProxyCapabilityInstructionPlan,
+  type ProxyCapabilityInstructionBlock,
+  type ProxyCapabilityInstructionPlan,
+  type ProxyCapabilityPlanner,
+  type ProxyCapabilityRuntimeEvidence,
+} from '../proxy-capability-runtime.js';
+export {
+  observeAnthropicMcpRuntime,
+  type AnthropicMcpObservation,
+  type ExposedMcpTool,
+  type ObservedExternalMcpResultReceipt,
+  type PendingObservedMcpUse,
+} from '../mcp-observed-runtime.js';
+export {
+  assessMcpToolRisk,
+  type McpResolvedToolHints,
+  type McpToolBehaviorHints,
+  type McpToolRiskAssessment,
+  type McpToolRiskClass,
+  type McpToolTrust,
+} from '../mcp-tool-risk.js';
+export {
+  inspectAnthropicMcpEvidence,
+  type McpToolTrustResolver,
+  type ProxyMcpRuntimeEvidence,
+  type ProxyMcpToolPolicyEvidence,
+} from '../mcp-proxy-evidence.js';
+
+export {
+  isGeneratedMcpDirectLifecycleState,
+  type McpDirectTransport,
+  type McpDirectProtocolEra,
+  type McpDirectHandshake,
+  type McpDirectHealthEvidence,
+  type McpDirectSourceConfig,
+  type McpDirectInventoryTool,
+  type McpDirectApprovalEvidence,
+  type McpDirectExecutionPermit,
+  type McpDirectExecutionEvidence,
+  type McpDirectPermitOptions,
+  type McpDirectVerificationEvidence,
+  type McpDirectLifecycleState,
+} from '../mcp-direct-governance.js';
+
+export {
+  selectMcpDirectTool,
+  createMcpDirectToolProposal,
+  createMcpDirectOperatorApprovalIntent,
+  evaluateMcpDirectPolicy,
+  approveMcpDirectPolicyDecision,
+  isGeneratedMcpDirectToolProposal,
+  isGeneratedMcpDirectPolicyDecision,
+  isGeneratedMcpDirectOperatorApprovalIntent,
+  type McpDirectPolicyOutcome,
+  type McpDirectPolicyPair,
+  type McpDirectPolicy,
+  type McpDirectPolicyEvaluationOptions,
+  type McpDirectOperatorApprovalIntent,
+  type McpDirectOperatorIntentOptions,
+  type McpDirectToolProposal,
+  type McpDirectPolicyDecision,
+} from '../mcp-direct-policy.js';
+
+export {
+  deriveMcpDirectEndpointFingerprint,
+  probeMcpDirectInventory,
+  type McpDirectClientInfo,
+  type McpDirectStdioRuntimeConfig,
+  type McpDirectHttpRuntimeConfig,
+  type McpDirectRuntimeConfig,
+  type McpDirectInventoryProbeOptions,
+  type McpDirectInventoryProbeEvidence,
+} from '../mcp-direct-client-node.js';
+
+export {
+  executeMcpDirectApprovedTool,
+  executeMcpDirectReplay,
+  createMcpDirectReplayIntent,
+  McpDirectExecutionEvidenceError,
+  McpDirectExecutionDurabilityError,
+  McpDirectExecutionPreCallRejectedError,
+  McpDirectExecutionOutcomeUnknownError,
+  McpDirectExecutionVerificationError,
+  McpDirectReplayGovernanceError,
+  type McpDirectGovernedExecutionOptions,
+  type McpDirectExecutionReceipt,
+  type McpDirectExecutionPreCallRejectionReason,
+  type McpDirectGovernedExecutionResult,
+  type McpDirectReplayIntent,
+  type McpDirectReplayReason,
+  type McpDirectReplayIntentPublicOptions,
+} from '../mcp-direct-executor-node.js';
+
+export {
+  createMcpDirectDurableReplayCoordinator,
+  inspectMcpDirectDurableReplayStatus,
+  reclaimMcpDirectDurableExpiredPreCall,
+  McpDirectDurableReplayError,
+  type McpDirectDurableReplayCoordinator,
+  type McpDirectDurableReplayStatus,
+  type McpDirectDurableReplayOptions,
+} from '../mcp-direct-durable-replay-node.js';

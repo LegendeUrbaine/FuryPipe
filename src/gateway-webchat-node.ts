@@ -1,0 +1,2032 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+
+import type { FuryGatewayWebSocketHttpRequestHandler } from './gateway-websocket-host-node.js';
+import { FURYPIPE_FAVICON_SVG, renderFuryPipeMonogramSvg } from './studio/studio-brand.js';
+import { IBM_PLEX_FONT_FACE_CSS } from './studio/ibm-plex-fonts.js';
+
+export const FURY_GATEWAY_WEBCHAT_PATH = '/gateway/webchat/' as const;
+export const FURY_GATEWAY_WEBCHAT_SCRIPT_PATH = '/gateway/webchat/app.js' as const;
+export const FURY_GATEWAY_WEBCHAT_STYLE_PATH = '/gateway/webchat/styles.css' as const;
+export const FURY_GATEWAY_WEBCHAT_CONFIG_PATH = '/gateway/webchat/config.json' as const;
+export const FURY_GATEWAY_WEBCHAT_FAVICON_PATH = '/gateway/webchat/favicon.svg' as const;
+export const FURY_GATEWAY_WEBCHAT_CONFIG_FORMAT =
+  'furypipe-gateway-webchat-config/v1' as const;
+
+export interface FuryGatewayWebChatOptions {
+  readonly origin: string;
+  readonly modelBridgeEnabled?: boolean;
+  readonly modelProvider?: 'openai' | 'anthropic' | 'google';
+  readonly model?: string;
+  readonly toolBridgeEnabled?: boolean;
+  readonly toolSourceCount?: number;
+  readonly memoryEnabled?: boolean;
+  readonly channelObservabilityEnabled?: boolean;
+  readonly automationObservabilityEnabled?: boolean;
+}
+
+const WEBCHAT_MARK = renderFuryPipeMonogramSvg({ className: 'webchat-brand-mark', tone: 'accent' });
+
+const HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Local FuryPipe WebChat powered by the governed Fury Gateway and Fury Kernel.">
+  <link rel="icon" type="image/svg+xml" href="${FURY_GATEWAY_WEBCHAT_FAVICON_PATH}">
+  <title>FuryPipe WebChat</title>
+  <link rel="stylesheet" href="/gateway/webchat/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        ${WEBCHAT_MARK}
+        <div>
+          <p class="eyebrow">FURYPIPE FORGE 03</p>
+          <h1>Local WebChat</h1>
+          <p class="tagline">BUILD · AUTOMATE · CREATE · BEYOND.</p>
+        </div>
+      </div>
+      <div class="connection">
+        <span id="connection-dot" class="dot" aria-hidden="true"></span>
+        <span id="connection-label">Not connected</span>
+      </div>
+    </header>
+
+    <section id="bootstrap-panel" class="panel auth-panel" aria-labelledby="bootstrap-title">
+      <div>
+        <p class="eyebrow">LOCAL OPERATOR</p>
+        <h2 id="bootstrap-title">Connect this browser</h2>
+        <p class="muted">Enter the one-time code printed by <code>furypipe gateway start</code>. The code is exchanged by POST and is never placed in the URL.</p>
+      </div>
+      <form id="bootstrap-form" class="bootstrap-form">
+        <label for="bootstrap-code">One-time bootstrap code</label>
+        <div class="input-row">
+          <input id="bootstrap-code" name="code" type="password" autocomplete="off" spellcheck="false" required>
+          <button type="submit">Connect</button>
+        </div>
+        <p id="bootstrap-status" class="status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section id="chat-panel" class="workspace" hidden>
+      <aside class="panel sidebar" aria-label="Conversation status">
+        <div>
+          <p class="eyebrow">CONVERSATION</p>
+          <p id="conversation-id" class="mono muted">Not opened</p>
+        </div>
+        <div class="actions">
+          <button id="new-conversation" type="button" class="secondary">New conversation</button>
+          <button id="reconnect" type="button" class="secondary">Reconnect</button>
+          <button id="logout" type="button" class="danger">Logout</button>
+        </div>
+        <div>
+          <p class="eyebrow">AUTHORITY STATES</p>
+          <ul class="state-legend">
+            <li><span class="badge accepted">Accepted</span> message/state accepted</li>
+            <li><span class="badge response">Model response</span> provider output</li>
+            <li><span class="badge requested">Tool requested</span> request only</li>
+            <li><span class="badge eligible">Tool eligible</span> admission only</li>
+            <li><span class="badge executed">Tool executed</span> execution receipt</li>
+            <li><span class="badge succeeded">Tool succeeded</span> successful return</li>
+            <li><span class="badge verified">Evidence verified</span> verification evidence</li>
+            <li><span class="badge blocked">Blocked</span> denied / approval required</li>
+          </ul>
+        </div>
+      </aside>
+
+      <section class="panel chat" aria-label="Chat">
+        <div id="messages" class="messages" aria-live="polite" aria-label="Conversation messages">
+          <div class="empty-state">
+            <strong>Fury Kernel is ready.</strong>
+            <span>Conversation state, provider inference, and tool execution remain separate governed lifecycles.</span>
+          </div>
+        </div>
+        <form id="message-form" class="composer">
+          <label for="message-input" class="sr-only">Message</label>
+          <textarea id="message-input" rows="3" maxlength="32768" placeholder="Message FuryPipe…" required></textarea>
+          <div class="composer-actions">
+            <span id="turn-status" class="status" role="status" aria-live="polite"></span>
+            <button id="cancel-turn" class="secondary" type="button" disabled>Cancel turn</button>
+            <button id="send-message" type="submit">Send</button>
+          </div>
+        </form>
+      </section>
+
+      <aside class="panel activity" aria-label="Governance activity">
+        <div class="activity-title">
+          <div>
+            <p class="eyebrow">GOVERNANCE</p>
+            <h2>Activity</h2>
+          </div>
+          <button id="clear-activity" type="button" class="secondary compact">Clear</button>
+        </div>
+        <ol id="activity-list" class="activity-list"></ol>
+      </aside>
+
+      <section id="memory-panel" class="panel memory" aria-labelledby="memory-title" hidden>
+        <div class="memory-head">
+          <div>
+            <p class="eyebrow">CONTINUOUS MEMORY</p>
+            <h2 id="memory-title">Memory</h2>
+            <p class="muted">Recalled memory is data, never instruction authority. Soft forget creates a tombstone; hard purge permanently removes revisions and payloads.</p>
+          </div>
+          <span id="memory-badge" class="badge">Disabled</span>
+        </div>
+        <div class="memory-grid">
+          <div class="tool-control">
+            <label for="memory-scope">Scope</label>
+            <select id="memory-scope" disabled>
+              <option value="">Load memory status first</option>
+            </select>
+          </div>
+          <div class="tool-control">
+            <label for="memory-key">Memory key</label>
+            <input id="memory-key" type="text" maxlength="512" autocomplete="off" spellcheck="false" placeholder="user.preference.example" disabled>
+          </div>
+          <div class="tool-actions">
+            <button id="memory-forget" type="button" class="secondary" disabled>Soft forget</button>
+            <button id="memory-purge" type="button" class="danger" disabled>Hard purge</button>
+          </div>
+        </div>
+        <label class="memory-confirm" for="memory-purge-confirm">
+          <input id="memory-purge-confirm" type="checkbox" disabled>
+          <span>I understand that hard purge permanently removes all matching memory revisions and referenced payloads.</span>
+        </label>
+        <span id="memory-status" class="status" role="status" aria-live="polite"></span>
+      </section>
+
+      <section id="channels-panel" class="panel channels" aria-labelledby="channels-title" hidden>
+        <div class="channels-head">
+          <div>
+            <p class="eyebrow">CHANNELS + NOTIFICATIONS</p>
+            <h2 id="channels-title">Observability</h2>
+            <p class="muted">Read-only redacted lifecycle state. Browser visibility grants no channel, delivery, notification, or task execution authority.</p>
+          </div>
+          <span id="channels-badge" class="badge">Disabled</span>
+        </div>
+        <p id="channels-status" class="status" role="status" aria-live="polite"></p>
+        <pre id="channels-detail" class="channel-detail" tabindex="0">No channel status.</pre>
+      </section>
+
+      <section id="automations-panel" class="panel automations" aria-labelledby="automations-title" hidden>
+        <div class="automations-head">
+          <div>
+            <p class="eyebrow">AUTOMATIONS</p>
+            <h2 id="automations-title">Observability</h2>
+            <p class="muted">Read-only redacted schedule and run lifecycle state. Browser visibility grants no scheduling, run, provider, tool, or notification execution authority.</p>
+          </div>
+          <span id="automations-badge" class="badge">Disabled</span>
+        </div>
+        <p id="automations-status" class="status" role="status" aria-live="polite"></p>
+        <pre id="automations-detail" class="automation-detail" tabindex="0">No automation status.</pre>
+      </section>
+
+      <section id="tools-panel" class="panel tools" aria-labelledby="tools-title" hidden>
+        <div class="tools-head">
+          <div>
+            <p class="eyebrow">GOVERNED MCP</p>
+            <h2 id="tools-title">Tools</h2>
+            <p class="muted">Inventory, proposal, approval and execution are separate steps. Tool output is never inserted into chat automatically.</p>
+          </div>
+          <span id="tool-source-count" class="badge">0 sources</span>
+        </div>
+        <div class="tools-grid">
+          <div class="tool-control">
+            <label for="tool-source">Source</label>
+            <select id="tool-source" disabled>
+              <option value="">No source loaded</option>
+            </select>
+          </div>
+          <div class="tool-control">
+            <label for="tool-name">Tool</label>
+            <select id="tool-name" disabled>
+              <option value="">Refresh inventory first</option>
+            </select>
+          </div>
+          <div class="tool-actions">
+            <button id="tool-refresh" type="button" class="secondary" disabled>Refresh inventory</button>
+          </div>
+        </div>
+        <div class="tool-control tool-arguments">
+          <label for="tool-arguments">Arguments (JSON)</label>
+          <textarea id="tool-arguments" rows="5" maxlength="49152" spellcheck="false">{}</textarea>
+        </div>
+        <div class="tool-actions tool-lifecycle-actions">
+          <button id="tool-propose" type="button" disabled>Propose</button>
+          <button id="tool-approve" type="button" class="secondary" disabled>Approve</button>
+          <button id="tool-execute" type="button" class="secondary" disabled>Execute</button>
+          <button id="tool-discard" type="button" class="danger" disabled>Discard</button>
+          <span id="tool-status" class="status" role="status" aria-live="polite"></span>
+        </div>
+        <div class="tool-result-wrap">
+          <p class="eyebrow">TOOL RESULT</p>
+          <pre id="tool-result" class="tool-result" tabindex="0">No tool result.</pre>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="/gateway/webchat/app.js" defer></script>
+</body>
+</html>
+`;
+
+const CSS = `${IBM_PLEX_FONT_FACE_CSS}:root {
+  color-scheme: dark;
+  font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0B0D10;
+  color: #F5F4F0;
+  --panel: #121519;
+  --panel-2: #2A2A2A;
+  --border: #34383F;
+  --muted: #9CA3AF;
+  --accent: #FF6A00;
+  --accent-strong: #FF8533;
+  --danger: #ff6b6b;
+  --ok: #56d69b;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 20% 0%, #2A2A2A 0, #0B0D10 36rem); }
+button, input, textarea, select { font: inherit; }
+button {
+  border: 1px solid #8A3F12;
+  background: var(--accent);
+  color: #0B0D10;
+  font-weight: 800;
+  border-radius: .75rem;
+  padding: .7rem 1rem;
+  cursor: pointer;
+}
+button:hover { background: var(--accent-strong); }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #ffd98b; outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.secondary { background: #2A2A2A; color: #E5E7EB; border-color: #4A4F57; }
+button.danger { background: #2a171a; color: #ffb3b3; border-color: #653138; }
+button.compact { padding: .4rem .65rem; font-size: .8rem; }
+code, .mono { font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+.shell { width: min(1600px, 100%); margin: 0 auto; padding: 1.25rem; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem .25rem 1.25rem; }
+.brand-lockup { display: flex; align-items: center; gap: .85rem; min-width: 0; }
+.webchat-brand-mark { display: block; width: 52px; height: 52px; flex: none; color: #F5F4F0; filter: drop-shadow(0 0 18px rgba(255,106,0,.22)); }
+.tagline { margin: .2rem 0 0; color: var(--muted); font: 600 .68rem/1.3 "IBM Plex Mono", monospace; letter-spacing: .18em; }
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: 0; font-size: clamp(1.65rem, 3vw, 2.5rem); }
+h2 { margin-bottom: .45rem; font-size: 1.05rem; }
+.eyebrow { color: var(--accent); font-size: .72rem; font-weight: 900; letter-spacing: .14em; margin-bottom: .35rem; }
+.muted { color: var(--muted); }
+.connection { display: inline-flex; align-items: center; gap: .55rem; color: var(--muted); }
+.dot { width: .65rem; height: .65rem; border-radius: 50%; background: #657184; box-shadow: 0 0 0 .25rem rgba(101,113,132,.13); }
+.dot.online { background: var(--ok); box-shadow: 0 0 0 .25rem rgba(86,214,155,.13); }
+.panel { background: rgba(18,21,25,.96); border: 1px solid var(--border); border-radius: 1rem; box-shadow: 0 1rem 4rem rgba(0,0,0,.22); }
+.auth-panel { display: grid; grid-template-columns: minmax(0,1fr) minmax(20rem,.8fr); gap: 2rem; padding: 2rem; max-width: 70rem; margin: 10vh auto 0; }
+.bootstrap-form label { display: block; font-weight: 750; margin-bottom: .55rem; }
+.input-row { display: flex; gap: .65rem; }
+input, textarea, select { width: 100%; border: 1px solid #394559; background: #0b0f16; color: #f5f7fb; border-radius: .75rem; padding: .8rem .9rem; }
+textarea { resize: vertical; min-height: 5.5rem; max-height: 18rem; }
+.status { color: var(--muted); min-height: 1.2em; font-size: .85rem; }
+.workspace { display: grid; grid-template-columns: 17rem minmax(0,1fr) 19rem; gap: 1rem; min-height: calc(100vh - 7rem); }
+.sidebar, .activity { padding: 1rem; align-self: stretch; }
+.sidebar { display: flex; flex-direction: column; justify-content: space-between; gap: 2rem; }
+.actions { display: grid; gap: .6rem; }
+.state-legend { list-style: none; padding: 0; margin: 0; display: grid; gap: .65rem; color: var(--muted); font-size: .78rem; }
+.badge { display: inline-block; min-width: 6.8rem; margin-right: .35rem; border: 1px solid #364256; border-radius: 999px; padding: .2rem .45rem; color: #dce5f3; text-align: center; }
+.badge.accepted, .badge.succeeded, .badge.verified { border-color: #286c50; color: #8de2bc; }
+.badge.response, .badge.eligible { border-color: #75531c; color: #ffd180; }
+.badge.requested, .badge.executed { border-color: #415b82; color: #a9c8ff; }
+.badge.blocked { border-color: #733b42; color: #ffb0b7; }
+.chat { display: grid; grid-template-rows: minmax(0,1fr) auto; min-height: 38rem; overflow: hidden; }
+.messages { padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: .85rem; }
+.empty-state { margin: auto; display: grid; gap: .35rem; max-width: 34rem; text-align: center; color: var(--muted); }
+.message { max-width: min(48rem,88%); padding: .8rem .95rem; border-radius: 1rem; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--border); background: var(--panel-2); }
+.message.user { align-self: flex-end; background: #2a2112; border-color: #56431f; }
+.message.assistant { align-self: flex-start; background: #121d2b; border-color: #263e5b; }
+.message .role { display: block; font-size: .7rem; font-weight: 900; color: var(--muted); letter-spacing: .08em; margin-bottom: .3rem; }
+.composer { border-top: 1px solid var(--border); padding: 1rem; background: #0e1219; }
+.composer-actions { display: flex; gap: .6rem; align-items: center; justify-content: flex-end; margin-top: .65rem; }
+.composer-actions .status { margin-right: auto; }
+.activity-title { display: flex; justify-content: space-between; gap: .5rem; align-items: flex-start; }
+.activity-list { margin: .75rem 0 0; padding-left: 1.35rem; display: grid; gap: .7rem; font-size: .78rem; color: var(--muted); }
+.activity-list li strong { display: block; color: #dce5f3; margin-bottom: .15rem; }
+.memory { grid-column: 1 / -1; padding: 1rem; display: grid; gap: 1rem; }
+.memory-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.memory-head .muted { max-width: 62rem; margin-bottom: 0; }
+.memory-grid { display: grid; grid-template-columns: minmax(12rem,.7fr) minmax(18rem,1.4fr) auto; gap: .75rem; align-items: end; }
+.memory-confirm { display: flex; align-items: flex-start; gap: .55rem; color: var(--muted); font-size: .78rem; max-width: 60rem; }
+.memory-confirm input { margin-top: .15rem; }
+.channels { grid-column: 1 / -1; padding: 1rem; display: grid; gap: .75rem; }
+.channels-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.channels-head .muted { max-width: 62rem; margin-bottom: 0; }
+.channel-detail { margin: 0; min-height: 4rem; max-height: 18rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid #293447; background: #090d13; color: #cbd7e7; border-radius: .75rem; padding: .8rem; font-size: .78rem; }
+.automations { grid-column: 1 / -1; padding: 1rem; display: grid; gap: .75rem; }
+.automations-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.automations-head .muted { max-width: 62rem; margin-bottom: 0; }
+.automation-detail { margin: 0; min-height: 4rem; max-height: 18rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid #293447; background: #090d13; color: #cbd7e7; border-radius: .75rem; padding: .8rem; font-size: .78rem; }
+.tools { grid-column: 1 / -1; padding: 1rem; display: grid; gap: 1rem; }
+.tools-head { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.tools-head .muted { max-width: 60rem; margin-bottom: 0; }
+.tools-grid { display: grid; grid-template-columns: minmax(12rem,.8fr) minmax(12rem,1fr) auto; gap: .75rem; align-items: end; }
+.tool-control { display: grid; gap: .4rem; }
+.tool-control label { font-weight: 750; font-size: .82rem; color: #dce5f3; }
+.tool-actions { display: flex; gap: .55rem; flex-wrap: wrap; align-items: center; }
+.tool-lifecycle-actions .status { margin-left: .35rem; }
+.tool-result-wrap { border-top: 1px solid var(--border); padding-top: .85rem; }
+.tool-result { margin: 0; min-height: 4rem; max-height: 18rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid #293447; background: #090d13; color: #cbd7e7; border-radius: .75rem; padding: .8rem; font-size: .78rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 1100px) {
+  .workspace { grid-template-columns: 15rem minmax(0,1fr); }
+  .activity { grid-column: 1 / -1; min-height: auto; }
+  .activity-list { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .memory-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .memory-grid .tool-actions { grid-column: 1 / -1; }
+  .tools-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .tools-grid .tool-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .shell { padding: .75rem; }
+  .topbar { align-items: flex-start; }
+  .auth-panel { grid-template-columns: 1fr; margin-top: 3vh; padding: 1.25rem; }
+  .input-row { flex-direction: column; }
+  .workspace { grid-template-columns: 1fr; min-height: auto; }
+  .sidebar { order: 2; }
+  .chat { order: 1; min-height: 70vh; }
+  .activity { order: 3; grid-column: auto; }
+  .memory { order: 4; grid-column: auto; }
+  .memory-grid { grid-template-columns: 1fr; }
+  .channels { order: 5; grid-column: auto; }
+  .automations { order: 6; grid-column: auto; }
+  .tools { order: 7; grid-column: auto; }
+  .tools-grid { grid-template-columns: 1fr; }
+  .tools-grid .tool-actions { grid-column: auto; }
+  .activity-list { grid-template-columns: 1fr; }
+  .message { max-width: 96%; }
+  .composer-actions { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}
+`;
+
+const JS = `(() => {
+  'use strict';
+
+  const BOOTSTRAP_FORMAT = 'furypipe-gateway-local-bootstrap/v1';
+  const MESSAGE_FORMAT = 'furypipe-gateway-message/v1';
+  const SUBPROTOCOL = 'furypipe.gateway.v1';
+
+  const state = {
+    ws: null,
+    connectionId: null,
+    sequence: 1,
+    conversationId: null,
+    activeTurnId: null,
+    authenticated: false,
+    reconnectAttempts: 0,
+    reconnectTimer: null,
+    openAfterClose: false,
+    pendingUserMessages: new Map(),
+    modelBridgeEnabled: false,
+    modelProvider: null,
+    model: null,
+    memoryEnabled: false,
+    memoryScopeKinds: [],
+    channelObservabilityEnabled: false,
+    automationObservabilityEnabled: false,
+    toolBridgeEnabled: false,
+    toolSourceCount: 0,
+    toolSources: [],
+    toolInventory: [],
+    toolProposalId: null,
+    toolProposalTransport: null,
+    toolProposalStatus: null,
+    streamingAssistantBody: null,
+  };
+
+  const byId = (id) => document.getElementById(id);
+  const bootstrapPanel = byId('bootstrap-panel');
+  const chatPanel = byId('chat-panel');
+  const bootstrapForm = byId('bootstrap-form');
+  const bootstrapCode = byId('bootstrap-code');
+  const bootstrapStatus = byId('bootstrap-status');
+  const connectionDot = byId('connection-dot');
+  const connectionLabel = byId('connection-label');
+  const conversationLabel = byId('conversation-id');
+  const messages = byId('messages');
+  const messageForm = byId('message-form');
+  const messageInput = byId('message-input');
+  const turnStatus = byId('turn-status');
+  const cancelTurn = byId('cancel-turn');
+  const activityList = byId('activity-list');
+  const memoryPanel = byId('memory-panel');
+  const memoryBadge = byId('memory-badge');
+  const memoryScope = byId('memory-scope');
+  const memoryKey = byId('memory-key');
+  const memoryForget = byId('memory-forget');
+  const memoryPurge = byId('memory-purge');
+  const memoryPurgeConfirm = byId('memory-purge-confirm');
+  const memoryStatus = byId('memory-status');
+  const channelsPanel = byId('channels-panel');
+  const channelsBadge = byId('channels-badge');
+  const channelsStatus = byId('channels-status');
+  const channelsDetail = byId('channels-detail');
+  const automationsPanel = byId('automations-panel');
+  const automationsBadge = byId('automations-badge');
+  const automationsStatus = byId('automations-status');
+  const automationsDetail = byId('automations-detail');
+  const toolsPanel = byId('tools-panel');
+  const toolSourceCount = byId('tool-source-count');
+  const toolSource = byId('tool-source');
+  const toolName = byId('tool-name');
+  const toolArguments = byId('tool-arguments');
+  const toolRefresh = byId('tool-refresh');
+  const toolPropose = byId('tool-propose');
+  const toolApprove = byId('tool-approve');
+  const toolExecute = byId('tool-execute');
+  const toolDiscard = byId('tool-discard');
+  const toolStatus = byId('tool-status');
+  const toolResult = byId('tool-result');
+
+  const safeText = (value) => typeof value === 'string' ? value : '';
+
+  function setConnection(online, label) {
+    connectionDot.classList.toggle('online', online);
+    connectionLabel.textContent = label;
+  }
+
+  function addActivity(title, detail, kind) {
+    const item = document.createElement('li');
+    const strong = document.createElement('strong');
+    strong.textContent = title;
+    const span = document.createElement('span');
+    span.textContent = detail;
+    if (kind) item.dataset.kind = kind;
+    item.append(strong, span);
+    activityList.prepend(item);
+    while (activityList.children.length > 80) {
+      activityList.lastElementChild?.remove();
+    }
+  }
+
+  function clearMessages() {
+    messages.replaceChildren();
+    state.streamingAssistantBody = null;
+  }
+
+  function renderMessage(role, content) {
+    const article = document.createElement('article');
+    article.className = 'message ' + (role === 'assistant' ? 'assistant' : 'user');
+    const label = document.createElement('span');
+    label.className = 'role';
+    label.textContent = role === 'assistant' ? 'FURYPIPE' : 'YOU';
+    const body = document.createElement('span');
+    body.textContent = safeText(content);
+    article.append(label, body);
+    messages.append(article);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function ensureStreamingAssistant() {
+    if (state.streamingAssistantBody) return state.streamingAssistantBody;
+    const article = document.createElement('article');
+    article.className = 'message assistant';
+    const label = document.createElement('span');
+    label.className = 'role';
+    label.textContent = 'FURYPIPE';
+    const body = document.createElement('span');
+    body.textContent = '';
+    article.append(label, body);
+    messages.append(article);
+    state.streamingAssistantBody = body;
+    return body;
+  }
+
+  function appendStreamingAssistant(value) {
+    const text = safeText(value);
+    if (!text) return;
+    const body = ensureStreamingAssistant();
+    body.textContent += text;
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function socketUrl() {
+    const url = new URL('/gateway/v1', location.href);
+    url.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return url.toString();
+  }
+
+  function makeMessageId(prefix) {
+    const suffix = globalThis.crypto?.randomUUID
+      ? globalThis.crypto.randomUUID()
+      : String(Date.now()) + '-' + String(Math.floor(Math.random() * 1000000));
+    return prefix + '-' + suffix;
+  }
+
+  function sendCommand(commandName, input, declaredPluginPermissions = []) {
+    if (!state.ws || state.ws.readyState !== WebSocket.OPEN || !state.connectionId) {
+      throw new Error('Gateway WebSocket is not connected');
+    }
+    const message = {
+      format: MESSAGE_FORMAT,
+      messageId: makeMessageId('webchat'),
+      connectionId: state.connectionId,
+      sequence: state.sequence,
+      type: 'command',
+      sentAt: Date.now(),
+      payload: {
+        commandName,
+        declaredPluginPermissions,
+        input,
+      },
+    };
+    state.sequence += 1;
+    state.ws.send(JSON.stringify(message));
+    return message.messageId;
+  }
+
+  function inspectConversation() {
+    if (!state.conversationId) return;
+    sendCommand('conversation.inspect', {
+      conversationId: state.conversationId,
+      messageOffset: 0,
+      messageLimit: 32,
+      turnOffset: 0,
+      turnLimit: 32,
+    });
+  }
+
+  function toolPermission(transport) {
+    return transport === 'stdio'
+      ? ['process']
+      : transport === 'streamable_http'
+        ? ['network']
+        : [];
+  }
+
+  function toolCommand(base, transport) {
+    if (transport === 'stdio') return base + '.stdio';
+    if (transport === 'streamable_http') return base + '.http';
+    throw new Error('Tool source transport is unavailable');
+  }
+
+  function selectedToolSource() {
+    const sourceId = safeText(toolSource.value);
+    return state.toolSources.find((source) => source.sourceId === sourceId) || null;
+  }
+
+  function resetToolProposal() {
+    state.toolProposalId = null;
+    state.toolProposalTransport = null;
+    state.toolProposalStatus = null;
+    toolApprove.disabled = true;
+    toolExecute.disabled = true;
+    toolDiscard.disabled = true;
+    toolSource.disabled = state.toolSources.length === 0;
+    toolRefresh.disabled = state.toolSources.length === 0;
+    toolName.disabled = state.toolInventory.length === 0;
+    toolArguments.disabled = false;
+    toolPropose.disabled = state.toolInventory.length === 0;
+  }
+
+  function lockToolProposalInputs() {
+    toolSource.disabled = true;
+    toolRefresh.disabled = true;
+    toolName.disabled = true;
+    toolArguments.disabled = true;
+    toolPropose.disabled = true;
+  }
+
+  function restoreToolActionAfterRejection(commandName) {
+    if (commandName === 'tools.approve' && state.toolProposalStatus === 'approval-required') {
+      toolApprove.disabled = false;
+      toolDiscard.disabled = false;
+    }
+    if (
+      (commandName === 'tools.execute.stdio' || commandName === 'tools.execute.http')
+      && state.toolProposalStatus === 'approved'
+    ) {
+      toolExecute.disabled = false;
+      toolDiscard.disabled = false;
+    }
+    if (commandName === 'tools.discard' && state.toolProposalId) {
+      toolDiscard.disabled = false;
+    }
+  }
+
+  function resetToolInventory() {
+    state.toolInventory = [];
+    toolName.replaceChildren();
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'Refresh inventory first';
+    toolName.append(option);
+    toolName.disabled = true;
+    toolPropose.disabled = true;
+    resetToolProposal();
+  }
+
+  function renderToolSources(sources) {
+    state.toolSources = Array.isArray(sources)
+      ? sources.filter((source) =>
+          source
+          && typeof source.sourceId === 'string'
+          && (source.transport === 'stdio' || source.transport === 'streamable_http'))
+      : [];
+    toolSource.replaceChildren();
+    if (state.toolSources.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No configured source';
+      toolSource.append(option);
+      toolSource.disabled = true;
+      toolRefresh.disabled = true;
+    } else {
+      for (const source of state.toolSources) {
+        const option = document.createElement('option');
+        option.value = source.sourceId;
+        option.textContent = source.sourceId + ' · ' + source.transport + ' · ' + safeText(source.trust);
+        toolSource.append(option);
+      }
+      toolSource.disabled = false;
+      toolRefresh.disabled = false;
+    }
+    toolSourceCount.textContent = String(state.toolSources.length) + ' source' + (state.toolSources.length === 1 ? '' : 's');
+    resetToolInventory();
+  }
+
+  function renderToolInventory(payload) {
+    const tools = Array.isArray(payload?.tools) ? payload.tools : [];
+    state.toolInventory = tools.filter((tool) =>
+      tool && typeof tool.name === 'string' && typeof tool.riskClass === 'string'
+    );
+    toolName.replaceChildren();
+    if (state.toolInventory.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No listed tool';
+      toolName.append(option);
+      toolName.disabled = true;
+      toolPropose.disabled = true;
+    } else {
+      for (const tool of state.toolInventory) {
+        const option = document.createElement('option');
+        option.value = tool.name;
+        option.textContent = tool.name + ' · ' + tool.riskClass;
+        toolName.append(option);
+      }
+      toolName.disabled = false;
+      toolPropose.disabled = false;
+    }
+    resetToolProposal();
+  }
+
+  function renderToolExecution(payload) {
+    const stateReceipt = payload?.state;
+    const executed = stateReceipt?.executed;
+    const succeeded = stateReceipt?.succeeded;
+    const verified = stateReceipt?.verified === true;
+
+    const failureCode = safeText(payload?.failureCode);
+    if (executed === false) {
+      addActivity(
+        'Blocked',
+        failureCode || 'Tool execution was rejected before callTool.',
+        'blocked',
+      );
+    } else if (executed === 'unknown') {
+      addActivity(
+        'Outcome unknown',
+        failureCode || 'Tool call outcome is unknown; automatic retry is disabled.',
+        'blocked',
+      );
+    } else if (executed === true) {
+      addActivity('Tool executed', safeText(payload.toolName) || 'tool', 'executed');
+      if (succeeded === true) {
+        addActivity('Tool succeeded', safeText(payload.toolName) || 'tool', 'succeeded');
+      } else if (succeeded === false) {
+        addActivity(
+          'Tool failed',
+          failureCode || 'Tool returned an error result.',
+          'blocked',
+        );
+      }
+    }
+    if (verified) addActivity('Evidence verified', safeText(payload.toolName) || 'tool', 'verified');
+    else if (executed === true) addActivity('Unverified', 'Execution receipt is not verified evidence.', 'requested');
+
+    if (payload?.displayResult?.available === true) {
+      try {
+        toolResult.textContent = JSON.stringify(payload.displayResult.value, null, 2);
+      } catch {
+        toolResult.textContent = 'Tool result could not be rendered.';
+      }
+    } else if (payload?.displayResult?.reason) {
+      toolResult.textContent = 'Tool result withheld: ' + safeText(payload.displayResult.reason);
+    } else if (payload?.status === 'outcome-unknown') {
+      toolResult.textContent = 'Execution outcome is unknown. FuryPipe will not retry automatically.';
+    } else {
+      toolResult.textContent = 'No displayable tool result.';
+    }
+
+    const status = safeText(payload?.status) || 'unknown';
+    toolStatus.textContent =
+      'executed=' + String(executed)
+      + ' · succeeded=' + String(succeeded)
+      + ' · verified=' + String(verified)
+      + ' · status=' + status;
+    resetToolProposal();
+  }
+
+  function handleToolGatewayResult(message) {
+    const adapter = message.result;
+    if (!adapter || typeof adapter !== 'object') {
+      toolStatus.textContent = 'Malformed tool result.';
+      addActivity('Blocked', 'Malformed tool result.', 'blocked');
+      return;
+    }
+    if (adapter.status !== 'ok') {
+      const code = safeText(adapter.error?.code) || 'tool-command-rejected';
+      restoreToolActionAfterRejection(safeText(message.commandName));
+      toolStatus.textContent = code;
+      addActivity('Blocked', code, 'blocked');
+      return;
+    }
+
+    const payload = adapter.result;
+    if (message.commandName === 'tools.sources.inspect') {
+      renderToolSources(payload);
+      addActivity('Accepted', 'Configured MCP source metadata loaded.', 'accepted');
+      return;
+    }
+    if (
+      message.commandName === 'tools.source.inspect.stdio'
+      || message.commandName === 'tools.source.inspect.http'
+    ) {
+      renderToolInventory(payload);
+      toolStatus.textContent = 'Inventory refreshed.';
+      addActivity('Accepted', 'Fresh MCP inventory listed.', 'accepted');
+      return;
+    }
+    if (
+      message.commandName === 'tools.propose.stdio'
+      || message.commandName === 'tools.propose.http'
+    ) {
+      const proposalStatus = safeText(payload?.status);
+      if (proposalStatus === 'denied') {
+        resetToolProposal();
+        toolStatus.textContent = 'Policy denied this tool proposal.';
+        addActivity('Blocked', safeText(payload?.policy?.reason) || 'policy-denied', 'blocked');
+        return;
+      }
+      const proposalId = safeText(payload?.proposalId);
+      const source = selectedToolSource();
+      if (!proposalId || !source) {
+        resetToolProposal();
+        toolStatus.textContent = 'Proposal result is incomplete.';
+        addActivity('Blocked', 'Proposal result is incomplete.', 'blocked');
+        return;
+      }
+      state.toolProposalId = proposalId;
+      state.toolProposalTransport = source.transport;
+      state.toolProposalStatus = proposalStatus;
+      lockToolProposalInputs();
+      toolDiscard.disabled = false;
+      if (proposalStatus === 'approval-required') {
+        toolApprove.disabled = false;
+        toolExecute.disabled = true;
+        toolStatus.textContent = 'Operator approval required.';
+        addActivity('Tool requested', safeText(payload.toolName) || 'tool', 'requested');
+        addActivity('Blocked', 'Explicit operator approval required.', 'blocked');
+      } else if (proposalStatus === 'approved') {
+        toolApprove.disabled = true;
+        toolExecute.disabled = false;
+        toolStatus.textContent = 'Approved by governed policy; execution remains separate.';
+        addActivity('Tool requested', safeText(payload.toolName) || 'tool', 'requested');
+        addActivity('Tool approved', 'governed_policy', 'eligible');
+      }
+      return;
+    }
+    if (message.commandName === 'tools.approve') {
+      state.toolProposalStatus = 'approved';
+      toolApprove.disabled = true;
+      toolExecute.disabled = false;
+      toolDiscard.disabled = false;
+      toolStatus.textContent = 'Operator approval recorded. Execute remains a separate action.';
+      addActivity('Tool approved', 'operator', 'eligible');
+      return;
+    }
+    if (
+      message.commandName === 'tools.execute.stdio'
+      || message.commandName === 'tools.execute.http'
+    ) {
+      renderToolExecution(payload);
+      return;
+    }
+    if (message.commandName === 'tools.discard') {
+      const discarded = payload?.discarded === true;
+      resetToolProposal();
+      toolStatus.textContent = discarded ? 'Proposal discarded.' : 'Proposal was already absent.';
+      addActivity('Blocked', discarded ? 'Tool proposal discarded.' : 'Tool proposal unavailable.', 'blocked');
+    }
+  }
+
+  const MEMORY_SCOPE_KINDS = new Set(['global', 'workspace', 'project', 'user', 'agent']);
+
+  function updateMemoryControls() {
+    const scope = safeText(memoryScope.value);
+    const key = safeText(memoryKey.value).trim();
+    const ready = state.memoryEnabled
+      && state.memoryScopeKinds.includes(scope)
+      && key.length > 0;
+    memoryForget.disabled = !ready;
+    memoryPurgeConfirm.disabled = !state.memoryEnabled || state.memoryScopeKinds.length === 0;
+    memoryPurge.disabled = !ready || !memoryPurgeConfirm.checked;
+  }
+
+  function renderMemoryStatus(payload) {
+    if (!payload || payload.enabled !== true || payload.encrypted !== true) {
+      state.memoryScopeKinds = [];
+      memoryBadge.textContent = 'Unavailable';
+      memoryStatus.textContent = 'Memory runtime is not available.';
+      memoryScope.replaceChildren();
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No governed scope';
+      memoryScope.append(option);
+      memoryScope.disabled = true;
+      memoryKey.disabled = true;
+      memoryPurgeConfirm.checked = false;
+      updateMemoryControls();
+      return;
+    }
+
+    const scopes = Array.isArray(payload.scopeKinds)
+      ? [...new Set(payload.scopeKinds.filter((kind) =>
+          typeof kind === 'string' && MEMORY_SCOPE_KINDS.has(kind)
+        ))]
+      : [];
+    state.memoryScopeKinds = scopes;
+    memoryScope.replaceChildren();
+    if (scopes.length === 0) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'No governed scope';
+      memoryScope.append(option);
+    } else {
+      for (const scope of scopes) {
+        const option = document.createElement('option');
+        option.value = scope;
+        option.textContent = scope;
+        memoryScope.append(option);
+      }
+    }
+    memoryScope.disabled = scopes.length === 0;
+    memoryKey.disabled = scopes.length === 0;
+    memoryPurgeConfirm.disabled = scopes.length === 0;
+    memoryBadge.textContent = 'Encrypted';
+    memoryStatus.textContent = 'Ready · learning '
+      + (payload.learningEnabled === true ? 'enabled' : 'disabled')
+      + ' · inferred '
+      + (payload.policy?.allowInferred === true ? 'enabled' : 'disabled');
+    updateMemoryControls();
+  }
+
+  function handleMemoryGatewayResult(message) {
+    const adapter = message.result;
+    if (!adapter || typeof adapter !== 'object') {
+      memoryStatus.textContent = 'Malformed memory result.';
+      addActivity('Blocked', 'Malformed memory result.', 'blocked');
+      return;
+    }
+    if (adapter.status !== 'ok') {
+      const code = safeText(adapter.error?.code) || 'memory-command-rejected';
+      memoryStatus.textContent = code;
+      addActivity('Blocked', code, 'blocked');
+      updateMemoryControls();
+      return;
+    }
+
+    const payload = adapter.result;
+    if (message.commandName === 'memory.status') {
+      renderMemoryStatus(payload);
+      addActivity(
+        'Memory ready',
+        Array.isArray(payload?.scopeKinds)
+          ? String(payload.scopeKinds.length) + ' governed scope(s)'
+          : 'Governed memory status loaded.',
+        'accepted',
+      );
+      return;
+    }
+
+    if (message.commandName === 'memory.forget' || message.commandName === 'memory.purge') {
+      const hard = message.commandName === 'memory.purge';
+      const deletedRevisions = Number.isSafeInteger(payload?.deletedRevisions)
+        ? payload.deletedRevisions
+        : 0;
+      const deletedPayloads = Number.isSafeInteger(payload?.deletedPayloads)
+        ? payload.deletedPayloads
+        : 0;
+      memoryStatus.textContent = hard
+        ? 'Hard purge completed · revisions=' + deletedRevisions + ' · payloads=' + deletedPayloads
+        : 'Soft forget completed · tombstone/revisions=' + deletedRevisions;
+      addActivity(
+        hard ? 'Memory purged' : 'Memory forgotten',
+        hard
+          ? 'Permanent purge completed. Revisions=' + deletedRevisions + ', payloads=' + deletedPayloads + '.'
+          : 'Soft forget completed through governed Continuous Memory.',
+        hard ? 'blocked' : 'accepted',
+      );
+      memoryPurgeConfirm.checked = false;
+      memoryKey.value = '';
+      updateMemoryControls();
+    }
+  }
+
+  function handleChannelGatewayResult(message) {
+    const adapter = message.result;
+    if (!adapter || typeof adapter !== 'object') {
+      channelsStatus.textContent = 'Malformed channel observability result.';
+      channelsBadge.textContent = 'Rejected';
+      addActivity('Blocked', 'Malformed channel observability result.', 'blocked');
+      return;
+    }
+    if (adapter.status !== 'ok') {
+      const code = safeText(adapter.error?.code) || 'channel-observability-rejected';
+      channelsStatus.textContent = code;
+      channelsBadge.textContent = 'Rejected';
+      addActivity('Blocked', code, 'blocked');
+      return;
+    }
+
+    const payload = adapter.result;
+    const channels = payload?.channels;
+    const delivery = payload?.delivery;
+    const notifications = payload?.notifications;
+    if (
+      !payload
+      || payload.executionAuthority !== false
+      || payload.browserAuthority !== 'none'
+      || !channels
+      || !delivery
+      || !notifications
+    ) {
+      channelsStatus.textContent = 'Unsafe or incomplete channel observability payload.';
+      channelsBadge.textContent = 'Rejected';
+      addActivity('Blocked', 'Unsafe or incomplete channel observability payload.', 'blocked');
+      return;
+    }
+
+    const adaptersConfigured = Number.isSafeInteger(channels.adaptersConfigured)
+      ? channels.adaptersConfigured
+      : 0;
+    const deliveryTotal = Number.isSafeInteger(delivery.total)
+      ? delivery.total
+      : 0;
+    const notificationsCreated = Number.isSafeInteger(notifications.notificationsCreated)
+      ? notifications.notificationsCreated
+      : 0;
+    const outcomeUnknown = Number.isSafeInteger(delivery.counts?.['outcome-unknown'])
+      ? delivery.counts['outcome-unknown']
+      : 0;
+
+    channelsBadge.textContent = 'Read only';
+    channelsStatus.textContent =
+      'adapters=' + adaptersConfigured
+      + ' · deliveries=' + deliveryTotal
+      + ' · notifications=' + notificationsCreated
+      + ' · outcome-unknown=' + outcomeUnknown;
+    channelsDetail.textContent = JSON.stringify({
+      channels: {
+        adaptersConfigured,
+        replayEntries: Number.isSafeInteger(channels.replayEntries)
+          ? channels.replayEntries
+          : 0,
+        adapterSummaries: Array.isArray(channels.adapterSummaries)
+          ? channels.adapterSummaries
+          : [],
+        adapterSummariesTruncated: channels.adapterSummariesTruncated === true,
+      },
+      delivery: {
+        counts: delivery.counts ?? {},
+      },
+      notifications: {
+        routesSelected: Number.isSafeInteger(notifications.routesSelected)
+          ? notifications.routesSelected
+          : 0,
+        deliveryPermitsPrepared: Number.isSafeInteger(notifications.deliveryPermitsPrepared)
+          ? notifications.deliveryPermitsPrepared
+          : 0,
+        deliveriesSettled: Number.isSafeInteger(notifications.deliveriesSettled)
+          ? notifications.deliveriesSettled
+          : 0,
+        acknowledgementsPending: Number.isSafeInteger(notifications.acknowledgementsPending)
+          ? notifications.acknowledgementsPending
+          : 0,
+        deliveryStatuses: notifications.deliveryStatuses ?? {},
+        underlyingTaskStatus: safeText(notifications.underlyingTaskStatus) || 'not-inferred',
+      },
+      browserAuthority: 'none',
+      executionAuthority: false,
+    }, null, 2);
+    addActivity('Channel status', 'Redacted channel lifecycle state loaded.', 'accepted');
+  }
+
+  function handleAutomationGatewayResult(message) {
+    const adapter = message.result;
+    if (!adapter || typeof adapter !== 'object') {
+      automationsStatus.textContent = 'Malformed automation observability result.';
+      automationsBadge.textContent = 'Rejected';
+      addActivity('Blocked', 'Malformed automation observability result.', 'blocked');
+      return;
+    }
+    if (adapter.status !== 'ok') {
+      const code = safeText(adapter.error?.code) || 'automation-observability-rejected';
+      automationsStatus.textContent = code;
+      automationsBadge.textContent = 'Rejected';
+      addActivity('Blocked', code, 'blocked');
+      return;
+    }
+
+    const payload = adapter.result;
+    const automations = payload?.automations;
+    const runs = payload?.runs;
+    if (
+      !payload
+      || payload.executionAuthority !== false
+      || payload.authority !== 'observability-only'
+      || !automations
+      || !runs
+    ) {
+      automationsStatus.textContent = 'Unsafe or incomplete automation observability payload.';
+      automationsBadge.textContent = 'Rejected';
+      addActivity('Blocked', 'Unsafe or incomplete automation observability payload.', 'blocked');
+      return;
+    }
+
+    const total = Number.isSafeInteger(automations.total) ? automations.total : 0;
+    const enabled = Number.isSafeInteger(automations.enabled) ? automations.enabled : 0;
+    const runTotal = Number.isSafeInteger(runs.total) ? runs.total : 0;
+    const outcomeUnknown = Number.isSafeInteger(runs.summarizedByState?.['outcome-unknown'])
+      ? runs.summarizedByState['outcome-unknown']
+      : 0;
+
+    automationsBadge.textContent = 'Read only';
+    automationsStatus.textContent =
+      'automations=' + total
+      + ' · enabled=' + enabled
+      + ' · runs=' + runTotal
+      + ' · outcome-unknown=' + outcomeUnknown;
+    automationsDetail.textContent = JSON.stringify({
+      automations: {
+        total,
+        enabled,
+        disabled: Number.isSafeInteger(automations.disabled)
+          ? automations.disabled
+          : 0,
+        notificationConfigured: Number.isSafeInteger(automations.notificationConfigured)
+          ? automations.notificationConfigured
+          : 0,
+        byTriggerKind: automations.byTriggerKind ?? {},
+        summaries: Array.isArray(automations.summaries)
+          ? automations.summaries
+          : [],
+        summariesTruncated: automations.summariesTruncated === true,
+      },
+      runs: {
+        total: runTotal,
+        summarized: Number.isSafeInteger(runs.summarized)
+          ? runs.summarized
+          : 0,
+        summariesTruncated: runs.summariesTruncated === true,
+        summarizedByState: runs.summarizedByState ?? {},
+        recent: Array.isArray(runs.recent) ? runs.recent : [],
+      },
+      authority: 'observability-only',
+      executionAuthority: false,
+    }, null, 2);
+    addActivity('Automation status', 'Redacted automation lifecycle state loaded.', 'accepted');
+  }
+
+  function renderMemoryLifecycle(receipt) {
+    if (!receipt || typeof receipt !== 'object') return;
+    const recall = receipt.recall;
+    if (recall && typeof recall === 'object') {
+      const entries = Number.isSafeInteger(recall.entries) ? recall.entries : 0;
+      const terms = Number.isSafeInteger(recall.queryTermCount) ? recall.queryTermCount : 0;
+      if (entries > 0) {
+        addActivity(
+          'Memory recalled',
+          String(entries) + ' item(s) · query terms=' + terms + '. Recalled data is not instruction authority.',
+          'accepted',
+        );
+      } else {
+        addActivity('No memory recall', 'No matching governed memory item was injected.', 'accepted');
+      }
+      if (recall.truncated === true) {
+        addActivity('Memory recall truncated', 'Recall byte bound was reached.', 'blocked');
+      }
+    }
+
+    const learning = receipt.learning;
+    if (!learning || typeof learning !== 'object') return;
+    if (learning.status === 'failed_after_execution') {
+      addActivity(
+        'Memory learning failed',
+        'Assistant response remains completed. Provider execution was not replayed.',
+        'blocked',
+      );
+      return;
+    }
+    if (learning.status === 'completed') {
+      const added = Number.isSafeInteger(learning.added) ? learning.added : 0;
+      const updated = Number.isSafeInteger(learning.updated) ? learning.updated : 0;
+      const deleted = Number.isSafeInteger(learning.deleted) ? learning.deleted : 0;
+      const skipped = Number.isSafeInteger(learning.skipped) ? learning.skipped : 0;
+      const changed = added + updated + deleted;
+      if (changed > 0) {
+        addActivity(
+          'Memory learning completed',
+          'added=' + added + ' · updated=' + updated + ' · deleted=' + deleted,
+          'accepted',
+        );
+      } else {
+        addActivity('Memory learning completed', 'No durable memory mutation was required.', 'accepted');
+      }
+      if (skipped > 0) {
+        addActivity(
+          'Memory learning skipped',
+          String(skipped) + ' candidate(s) were rejected by memory policy.',
+          'requested',
+        );
+      }
+    }
+  }
+
+  function scheduleReconnect() {
+    if (!state.authenticated || state.reconnectTimer || state.reconnectAttempts >= 5) return;
+    const delay = Math.min(5000, 500 * Math.pow(2, state.reconnectAttempts));
+    state.reconnectAttempts += 1;
+    setConnection(false, 'Reconnecting…');
+    state.reconnectTimer = setTimeout(() => {
+      state.reconnectTimer = null;
+      connectWebSocket();
+    }, delay);
+  }
+
+  function handleStateResult(message) {
+    if (safeText(message.commandName).startsWith('memory.')) {
+      handleMemoryGatewayResult(message);
+      return;
+    }
+    if (safeText(message.commandName).startsWith('channels.')) {
+      handleChannelGatewayResult(message);
+      return;
+    }
+    if (safeText(message.commandName).startsWith('automations.')) {
+      handleAutomationGatewayResult(message);
+      return;
+    }
+    if (safeText(message.commandName).startsWith('tools.')) {
+      handleToolGatewayResult(message);
+      return;
+    }
+    const adapter = message.result;
+    if (!adapter || typeof adapter !== 'object') {
+      addActivity('Blocked', 'Malformed state result.', 'blocked');
+      return;
+    }
+    if (adapter.status !== 'ok') {
+      const code = adapter.error && typeof adapter.error === 'object'
+        ? safeText(adapter.error.code)
+        : 'state-command-rejected';
+      if (message.commandName === 'conversation.message.submit') {
+        state.pendingUserMessages.delete(message.messageId);
+      }
+      if (message.commandName === 'conversation.close') {
+        state.openAfterClose = false;
+      }
+      addActivity('Blocked', code || 'State command rejected.', 'blocked');
+      turnStatus.textContent = code || 'State command rejected.';
+      return;
+    }
+
+    const payload = adapter.result;
+    if (message.commandName === 'conversation.open') {
+      state.conversationId = payload?.conversationId ?? null;
+      conversationLabel.textContent = state.conversationId || 'Not opened';
+      clearMessages();
+      addActivity('Accepted', 'Conversation opened by Fury Kernel.', 'accepted');
+      return;
+    }
+    if (message.commandName === 'conversation.inspect') {
+      if (!payload || !Array.isArray(payload.messages)) return;
+      clearMessages();
+      for (const item of payload.messages) {
+        if (item && (item.role === 'user' || item.role === 'assistant')) {
+          renderMessage(item.role, item.content);
+        }
+      }
+      state.activeTurnId = typeof payload.activeTurnId === 'string' ? payload.activeTurnId : null;
+      cancelTurn.disabled = !state.activeTurnId;
+      turnStatus.textContent = state.activeTurnId ? 'Turn pending' : '';
+      addActivity('Accepted', 'Conversation state resynchronized.', 'accepted');
+      return;
+    }
+    if (message.commandName === 'conversation.message.submit') {
+      const pending = state.pendingUserMessages.get(message.messageId);
+      state.pendingUserMessages.delete(message.messageId);
+      if (pending) renderMessage('user', pending);
+      state.activeTurnId = payload?.turn?.turnId ?? null;
+      cancelTurn.disabled = !state.activeTurnId;
+      addActivity('Accepted', 'User turn accepted. Provider inference is still a separate command.', 'accepted');
+      if (state.activeTurnId && state.modelBridgeEnabled) {
+        turnStatus.textContent = 'Requesting governed model execution…';
+        state.streamingAssistantBody = null;
+        addActivity(
+          'Model requested',
+          (state.modelProvider || 'provider') + ' / ' + (state.model || 'model'),
+          'requested',
+        );
+        sendCommand(
+          'conversation.model.execute',
+          {
+            conversationId: state.conversationId,
+            turnId: state.activeTurnId,
+          },
+          ['provider-inference'],
+        );
+      } else {
+        turnStatus.textContent = state.activeTurnId
+          ? 'Turn accepted — model bridge not configured'
+          : '';
+      }
+      return;
+    }
+    if (message.commandName === 'conversation.cancel') {
+      state.activeTurnId = null;
+      cancelTurn.disabled = true;
+      turnStatus.textContent = 'Turn cancelled';
+      addActivity('Blocked', 'Turn cancelled before model/tool execution.', 'blocked');
+      return;
+    }
+    if (message.commandName === 'conversation.close') {
+      state.conversationId = null;
+      state.activeTurnId = null;
+      conversationLabel.textContent = 'Not opened';
+      cancelTurn.disabled = true;
+      clearMessages();
+      addActivity('Accepted', 'Conversation closed and Kernel capacity reclaimed.', 'accepted');
+      if (state.openAfterClose) {
+        state.openAfterClose = false;
+        sendCommand('conversation.open', {});
+      }
+    }
+  }
+
+  function handleSocketMessage(event) {
+    let message;
+    try {
+      message = JSON.parse(String(event.data));
+    } catch {
+      addActivity('Blocked', 'Invalid Gateway server message.', 'blocked');
+      return;
+    }
+
+    if (message.type === 'connected') {
+      state.connectionId = safeText(message.connectionId);
+      state.sequence = 1;
+      state.reconnectAttempts = 0;
+      setConnection(true, 'Connected');
+      addActivity('Accepted', 'Authenticated local Gateway transport connected.', 'accepted');
+      if (state.conversationId) inspectConversation();
+      else sendCommand('conversation.open', {});
+      if (state.memoryEnabled) {
+        sendCommand('memory.status', {});
+      }
+      if (state.channelObservabilityEnabled) {
+        sendCommand('channels.status', {});
+      }
+      if (state.automationObservabilityEnabled) {
+        sendCommand('automations.status', {});
+      }
+      if (state.toolBridgeEnabled) {
+        // Metadata-only state command. Fresh MCP process/network probing still
+        // requires the operator to press Refresh inventory.
+        sendCommand('tools.sources.inspect', {});
+      }
+      return;
+    }
+
+    if (message.type === 'command-admission') {
+      const admission = message.admission;
+      const commandName = safeText(admission?.commandName);
+      if (admission?.outcome === 'eligible') {
+        const title = commandName === 'conversation.model.execute'
+          ? 'Model eligible'
+          : commandName.startsWith('tools.')
+            ? 'Tool eligible'
+            : commandName.startsWith('memory.')
+              ? 'Memory eligible'
+              : 'State eligible';
+        addActivity(title, commandName || 'Command admitted.', 'eligible');
+      } else {
+        const reason = safeText(admission?.reason) || 'command denied';
+        addActivity('Blocked', reason, 'blocked');
+        if (commandName.startsWith('tools.')) {
+          restoreToolActionAfterRejection(commandName);
+          toolStatus.textContent = reason;
+        } else if (commandName.startsWith('memory.')) {
+          memoryStatus.textContent = reason;
+          updateMemoryControls();
+        } else if (commandName.startsWith('channels.')) {
+          channelsStatus.textContent = reason;
+          channelsBadge.textContent = 'Rejected';
+        } else if (commandName.startsWith('automations.')) {
+          automationsStatus.textContent = reason;
+          automationsBadge.textContent = 'Rejected';
+        } else {
+          turnStatus.textContent = reason;
+        }
+        if (
+          commandName === 'conversation.model.execute'
+          && state.conversationId
+          && state.activeTurnId
+        ) {
+          sendCommand('conversation.cancel', {
+            conversationId: state.conversationId,
+            turnId: state.activeTurnId,
+          });
+        }
+      }
+      return;
+    }
+
+    if (message.type === 'state-command-result') {
+      handleStateResult(message);
+      return;
+    }
+
+    if (message.type === 'execution-command-event') {
+      if (safeText(message.commandName) !== 'conversation.model.execute') return;
+      const event = message.event;
+      if (!event || typeof event !== 'object') return;
+      if (event.kind === 'text-delta') {
+        appendStreamingAssistant(event.text);
+        turnStatus.textContent = 'Provider stream in progress…';
+      } else if (event.kind === 'terminal') {
+        turnStatus.textContent = event.terminalStatus === 'completed'
+          ? 'Provider stream complete — finalizing…'
+          : 'Provider stream ended without a completed response.';
+      } else if (event.kind === 'provider-error') {
+        addActivity('Provider error', safeText(event.errorCode) || 'stream-error', 'blocked');
+      }
+      return;
+    }
+
+    if (message.type === 'execution-command-result') {
+      if (safeText(message.commandName).startsWith('memory.')) {
+        handleMemoryGatewayResult(message);
+        return;
+      }
+      if (safeText(message.commandName).startsWith('tools.')) {
+        handleToolGatewayResult(message);
+        return;
+      }
+      const result = message.result;
+      if (!result || typeof result !== 'object') {
+        addActivity('Blocked', 'Malformed model execution result.', 'blocked');
+        return;
+      }
+      if (result.status === 'completed') {
+        const provider = result.provider && typeof result.provider === 'object'
+          ? safeText(result.provider.providerId) + ' / ' + safeText(result.provider.model)
+          : 'provider response';
+        addActivity('Model response', provider, 'response');
+        if (state.memoryEnabled) renderMemoryLifecycle(result.memory);
+        turnStatus.textContent = 'Model response received — resynchronizing…';
+        inspectConversation();
+      } else if (result.status === 'cancelled') {
+        addActivity('Blocked', 'Model execution cancelled.', 'blocked');
+        turnStatus.textContent = 'Turn cancelled';
+        inspectConversation();
+      } else {
+        const code = safeText(result.failureCode)
+          || safeText(result.error?.code)
+          || 'model-execution-failed';
+        if (code === 'memory-recall-failed') {
+          addActivity(
+            'Memory recall failed',
+            'Provider inference was not started because governed recall failed closed.',
+            'blocked',
+          );
+        } else if (code === 'memory-turn-failed') {
+          addActivity(
+            'Memory turn failed',
+            'The memory/model turn did not complete safely.',
+            'blocked',
+          );
+        } else {
+          addActivity('Blocked', code, 'blocked');
+        }
+        turnStatus.textContent = code;
+        inspectConversation();
+      }
+      return;
+    }
+
+    if (message.type === 'error') {
+      addActivity('Blocked', safeText(message.code) || 'Gateway protocol error.', 'blocked');
+    }
+  }
+
+  async function loadWebChatConfig() {
+    try {
+      const response = await fetch('/gateway/webchat/config.json', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      if (!response.ok) return;
+      const config = await response.json();
+      const modelBridge = config?.modelBridge;
+      state.modelBridgeEnabled = modelBridge?.enabled === true;
+      state.modelProvider = state.modelBridgeEnabled ? safeText(modelBridge.providerId) : null;
+      state.model = state.modelBridgeEnabled ? safeText(modelBridge.model) : null;
+      const memory = config?.memory;
+      state.memoryEnabled = memory?.enabled === true;
+      memoryPanel.hidden = !state.memoryEnabled;
+      const channels = config?.channels;
+      state.channelObservabilityEnabled = channels?.enabled === true;
+      channelsPanel.hidden = !state.channelObservabilityEnabled;
+      channelsBadge.textContent = state.channelObservabilityEnabled ? 'Configured' : 'Disabled';
+      const automations = config?.automations;
+      state.automationObservabilityEnabled = automations?.enabled === true;
+      automationsPanel.hidden = !state.automationObservabilityEnabled;
+      automationsBadge.textContent = state.automationObservabilityEnabled ? 'Configured' : 'Disabled';
+      const tools = config?.tools;
+      state.toolBridgeEnabled = tools?.enabled === true;
+      state.toolSourceCount = state.toolBridgeEnabled && Number.isSafeInteger(tools?.sourceCount)
+        ? tools.sourceCount
+        : 0;
+      toolsPanel.hidden = !state.toolBridgeEnabled;
+      toolSourceCount.textContent = String(state.toolSourceCount) + ' source'
+        + (state.toolSourceCount === 1 ? '' : 's');
+    } catch {
+      state.modelBridgeEnabled = false;
+      state.modelProvider = null;
+      state.model = null;
+      state.memoryEnabled = false;
+      state.memoryScopeKinds = [];
+      memoryPanel.hidden = true;
+      state.channelObservabilityEnabled = false;
+      channelsPanel.hidden = true;
+      channelsBadge.textContent = 'Disabled';
+      channelsStatus.textContent = '';
+      channelsDetail.textContent = 'No channel status.';
+      state.automationObservabilityEnabled = false;
+      automationsPanel.hidden = true;
+      automationsBadge.textContent = 'Disabled';
+      automationsStatus.textContent = '';
+      automationsDetail.textContent = 'No automation status.';
+      state.toolBridgeEnabled = false;
+      state.toolSourceCount = 0;
+      toolsPanel.hidden = true;
+    }
+  }
+
+  function connectWebSocket() {
+    if (state.ws && (state.ws.readyState === WebSocket.OPEN || state.ws.readyState === WebSocket.CONNECTING)) return;
+    const ws = new WebSocket(socketUrl(), SUBPROTOCOL);
+    state.ws = ws;
+    setConnection(false, 'Connecting…');
+
+    ws.addEventListener('open', () => {
+      state.authenticated = true;
+      bootstrapPanel.hidden = true;
+      chatPanel.hidden = false;
+    });
+    ws.addEventListener('message', handleSocketMessage);
+    ws.addEventListener('close', () => {
+      if (state.ws !== ws) return;
+      state.ws = null;
+      state.connectionId = null;
+      setConnection(false, 'Disconnected');
+      if (state.authenticated) scheduleReconnect();
+    });
+    ws.addEventListener('error', () => {
+      setConnection(false, 'Connection failed');
+    });
+  }
+
+  bootstrapForm.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const code = bootstrapCode.value.trim();
+    if (!code) return;
+    bootstrapStatus.textContent = 'Exchanging one-time code…';
+    try {
+      const response = await fetch('/gateway/local-bootstrap/v1', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ format: BOOTSTRAP_FORMAT, code }),
+      });
+      bootstrapCode.value = '';
+      if (response.status !== 204) {
+        bootstrapStatus.textContent = response.status === 401
+          ? 'Code invalid or expired.'
+          : 'Bootstrap rejected (HTTP ' + response.status + ').';
+        return;
+      }
+      bootstrapStatus.textContent = 'Browser session established.';
+      state.authenticated = true;
+      await webChatConfigReady;
+      connectWebSocket();
+    } catch {
+      bootstrapStatus.textContent = 'Bootstrap request failed.';
+    }
+  });
+
+  messageForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!state.conversationId || state.activeTurnId) return;
+    const content = messageInput.value;
+    if (!content.trim()) return;
+    const messageId = makeMessageId('user');
+    messageInput.value = '';
+    turnStatus.textContent = 'Submitting…';
+    try {
+      const transportMessageId = sendCommand('conversation.message.submit', {
+        conversationId: state.conversationId,
+        messageId,
+        content,
+      });
+      state.pendingUserMessages.set(transportMessageId, content);
+    } catch {
+      turnStatus.textContent = 'Not connected';
+      messageInput.value = content;
+    }
+  });
+
+  cancelTurn.addEventListener('click', () => {
+    if (!state.conversationId || !state.activeTurnId) return;
+    sendCommand('conversation.cancel', {
+      conversationId: state.conversationId,
+      turnId: state.activeTurnId,
+    });
+  });
+
+  memoryScope.addEventListener('change', updateMemoryControls);
+  memoryKey.addEventListener('input', updateMemoryControls);
+  memoryPurgeConfirm.addEventListener('change', updateMemoryControls);
+
+  memoryForget.addEventListener('click', () => {
+    const key = safeText(memoryKey.value).trim();
+    const scopeKind = safeText(memoryScope.value);
+    if (!key || !state.memoryScopeKinds.includes(scopeKind)) return;
+    memoryForget.disabled = true;
+    memoryPurge.disabled = true;
+    memoryStatus.textContent = 'Writing governed memory tombstone…';
+    addActivity('Memory requested', 'Soft forget · scope=' + scopeKind, 'requested');
+    try {
+      sendCommand('memory.forget', { key, scopeKind });
+    } catch {
+      memoryStatus.textContent = 'Gateway is not connected.';
+      updateMemoryControls();
+    }
+  });
+
+  memoryPurge.addEventListener('click', () => {
+    const key = safeText(memoryKey.value).trim();
+    const scopeKind = safeText(memoryScope.value);
+    if (
+      !key
+      || !state.memoryScopeKinds.includes(scopeKind)
+      || !memoryPurgeConfirm.checked
+    ) return;
+    memoryForget.disabled = true;
+    memoryPurge.disabled = true;
+    memoryPurgeConfirm.disabled = true;
+    memoryStatus.textContent = 'Executing explicit hard purge…';
+    addActivity('Memory requested', 'Hard purge · scope=' + scopeKind, 'requested');
+    try {
+      sendCommand('memory.purge', { key, scopeKind });
+    } catch {
+      memoryStatus.textContent = 'Gateway is not connected.';
+      updateMemoryControls();
+    }
+  });
+
+  toolSource.addEventListener('change', () => {
+    resetToolInventory();
+    toolStatus.textContent = 'Select Refresh inventory to probe this source.';
+    toolResult.textContent = 'No tool result.';
+  });
+
+  toolRefresh.addEventListener('click', () => {
+    const source = selectedToolSource();
+    if (!source || state.toolProposalId) return;
+    toolStatus.textContent = 'Refreshing MCP inventory…';
+    addActivity('Tool requested', 'Fresh inventory for ' + source.sourceId, 'requested');
+    try {
+      sendCommand(
+        toolCommand('tools.source.inspect', source.transport),
+        { sourceId: source.sourceId },
+        toolPermission(source.transport),
+      );
+    } catch {
+      toolStatus.textContent = 'Gateway is not connected.';
+    }
+  });
+
+  toolPropose.addEventListener('click', () => {
+    const source = selectedToolSource();
+    const selectedTool = safeText(toolName.value);
+    if (!source || !selectedTool || state.toolProposalId) return;
+
+    let args;
+    try {
+      args = JSON.parse(toolArguments.value || '{}');
+    } catch {
+      toolStatus.textContent = 'Arguments must be valid JSON.';
+      addActivity('Blocked', 'Tool arguments are not valid JSON.', 'blocked');
+      return;
+    }
+    if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      toolStatus.textContent = 'Arguments must be a JSON object.';
+      addActivity('Blocked', 'Tool arguments must be a JSON object.', 'blocked');
+      return;
+    }
+
+    toolStatus.textContent = 'Creating governed tool proposal…';
+    addActivity('Tool requested', selectedTool + ' on ' + source.sourceId, 'requested');
+    try {
+      sendCommand(
+        toolCommand('tools.propose', source.transport),
+        {
+          sourceId: source.sourceId,
+          toolName: selectedTool,
+          arguments: args,
+        },
+        toolPermission(source.transport),
+      );
+    } catch {
+      toolStatus.textContent = 'Gateway is not connected.';
+    }
+  });
+
+  toolApprove.addEventListener('click', () => {
+    if (!state.toolProposalId || state.toolProposalStatus !== 'approval-required') return;
+    toolApprove.disabled = true;
+    toolStatus.textContent = 'Recording explicit operator approval…';
+    try {
+      sendCommand('tools.approve', {
+        proposalId: state.toolProposalId,
+      });
+    } catch {
+      toolApprove.disabled = false;
+      toolStatus.textContent = 'Gateway is not connected.';
+    }
+  });
+
+  toolExecute.addEventListener('click', () => {
+    if (
+      !state.toolProposalId
+      || state.toolProposalStatus !== 'approved'
+      || !state.toolProposalTransport
+    ) return;
+    toolExecute.disabled = true;
+    toolDiscard.disabled = true;
+    toolStatus.textContent = 'Executing governed tool…';
+    addActivity('Tool requested', 'Execution requested for approved proposal.', 'requested');
+    try {
+      sendCommand(
+        toolCommand('tools.execute', state.toolProposalTransport),
+        { proposalId: state.toolProposalId },
+        toolPermission(state.toolProposalTransport),
+      );
+    } catch {
+      toolExecute.disabled = false;
+      toolDiscard.disabled = false;
+      toolStatus.textContent = 'Gateway is not connected.';
+    }
+  });
+
+  toolDiscard.addEventListener('click', () => {
+    if (!state.toolProposalId) return;
+    const proposalId = state.toolProposalId;
+    toolDiscard.disabled = true;
+    try {
+      sendCommand('tools.discard', { proposalId });
+    } catch {
+      toolDiscard.disabled = false;
+      toolStatus.textContent = 'Gateway is not connected.';
+    }
+  });
+
+  byId('new-conversation').addEventListener('click', () => {
+    if (state.activeTurnId) {
+      turnStatus.textContent = 'Cancel the active turn first.';
+      return;
+    }
+    if (state.conversationId) {
+      state.openAfterClose = true;
+      sendCommand('conversation.close', { conversationId: state.conversationId });
+      return;
+    }
+    sendCommand('conversation.open', {});
+  });
+
+  byId('reconnect').addEventListener('click', () => {
+    state.reconnectAttempts = 0;
+    if (state.ws) state.ws.close(1000, 'manual-reconnect');
+    connectWebSocket();
+  });
+
+  byId('logout').addEventListener('click', async () => {
+    state.authenticated = false;
+    if (state.reconnectTimer) {
+      clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = null;
+    }
+    const socket = state.ws;
+    state.ws = null;
+    if (socket) socket.close(1000, 'logout');
+    await fetch('/gateway/local-logout/v1', {
+      method: 'POST',
+      credentials: 'same-origin',
+    }).catch(() => undefined);
+    state.conversationId = null;
+    state.activeTurnId = null;
+    state.pendingUserMessages.clear();
+    state.openAfterClose = false;
+    state.memoryScopeKinds = [];
+    memoryScope.replaceChildren();
+    const memoryOption = document.createElement('option');
+    memoryOption.value = '';
+    memoryOption.textContent = 'Load memory status first';
+    memoryScope.append(memoryOption);
+    memoryScope.disabled = true;
+    memoryKey.value = '';
+    memoryKey.disabled = true;
+    memoryPurgeConfirm.checked = false;
+    memoryPurgeConfirm.disabled = true;
+    memoryForget.disabled = true;
+    memoryPurge.disabled = true;
+    memoryStatus.textContent = '';
+    memoryBadge.textContent = state.memoryEnabled ? 'Configured' : 'Disabled';
+    channelsStatus.textContent = '';
+    channelsDetail.textContent = 'No channel status.';
+    channelsBadge.textContent = state.channelObservabilityEnabled ? 'Configured' : 'Disabled';
+    state.toolSources = [];
+    state.toolInventory = [];
+    resetToolProposal();
+    toolResult.textContent = 'No tool result.';
+    toolStatus.textContent = '';
+    clearMessages();
+    chatPanel.hidden = true;
+    bootstrapPanel.hidden = false;
+    bootstrapStatus.textContent = 'Logged out.';
+    setConnection(false, 'Not connected');
+  });
+
+  byId('clear-activity').addEventListener('click', () => {
+    activityList.replaceChildren();
+  });
+
+  const webChatConfigReady = loadWebChatConfig();
+})();
+`;
+
+function isLoopback(address: string | undefined): boolean {
+  const value = address?.trim().toLowerCase() ?? '';
+  return value === '127.0.0.1'
+    || value === '::1'
+    || value === '::ffff:127.0.0.1';
+}
+
+function normalizeOrigin(value: string): { readonly origin: string; readonly wsOrigin: string } {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('Gateway WebChat origin is invalid');
+  }
+  if (
+    url.protocol !== 'http:'
+    || url.username !== ''
+    || url.password !== ''
+    || url.pathname !== '/'
+    || url.search !== ''
+    || url.hash !== ''
+    || !['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname === '::1' ? '[::1]' : url.hostname)
+  ) {
+    throw new Error('Gateway WebChat requires an exact loopback HTTP origin');
+  }
+  const ws = new URL(url.origin);
+  ws.protocol = 'ws:';
+  return Object.freeze({ origin: url.origin, wsOrigin: ws.origin });
+}
+
+function pathOf(request: IncomingMessage): { readonly pathname: string; readonly clean: boolean } | undefined {
+  if (typeof request.url !== 'string') return undefined;
+  try {
+    const url = new URL(request.url, 'http://127.0.0.1');
+    return Object.freeze({
+      pathname: url.pathname,
+      clean: url.search === '' && url.hash === '',
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+function commonHeaders(
+  response: ServerResponse,
+  csp: string,
+): void {
+  response.setHeader('Cache-Control', 'no-store');
+  response.setHeader('Pragma', 'no-cache');
+  response.setHeader('Referrer-Policy', 'no-referrer');
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  response.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  response.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+  response.setHeader('Content-Security-Policy', csp);
+}
+
+function send(
+  request: IncomingMessage,
+  response: ServerResponse,
+  status: number,
+  contentType: string,
+  body: string,
+  csp: string,
+): void {
+  if (response.writableEnded) return;
+  const bytes = Buffer.from(body, 'utf8');
+  commonHeaders(response, csp);
+  response.statusCode = status;
+  response.setHeader('Content-Type', contentType);
+  response.setHeader('Content-Length', String(bytes.byteLength));
+  if (request.method === 'HEAD') response.end();
+  else response.end(bytes);
+}
+
+export function createFuryGatewayWebChatHandler(
+  options: FuryGatewayWebChatOptions,
+): FuryGatewayWebSocketHttpRequestHandler {
+  if (!options || typeof options !== 'object' || typeof options.origin !== 'string') {
+    throw new Error('Gateway WebChat requires an exact local origin');
+  }
+  const local = normalizeOrigin(options.origin);
+  const modelBridgeEnabled = options.modelBridgeEnabled === true;
+  if (modelBridgeEnabled) {
+    if (
+      options.modelProvider !== 'openai'
+      && options.modelProvider !== 'anthropic'
+      && options.modelProvider !== 'google'
+    ) {
+      throw new Error('Gateway WebChat model provider is invalid');
+    }
+    if (
+      typeof options.model !== 'string'
+      || options.model.length < 1
+      || options.model.length > 256
+      || options.model.trim() !== options.model
+      || /[\u0000-\u001f\u007f]/u.test(options.model)
+    ) {
+      throw new Error('Gateway WebChat model identifier is invalid');
+    }
+  } else if (options.modelProvider !== undefined || options.model !== undefined) {
+    throw new Error('Gateway WebChat disabled model bridge must not expose model metadata');
+  }
+
+  const memoryEnabled = options.memoryEnabled === true;
+  const channelObservabilityEnabled = options.channelObservabilityEnabled === true;
+  const automationObservabilityEnabled =
+    options.automationObservabilityEnabled === true;
+
+  const toolBridgeEnabled = options.toolBridgeEnabled === true;
+  if (toolBridgeEnabled) {
+    if (
+      !Number.isSafeInteger(options.toolSourceCount)
+      || (options.toolSourceCount as number) < 1
+      || (options.toolSourceCount as number) > 32
+    ) {
+      throw new Error('Gateway WebChat tool source count must be an integer from 1 to 32');
+    }
+  } else if (options.toolSourceCount !== undefined) {
+    throw new Error('Gateway WebChat disabled tool bridge must not expose tool metadata');
+  }
+
+  const webChatConfig = JSON.stringify(Object.freeze({
+    format: FURY_GATEWAY_WEBCHAT_CONFIG_FORMAT,
+    modelBridge: modelBridgeEnabled
+      ? Object.freeze({
+          enabled: true as const,
+          providerId: options.modelProvider!,
+          model: options.model!,
+        })
+      : Object.freeze({ enabled: false as const }),
+    tools: toolBridgeEnabled
+      ? Object.freeze({
+          enabled: true as const,
+          sourceCount: options.toolSourceCount!,
+        })
+      : Object.freeze({ enabled: false as const }),
+    memory: Object.freeze({
+      enabled: memoryEnabled,
+    }),
+    channels: Object.freeze({
+      enabled: channelObservabilityEnabled,
+      browserAuthority: 'none' as const,
+    }),
+    automations: Object.freeze({
+      enabled: automationObservabilityEnabled,
+      authority: 'observability-only' as const,
+      executionAuthority: false as const,
+    }),
+    executionAuthority: false as const,
+  }));
+  const csp = [
+    "default-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "connect-src 'self' " + local.wsOrigin,
+    "img-src 'self'",
+    'font-src data:',
+    "object-src 'none'",
+  ].join('; ');
+
+  return async (request, response): Promise<boolean> => {
+    const parsed = pathOf(request);
+    if (!parsed) return false;
+    if (parsed.pathname === '/gateway/webchat') {
+      if (!parsed.clean) {
+        send(request, response, 400, 'text/plain; charset=utf-8', '', csp);
+        return true;
+      }
+      if (!isLoopback(request.socket.remoteAddress)) {
+        send(request, response, 403, 'text/plain; charset=utf-8', '', csp);
+        return true;
+      }
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        response.setHeader('Allow', 'GET, HEAD');
+        send(request, response, 405, 'text/plain; charset=utf-8', '', csp);
+        return true;
+      }
+      commonHeaders(response, csp);
+      response.statusCode = 308;
+      response.setHeader('Location', FURY_GATEWAY_WEBCHAT_PATH);
+      response.setHeader('Content-Length', '0');
+      response.end();
+      return true;
+    }
+
+    if (
+      parsed.pathname !== FURY_GATEWAY_WEBCHAT_PATH
+      && parsed.pathname !== FURY_GATEWAY_WEBCHAT_SCRIPT_PATH
+      && parsed.pathname !== FURY_GATEWAY_WEBCHAT_STYLE_PATH
+      && parsed.pathname !== FURY_GATEWAY_WEBCHAT_CONFIG_PATH
+      && parsed.pathname !== FURY_GATEWAY_WEBCHAT_FAVICON_PATH
+    ) {
+      return false;
+    }
+    if (!parsed.clean) {
+      send(request, response, 400, 'text/plain; charset=utf-8', '', csp);
+      return true;
+    }
+    if (!isLoopback(request.socket.remoteAddress)) {
+      send(request, response, 403, 'text/plain; charset=utf-8', '', csp);
+      return true;
+    }
+    if (request.method !== 'GET' && request.method !== 'HEAD') {
+      response.setHeader('Allow', 'GET, HEAD');
+      send(request, response, 405, 'text/plain; charset=utf-8', '', csp);
+      return true;
+    }
+
+    if (parsed.pathname === FURY_GATEWAY_WEBCHAT_PATH) {
+      send(request, response, 200, 'text/html; charset=utf-8', HTML, csp);
+    } else if (parsed.pathname === FURY_GATEWAY_WEBCHAT_SCRIPT_PATH) {
+      send(request, response, 200, 'text/javascript; charset=utf-8', JS, csp);
+    } else if (parsed.pathname === FURY_GATEWAY_WEBCHAT_STYLE_PATH) {
+      send(request, response, 200, 'text/css; charset=utf-8', CSS, csp);
+    } else if (parsed.pathname === FURY_GATEWAY_WEBCHAT_FAVICON_PATH) {
+      send(request, response, 200, 'image/svg+xml; charset=utf-8', FURYPIPE_FAVICON_SVG, csp);
+    } else {
+      send(
+        request,
+        response,
+        200,
+        'application/json; charset=utf-8',
+        webChatConfig,
+        csp,
+      );
+    }
+    return true;
+  };
+}

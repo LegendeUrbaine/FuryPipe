@@ -22,10 +22,10 @@
  *
  * Node-only by design. Workers host has no dashboard; use Workers Logs.
  *
- * Memory bound: ring buffer cap 50 events + a parallel ring of the last 50
- * rendered PNGs (images are never persisted to disk, so this ring is the
- * only place to view them). At a typical 75 KB PNG that's ~3-4 MB resident;
- * a process restart starts the image ring empty.
+ * Memory bound: ring buffer cap 50 events + a parallel ring of rendered PNGs
+ * capped by both entry count and bytes (images are never persisted to disk,
+ * so this ring is the only place to view them). A process restart starts the
+ * image ring empty.
  */
 
 import * as fs from 'node:fs';
@@ -34,6 +34,8 @@ import * as readline from 'node:readline';
 import type { ProxyEvent } from './core/proxy.js';
 import type { TrackEvent } from './core/tracker.js';
 import type { ControlRoomSnapshot } from './control-room/index.js';
+import { createControlPlaneSnapshot, type ControlPlaneSnapshot } from './control-plane.js';
+import type { FuryBetaControlPlaneSnapshot } from './beta-control-plane.js';
 import {
   computeActualInputEffWithCacheTier,
   computeBaselineInputEffWithCacheTier,
@@ -46,6 +48,7 @@ import {
   openAIOutputRate,
 } from './core/openai-savings.js';
 import { renderCacheMaxBytes, renderCacheStats } from './core/render.js';
+import { inspectRuntimeModels } from './core/model-fabric.js';
 import {
   aggregateSessions,
   claudeCodeMap,
@@ -71,13 +74,21 @@ import {
   renderSessionsUnavailableFragment,
   renderStatsTableFragment,
   renderControlRoomFragment,
+  renderControlPlaneFragment,
+  renderBetaControlPlaneFragment,
   type ContextMapData,
 } from './dashboard/fragments.js';
 import {
   getAllowedModelBases,
   getConfiguredModelBases,
+  getFuryPipeModelScopeMode,
+  getFuryPipeVisualPolicy,
   isFuryPipeSupportedModel,
+  normalizeModelScopeEntry,
+  parseModelScopeList,
   setAllowedModelBases,
+  setFuryPipeVisualPolicy,
+  type FuryPipeVisualPolicy,
 } from './core/applicability.js';
 import type {
   StatsPayload,
@@ -85,6 +96,7 @@ import type {
   SessionsPayload,
   FullStatsPayload,
   CurrentSessionPayload,
+  ModelRuntimeActivity,
 } from './dashboard/types.js';
 import { parseAcceptLanguage, resolveSupportedLocale } from './i18n/runtime.js';
 import { CORE_CATALOGS } from './i18n/catalogs.js';
@@ -92,12 +104,14 @@ import { CORE_CATALOGS } from './i18n/catalogs.js';
 const DASHBOARD_AUTO_LOCALES = Object.freeze(Object.keys(CORE_CATALOGS));
 const RECENT_CAP = 50;
 
-/** How many rendered PNGs to keep in the in-memory image ring. Matches
- *  RECENT_CAP so every visible recent-requests row can still resolve its
- *  image. Images are never written to disk — this ring is the only store. */
+/** Hard count ceiling for rendered PNGs in the in-memory image ring. The
+ *  byte ceiling below is the primary memory guard; this count preserves a
+ *  bounded lookup surface for recent rows. */
 const IMAGE_RING_CAP = 800;
+const IMAGE_RING_MAX_BYTES = 64 * 1024 * 1024;
 
 type ControlRoomProvider = () => ControlRoomSnapshot | null | Promise<ControlRoomSnapshot | null>;
+type BetaControlPlaneProvider = () => FuryBetaControlPlaneSnapshot | null | Promise<FuryBetaControlPlaneSnapshot | null>;
 
 /** One rendered image held in the in-memory ring. `id` is a monotonic
  *  counter (never reused) so a RecentRow can reference its image even after
@@ -134,6 +148,10 @@ export interface RecentRow {
   status: number;
   size_in?: number;
   compressed: boolean;
+  /** Exact passthrough/compression reason captured from the proxy event. */
+  reason?: string;
+  /** Stable eligibility cause, separate from the legacy free-form reason. */
+  eligibility_cause?: 'operator_scope_excluded';
   cc_added?: number;
   input_tokens?: number;
   /** From /v1/messages `usage.output_tokens`. Identical with/without
@@ -538,6 +556,7 @@ export class DashboardState {
    *  the ring via /proxy-latest-png?id=N. In-memory only — images are never
    *  persisted, so a restart starts this empty. */
   private images: ImageEntry[] = [];
+  private imageBytes = 0;
   /** Monotonic image id source. Never reset, never reused — an evicted id
    *  stays dangling on its RecentRow rather than pointing at a new image. */
   private nextImageId = 1;
@@ -576,23 +595,32 @@ export class DashboardState {
 
   /** Host-provided persistence hook for the runtime model scope. The core
    *  override stays in-memory (Edge-safe); a Node host passes a saver that
-   *  writes the `models` key of the config file so chip toggles survive a
+   *  writes the model-scope keys of the config file so chip toggles survive a
    *  restart. Best-effort: failures are the hook's problem, never the API's. */
-  private readonly persistModelBases: ((bases: readonly string[]) => void) | undefined;
+  private readonly persistModelBases: ((bases: readonly string[] | null) => void) | undefined;
+  /** Host-provided persistence hook for the global visual policy. */
+  private readonly persistVisualPolicy: ((policy: FuryPipeVisualPolicy) => void) | undefined;
   /** Optional metadata-only Control Room provider. Runtime subsystems own the
    * evidence; the dashboard only renders a pre-built snapshot. */
   private readonly controlRoomProvider: ControlRoomProvider | undefined;
+  /** Optional beta projection provider. The dashboard only renders this
+   *  observation and never turns it into bearer authority. */
+  private readonly betaControlPlaneProvider: BetaControlPlaneProvider | undefined;
 
   constructor(
     paths?: SessionsPaths,
     ccMapFn?: () => Promise<Map<string, ClaudeCodeSessionRef>>,
-    persistModelBases?: (bases: readonly string[]) => void,
+    persistModelBases?: (bases: readonly string[] | null) => void,
     controlRoomProvider?: ControlRoomProvider,
+    persistVisualPolicy?: (policy: FuryPipeVisualPolicy) => void,
+    betaControlPlaneProvider?: BetaControlPlaneProvider,
   ) {
     this.paths = paths;
     this.ccMapFn = ccMapFn ?? (() => claudeCodeMap());
     this.persistModelBases = persistModelBases;
     this.controlRoomProvider = controlRoomProvider;
+    this.persistVisualPolicy = persistVisualPolicy;
+    this.betaControlPlaneProvider = betaControlPlaneProvider;
   }
 
   private totalsForModel(model: string | undefined): Totals {
@@ -634,23 +662,28 @@ export class DashboardState {
       const id = this.nextImageId++;
       const width = dims[i]?.width ?? 0;
       const height = dims[i]?.height ?? 0;
-      const kb = (pngs[i]!.length / 1024).toFixed(1);
+      const png = pngs[i]!;
+      const kb = (png.length / 1024).toFixed(1);
       const meta = `${width}×${height} · ${kb} KB · image ${i + 1}/${pngs.length}`;
       this.images.push({
         id,
-        png: pngs[i]!,
+        png,
         meta,
         width,
         height,
         ts: Date.now() / 1000,
         sourceText: info.imageSourceTexts?.[i] ?? info.imageSourceText,
       });
+      this.imageBytes += png.byteLength;
       ids.push(id);
     }
-    // Evict the oldest entries past the cap. splice() keeps insertion order
-    // so images[images.length - 1] is always the latest render.
-    if (this.images.length > IMAGE_RING_CAP) {
-      this.images.splice(0, this.images.length - IMAGE_RING_CAP);
+    // Evict the oldest entries past either cap. Keeping a byte budget matters
+    // because a count-only ring can retain gigabytes of valid but dense PNGs.
+    // shift() keeps insertion order so the last image is always the latest.
+    while (this.images.length > IMAGE_RING_CAP || this.imageBytes > IMAGE_RING_MAX_BYTES) {
+      const evicted = this.images.shift();
+      if (!evicted) break;
+      this.imageBytes -= evicted.png.byteLength;
     }
     return ids;
   }
@@ -1018,6 +1051,10 @@ export class DashboardState {
       model: ev.model,
       status: ev.status,
       compressed,
+      reason: info?.reason,
+      ...(info?.eligibilityCause === 'operator_scope_excluded'
+        ? { eligibility_cause: info.eligibilityCause }
+        : {}),
       cc_added: compressed ? 1 : undefined,
       input_tokens: haveUsage ? inp : undefined,
       output_tokens: haveUsage ? out : undefined,
@@ -1242,6 +1279,10 @@ export class DashboardState {
         model: t.model,
         status: t.status,
         compressed,
+        reason: t.reason,
+        ...(t.eligibility_cause === 'operator_scope_excluded'
+          ? { eligibility_cause: t.eligibility_cause }
+          : {}),
         cc_added: compressed ? 1 : undefined,
         input_tokens: t.input_tokens,
         output_tokens: t.output_tokens,
@@ -1546,12 +1587,123 @@ export class DashboardState {
     }
   }
 
+  private async readBetaControlPlaneSnapshot(): Promise<FuryBetaControlPlaneSnapshot | null> {
+    if (!this.betaControlPlaneProvider) return null;
+    try {
+      return await this.betaControlPlaneProvider();
+    } catch {
+      return null;
+    }
+  }
+
+  /** GET /api/control-plane.json — bounded, read-only V2 runtime projection.
+   * It only combines counters already held by this dashboard with the injected
+   * Control Room snapshot; it never scans, configures, or executes a capability. */
+  private async readControlPlaneSnapshot(port: number): Promise<ControlPlaneSnapshot> {
+    const stats = (await this.serveStats().json()) as StatsPayload;
+    const count = (value: number | undefined): number =>
+      typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
+    return createControlPlaneSnapshot({
+      generatedAt: Date.now(),
+      runtime: {
+        port,
+        uptimeSec: count(stats.uptime_sec),
+        requests: count(stats.requests),
+        compressedRequests: count(stats.compressed_requests),
+        passthroughRequests: count(stats.passthrough),
+        savedInputTokens: count(stats.saved_input_tokens),
+        savedUsd: Number.isFinite(stats.saved_usd) ? stats.saved_usd : 0,
+        compressionEnabled: this.compressionEnabled,
+        activeModels: getAllowedModelBases(),
+        modelScopeMode: getFuryPipeModelScopeMode(),
+      },
+      controlRoom: await this.readControlRoomSnapshot(),
+    });
+  }
+
+  private modelRuntimeActivity(model: string): ModelRuntimeActivity {
+    const totals = this.totalsByModel.get(model);
+    const recent = this.recent.filter((row) => row.model === model);
+    const recentSkipReasons: Record<string, number> = {};
+    const recentEligibilityCauses: Record<string, number> = {};
+    for (const row of recent) {
+      if (row.compressed || !row.reason) continue;
+      recentSkipReasons[row.reason] = (recentSkipReasons[row.reason] ?? 0) + 1;
+      if (row.eligibility_cause) {
+        recentEligibilityCauses[row.eligibility_cause] =
+          (recentEligibilityCauses[row.eligibility_cause] ?? 0) + 1;
+      }
+    }
+    const last = recent[recent.length - 1];
+    return Object.freeze({
+      requests: totals?.requests ?? recent.length,
+      compressedRequests: totals?.compressedRequests ?? recent.filter((row) => row.compressed).length,
+      passthroughRequests: Math.max(
+        0,
+        (totals?.requests ?? recent.length) - (totals?.compressedRequests ?? recent.filter((row) => row.compressed).length),
+      ),
+      recentSkipReasons: Object.freeze({ ...recentSkipReasons }),
+      recentEligibilityCauses: Object.freeze({ ...recentEligibilityCauses }),
+      ...(last?.reason === undefined ? {} : { lastReason: last.reason }),
+      ...(last === undefined || !Number.isFinite(last.ts)
+        ? {}
+        : { lastObservedAt: new Date(last.ts * 1000).toISOString() }),
+    });
+  }
+
+  private modelRuntimeActivityMap(): ReadonlyMap<string, ModelRuntimeActivity> {
+    const ids = new Set<string>([
+      ...inspectRuntimeModels().map((model) => model.id),
+      ...this.totalsByModel.keys(),
+      ...this.recent.flatMap((row) => row.model ? [row.model] : []),
+    ]);
+    const output = new Map<string, ModelRuntimeActivity>();
+    for (const id of [...ids].slice(0, 2_000)) output.set(id, this.modelRuntimeActivity(id));
+    return output;
+  }
+
+  /** GET /api/models.json — bounded, secret-free Model Fabric snapshot. */
+  serveModelsJson(): Response {
+    const all = inspectRuntimeModels();
+    const limit = 2_000;
+    const models = all.slice(0, limit);
+    const runtime = this.modelRuntimeActivityMap();
+    return new Response(JSON.stringify({
+      format: 'furypipe-model-catalog/v1',
+      total: all.length,
+      returned: models.length,
+      truncated: all.length > limit,
+      models: models.map((model) => ({
+        ...model,
+        runtime: runtime.get(model.id) ?? this.modelRuntimeActivity(model.id),
+      })),
+      scopeMode: getFuryPipeModelScopeMode(),
+    }), {
+      status: 200,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-store',
+      },
+    });
+  }
+
   /** GET /api/control-room.json — metadata-only V5 evidence snapshot. */
   async serveControlRoomJson(): Promise<Response> {
     const snapshot = await this.readControlRoomSnapshot();
     if (!snapshot) {
       return jsonResponse({ status: 'NOT_AVAILABLE' }, 503);
     }
+    return jsonResponse(snapshot);
+  }
+
+  async serveControlPlaneJson(port: number): Promise<Response> {
+    return jsonResponse(await this.readControlPlaneSnapshot(port));
+  }
+
+  /** GET /api/beta.json — bounded task-first/readiness projection. */
+  async serveBetaJson(): Promise<Response> {
+    const snapshot = await this.readBetaControlPlaneSnapshot();
+    if (!snapshot) return jsonResponse({ status: 'NOT_AVAILABLE' }, 503);
     return jsonResponse(snapshot);
   }
 
@@ -1570,6 +1722,10 @@ export class DashboardState {
             getConfiguredModelBases(),
             this.compressionEnabled,
             locale,
+            inspectRuntimeModels(),
+            getFuryPipeVisualPolicy(),
+            this.modelRuntimeActivityMap(),
+            getFuryPipeModelScopeMode(),
           ),
         );
       case 'context-map': {
@@ -1633,6 +1789,34 @@ export class DashboardState {
           locale,
         ));
       }
+      case 'control-plane': {
+        return htmlResponse(renderControlPlaneFragment(
+          await this.readControlPlaneSnapshot(port),
+          locale,
+        ));
+      }
+      case 'beta':
+        return htmlResponse(renderBetaControlPlaneFragment(
+          await this.readBetaControlPlaneSnapshot(),
+          locale,
+        ));
+      case 'control-plane-overview':
+      case 'control-plane-visual-engine':
+      case 'control-plane-capabilities':
+      case 'control-plane-topology':
+      case 'control-plane-evidence': {
+        const surface = name.slice('control-plane-'.length) as
+          | 'overview'
+          | 'visual-engine'
+          | 'capabilities'
+          | 'topology'
+          | 'evidence';
+        return htmlResponse(renderControlPlaneFragment(
+          await this.readControlPlaneSnapshot(port),
+          locale,
+          surface,
+        ));
+      }
       default:
         return new Response('unknown fragment', { status: 404 });
     }
@@ -1688,6 +1872,22 @@ export class DashboardState {
     return jsonResponse({ compression_enabled: on });
   }
 
+  /** Update the global visual policy. Invalid values fail closed to AUTO. */
+  handleVisualPolicySet(value: unknown): FuryPipeVisualPolicy {
+    const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    const policy: FuryPipeVisualPolicy =
+      normalized === 'max_savings' || normalized === 'safe_exact' || normalized === 'text_only'
+        ? normalized
+        : 'auto';
+    setFuryPipeVisualPolicy(policy);
+    try {
+      this.persistVisualPolicy?.(policy);
+    } catch {
+      // Persistence is best-effort; the live runtime policy remains applied.
+    }
+    return policy;
+  }
+
   /** POST /fragments/models — add/remove ONE model (Claude or GPT) from the
    *  runtime compress scope. The model checks read this live. Persisted via
    *  the host's `persistModelBases` hook when provided (Node writes the
@@ -1695,8 +1895,9 @@ export class DashboardState {
    *  FURYPIPE_MODELS env / built-in default. */
   handleModelsToggle(model: string, on: boolean): void {
     const next = new Set(getAllowedModelBases());
-    if (on) next.add(model);
-    else next.delete(model);
+    const normalized = normalizeModelScopeEntry(model);
+    if (on) next.add(normalized);
+    else next.delete(normalized);
     this.applyModelBases([...next]);
   }
 
@@ -1704,15 +1905,16 @@ export class DashboardState {
    *  scope from the FURYPIPE_MODELS textbox. Same CSV shape as the env var;
    *  empty or off/false/0/no/none = compress nothing. Persistence as above. */
   handleModelsSet(csv: string): void {
-    const trimmed = csv.trim();
-    const bases =
-      !trimmed || /^(0|false|no|off|none)$/i.test(trimmed)
-        ? []
-        : trimmed.split(',').map((s) => s.trim()).filter(Boolean);
-    this.applyModelBases(bases);
+    this.applyModelBases(parseModelScopeList(csv));
   }
 
-  private applyModelBases(bases: string[]): void {
+  /** POST /fragments/models with {mode: "automatic"} — remove the persisted
+   * operator scope and return to Model Fabric discovery. */
+  handleModelsAutomatic(): void {
+    this.applyModelBases(null);
+  }
+
+  private applyModelBases(bases: readonly string[] | null): void {
     setAllowedModelBases(bases);
     try {
       this.persistModelBases?.(bases);
@@ -1757,7 +1959,10 @@ export type DashboardRoute =
   | { kind: 'png' } // /proxy-latest-png
   | { kind: 'api-sessions' } // /api/sessions.json
   | { kind: 'api-stats' } // /api/stats.json
+  | { kind: 'api-models' } // /api/models.json
   | { kind: 'api-control-room' } // /api/control-room.json
+  | { kind: 'api-control-plane' } // /api/control-plane.json
+  | { kind: 'api-beta' } // /api/beta.json
   | { kind: 'current-session' } // /api/current-session.json
   | { kind: 'api-compression' } // /api/compression (POST {enabled}) — runtime kill switch
   | { kind: 'api-image-source' } // /api/image-source[?id=N] — source text behind a rendered PNG
@@ -1765,13 +1970,18 @@ export type DashboardRoute =
 
 /** Match dashboard paths (handle query strings on /proxy-latest-png). */
 export function dashboardPath(pathname: string): DashboardRoute | null {
-  if (pathname === '/' || pathname === '/dashboard') return { kind: 'html' };
+  // The product root (/) is FuryPipe Studio; the dashboard is the
+  // Settings › Advanced › Control Plane surface.
+  if (pathname === '/control-plane' || pathname === '/dashboard') return { kind: 'html' };
   if (pathname === '/proxy-stats') return { kind: 'stats' };
   if (pathname === '/proxy-recent') return { kind: 'recent' };
   if (pathname === '/proxy-latest-png') return { kind: 'png' };
   if (pathname === '/api/sessions.json') return { kind: 'api-sessions' };
   if (pathname === '/api/stats.json') return { kind: 'api-stats' };
+  if (pathname === '/api/models.json') return { kind: 'api-models' };
   if (pathname === '/api/control-room.json') return { kind: 'api-control-room' };
+  if (pathname === '/api/control-plane.json') return { kind: 'api-control-plane' };
+  if (pathname === '/api/beta.json') return { kind: 'api-beta' };
   if (pathname === '/api/current-session.json') return { kind: 'current-session' };
   if (pathname === '/api/compression') return { kind: 'api-compression' };
   if (pathname === '/api/image-source') return { kind: 'api-image-source' };

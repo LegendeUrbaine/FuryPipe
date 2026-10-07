@@ -6,7 +6,7 @@
 import { markCacheDead, noteCacheOutcome, responseLeftNoCache } from './session-state.js';
 import { transformRequest, type TransformOptions, type TransformInfo } from './transform.js';
 import { isClaudeModel, transformOpenAIChatCompletions, transformOpenAIResponses } from './openai.js';
-import { isAnthropicMessagesPath, isFuryPipeSupportedGptModel, isFuryPipeSupportedModel } from './applicability.js';
+import { isAnthropicMessagesPath, resolveFuryPipeModelEligibility } from './applicability.js';
 import {
   buildBaselineCountTokensBody,
   buildCacheablePrefixCountTokensBody,
@@ -25,6 +25,19 @@ import { pinCommandResponse, pinCommandResponseOpenAI } from './pin.js';
 import { isGoogleInferencePath, parseGoogleModelFromPath, transformGoogleGenerateContent } from './google.js';
 import { isGeminiModel } from './gemini-model-profiles.js';
 import { resolveGptProfile } from './gpt-model-profiles.js';
+import { extractProxyTaskEnvelope } from '../proxy-task-envelope.js';
+import { resolveFuryHumanOutputPolicy } from '../human-output-policy.js';
+import { applyAnthropicHumanOutputInstruction } from '../proxy-human-output.js';
+import {
+  type ProxyCapabilityPlanner,
+  type ProxyCapabilityRuntimeEvidence,
+} from '../proxy-capability-runtime.js';
+import { applyAnthropicCapabilityInstructions } from '../proxy-capability-augment.js';
+import {
+  inspectAnthropicMcpEvidence,
+  type McpToolTrustResolver,
+  type ProxyMcpRuntimeEvidence,
+} from '../mcp-proxy-evidence.js';
 
 export interface ProxyConfig {
   /** 'cloudflare-ai-gateway': routes both families through gatewayBaseUrl;
@@ -67,6 +80,27 @@ export interface ProxyConfig {
   transform?: TransformOptions | (() => TransformOptions);
   /** Called after every request — useful for logging / metrics in the host. */
   onRequest?: (event: ProxyEvent) => void | Promise<void>;
+  /**
+   * Enable FuryPipe's native compact-human generation guidance on supported
+   * request shapes. Off by default for library callers; the Node product host
+   * enables it unless the operator opts out.
+   */
+  humanOutputPolicy?: boolean;
+  /**
+   * Optional host-owned capability planner. Core never discovers filesystem
+   * skills or connects MCP by itself; it only applies a validated host plan.
+   */
+  capabilityPlanner?: ProxyCapabilityPlanner;
+  /**
+   * Passively observe MCP tools already exposed by the client and correlate
+   * historical tool_use/tool_result blocks. This never executes an MCP tool.
+   */
+  mcpObservation?: boolean;
+  /**
+   * Optional host trust resolver used only for risk classification.
+   * Trust never grants execution authority by itself.
+   */
+  mcpTrustResolver?: McpToolTrustResolver;
   /** Persist 4xx diagnostics: the gzipped request body plus the upstream error
    *  body. Off by default because either side may contain prompts or secrets. */
   captureErrorReqBody?: boolean;
@@ -136,6 +170,14 @@ export interface ProxyEvent {
   /** Upstream response media/encoding metadata for scanner diagnostics. */
   responseContentType?: string;
   responseContentEncoding?: string;
+  /** Plaintext-free evidence for host-selected instruction capabilities. */
+  capability?: ProxyCapabilityRuntimeEvidence;
+  /** Bounded diagnostic when optional capability planning failed open. */
+  capabilityError?: string;
+  /** Passive MCP exposure/selection/result evidence; never an execution receipt. */
+  mcp?: ProxyMcpRuntimeEvidence;
+  /** Bounded diagnostic when passive MCP observation failed open. */
+  mcpError?: string;
 }
 
 /** Max chars of 4xx error body captured on ProxyEvent — enough for Anthropic's full error JSON. */
@@ -359,6 +401,7 @@ async function sniffPrefixRestoringBody(
 
   const reader = body.getReader();
   const prefixChunks: Uint8Array[] = [];
+  let overflowChunk: Uint8Array | undefined;
   let total = 0;
   let exhausted = false;
   try {
@@ -369,8 +412,15 @@ async function sniffPrefixRestoringBody(
         break;
       }
       if (!value || value.byteLength === 0) continue;
-      prefixChunks.push(value);
-      total += value.byteLength;
+      const remaining = maxPrefix - total;
+      if (value.byteLength <= remaining) {
+        prefixChunks.push(value);
+        total += value.byteLength;
+      } else {
+        prefixChunks.push(value.subarray(0, remaining));
+        overflowChunk = value.subarray(remaining);
+        total = maxPrefix;
+      }
     }
   } catch (err) {
     await reader.cancel().catch(() => {});
@@ -384,6 +434,7 @@ async function sniffPrefixRestoringBody(
   const restored = new ReadableStream<Uint8Array>({
     start(controller) {
       for (const chunk of prefixChunks) controller.enqueue(chunk);
+      if (overflowChunk && overflowChunk.byteLength > 0) controller.enqueue(overflowChunk);
     },
     async pull(controller) {
       try {
@@ -1520,6 +1571,10 @@ let responseContentType: string | undefined;
     let reqBodySha256: string | undefined;
     // Set once the transform returns; read by fire() at event time.
     let transformMs: number | undefined;
+    let capabilityEvidence: ProxyCapabilityRuntimeEvidence | undefined;
+    let capabilityError: string | undefined;
+    let mcpEvidence: ProxyMcpRuntimeEvidence | undefined;
+    let mcpError: string | undefined;
 
     const fire = (
       status: number,
@@ -1612,9 +1667,15 @@ let responseContentType: string | undefined;
           stopReason,
           responseContentType,
           responseContentEncoding,
+          capability: capabilityEvidence,
+          capabilityError,
+          mcp: mcpEvidence,
+          mcpError,
         });
       };
-      void finalize();
+      // Telemetry is best-effort and must never surface as an unhandled rejection
+      // after the HTTP response has already been returned to the caller.
+      void finalize().catch(() => undefined);
     };
 
     // Transform only known shapes; everything else passes through.
@@ -1697,8 +1758,62 @@ let responseContentType: string | undefined;
           headers: { 'content-type': 'application/json' },
         });
       }
-      const bodyIn = bounded.bytes;
+      let bodyIn = bounded.bytes;
       try {
+        if (isMessages && config.mcpObservation === true) {
+          try {
+            const observed = await inspectAnthropicMcpEvidence(bodyIn, config.mcpTrustResolver);
+            if (observed.observation.exposedTools.length > 0
+              || observed.observation.pendingUses.length > 0
+              || observed.observation.observedResults.length > 0) {
+              mcpEvidence = observed;
+            }
+          } catch (caught) {
+            const message = caught instanceof Error ? caught.message : 'unknown MCP observation failure';
+            mcpError = ('mcp_observation_failed: ' + message).slice(0, 512);
+          }
+        }
+
+        if (isMessages && (config.humanOutputPolicy === true || config.capabilityPlanner !== undefined)) {
+          const task = extractProxyTaskEnvelope(bodyIn, 'anthropic-messages');
+          if (task) {
+            // Classify output constraints independently from whether the
+            // optional compact-human style is enabled. Exact-output precedence
+            // must still block capability augmentation when style is disabled.
+            const outputContext = resolveFuryHumanOutputPolicy({
+              objective: task.objective,
+              structuredOutput: task.structuredOutput,
+            });
+            const humanOutput = config.humanOutputPolicy === true
+              ? outputContext
+              : resolveFuryHumanOutputPolicy({
+                  objective: task.objective,
+                  structuredOutput: task.structuredOutput,
+                  enabled: false,
+                });
+
+            // Exact-response probes must stay untouched by optional capability
+            // augmentation. The request can still pass through ExactGuard and
+            // provider transport, but no Skill/style instruction is injected.
+            if (config.capabilityPlanner !== undefined
+              && outputContext.reason !== 'exact_output_contract') {
+              try {
+                const capabilityPlan = await config.capabilityPlanner(task);
+                if (capabilityPlan !== undefined) {
+                  bodyIn = applyAnthropicCapabilityInstructions(bodyIn, capabilityPlan);
+                  capabilityEvidence = capabilityPlan.evidence;
+                }
+              } catch (caught) {
+                const message = caught instanceof Error ? caught.message : 'unknown capability runtime failure';
+                capabilityError = ('capability_runtime_failed: ' + message).slice(0, 512);
+              }
+            }
+
+            if (config.humanOutputPolicy === true) {
+              bodyIn = applyAnthropicHumanOutputInstruction(bodyIn, humanOutput);
+            }
+          }
+        }
         const transformOpts =
           typeof config.transform === 'function' ? config.transform() : config.transform;
         // Fail-closed: unreadable model → no compression, not a risky guess.
@@ -1747,17 +1862,22 @@ let responseContentType: string | undefined;
         bridgedChatMessages = forceChat;
         const chatStamp = bridgedChatMessages ? routedModel : undefined;
         const effectiveModel = (bridgedGptMessages || bridgedChatMessages) ? routedModel : model;
-        // Gemini is in DEFAULT_MODEL_BASES as the family base `gemini`; the same
-        // allowlist gates it so FURYPIPE_MODELS / the chip can opt out.
-        const modelOk = isGoogle
-          ? (isGeminiModel(model) && isFuryPipeSupportedModel(model))
+        // Compression eligibility follows the model that actually receives the
+        // request, not the incoming wire schema or Claude Code gateway alias.
+        // In particular, Messages→OpenAI bridges must not bypass Model Fabric
+        // merely because routing was configured.
+        const eligibilityTarget = effectiveModel ?? model;
+        const modelEligibility = resolveFuryPipeModelEligibility(eligibilityTarget);
+        const routeSupportsVisualTransform = isGoogle
+          ? isGeminiModel(model)
           : isMessages
-            ? (messagesAnthropic && isFuryPipeSupportedModel(model))
-              || bridgedGptMessages
-              || (bridgedChatMessages && isFuryPipeSupportedGptModel(effectiveModel))
-            : isFuryPipeSupportedGptModel(model);
-        // Compression eligibility and telemetry follow the model that actually
-        // receives the request, not Claude Code's local gateway alias.
+            ? messagesAnthropic || bridgedGptMessages || bridgedChatMessages
+            : true;
+        const modelOk = routeSupportsVisualTransform && modelEligibility.eligible;
+        const modelSkipReason = routeSupportsVisualTransform
+          ? modelEligibility.reason
+          : 'unsupported_model';
+
         if ((bridgedGptMessages || bridgedChatMessages) && effectiveModel) {
           requestModel = effectiveModel;
         }
@@ -1826,7 +1946,12 @@ let responseContentType: string | undefined;
             r.info.baselineProbeStatus = 'failed';
           }
         }
-        if (!modelOk) r.info.reason = 'unsupported_model';
+        if (!modelOk) {
+          r.info.reason = modelSkipReason;
+          if (modelEligibility.source === 'operator_scope' && modelSkipReason === 'unsupported_model') {
+            r.info.eligibilityCause = 'operator_scope_excluded';
+          }
+        }
         bodyOut = r.body as unknown as BodyInit; // TS narrows Uint8Array away from BodyInit
         info = r.info;
         reqBodyBytes = r.body;
@@ -2055,6 +2180,7 @@ let responseContentType: string | undefined;
     // disconnect all abort through it, so nothing can hold the socket open indefinitely.
     const upstreamAbort = new AbortController();
     let timeoutKind: 'headers' | 'idle' | undefined;
+    let streamFailure: string | undefined;
     let headersTimer: ReturnType<typeof setTimeout> | undefined;
     // Raced explicitly rather than trusting the fetch implementation to reject on
     // abort — the headers phase must be bounded even if the signal is ignored.
@@ -2097,6 +2223,7 @@ let responseContentType: string | undefined;
       // Watch the raw upstream stream, before any bridge re-encodes it.
       upstreamRes = withIdleTimeout(upstreamRes, headersTimeoutMs, idleTimeoutMs, () => {
         timeoutKind = 'idle';
+        streamFailure = `upstream_timeout: no upstream bytes for ${idleTimeoutMs}ms`;
         upstreamAbort.abort(new Error('FuryPipe: upstream stalled'));
       });
       if (bridgedGptMessages) {
@@ -2171,7 +2298,7 @@ let teed: Response;
       fire(
         upstreamRes.status,
         info,
-        undefined,
+        streamFailure,
         firstByteMs,
         usage,
         config.captureErrorReqBody ? errorBody : undefined,

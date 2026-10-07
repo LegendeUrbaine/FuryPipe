@@ -1,5 +1,48 @@
 import { describe, expect, it } from 'vitest';
-import { renderDoctorReport, resolveDoctorLocale, type DoctorReport } from '../src/doctor.js';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { collectDoctorReport, renderDoctorReport, resolveDoctorLocale, type DoctorReport } from '../src/doctor.js';
+import type { FuryBetaConfigObservation } from '../src/beta-config.js';
+import type { FuryBetaReadinessSnapshot } from '../src/beta-readiness.js';
+
+const betaConfig: FuryBetaConfigObservation = {
+  format: 'furypipe-beta-config/v1',
+  path: 'C:\\Users\\test\\config.json',
+  status: 'legacy',
+  schemaVersion: null,
+  mode: null,
+  migrationId: null,
+  digestSha256: '0'.repeat(64),
+  rollback: 'not-required',
+  reasonCodes: ['legacy-config'],
+};
+
+const betaReadiness: FuryBetaReadinessSnapshot = {
+  format: 'furypipe-beta-readiness-snapshot/v1',
+  observedAt: 1,
+  overallStatus: 'degraded',
+  taskReady: true,
+  subsystemCount: 0,
+  requiredSubsystems: 0,
+  optionalSubsystems: 0,
+  statusCounts: {
+    ready: 0,
+    degraded: 0,
+    unconfigured: 0,
+    unavailable: 0,
+    blocked: 0,
+    unsupported: 0,
+  },
+  blockers: [],
+  degradations: [],
+  subsystems: [],
+  digestSha256: '0'.repeat(64),
+  authority: 'readiness-observation-only',
+  executionAuthority: false,
+  repairAuthority: false,
+  selectionAuthority: false,
+};
 
 const report: DoctorReport = {
   platform: { os: 'test 1', arch: 'x64', shell: 'powershell', cwd: 'C:\\work', executable: 'node' },
@@ -10,13 +53,18 @@ const report: DoctorReport = {
   },
   network: { host: '127.0.0.1', port: 48721, upstream: 'https://api.example.test' },
   paths: { config: 'C:\\Users\\test\\config.json', events: 'C:\\Users\\test\\events.jsonl' },
+  modelScope: { mode: 'automatic', source: 'automatic_default', effectiveModels: [], visualPolicy: 'auto' },
   tools: {
     docker: { status: 'unavailable' },
     browser: { status: 'available', value: 'explorer.exe' },
     claude: { status: 'unavailable' },
     codex: { status: 'available', value: 'codex 1' },
     openclaw: { status: 'unavailable' },
+    ffmpeg: { status: 'available', value: 'ffmpeg version 6.1.1' },
+    ffprobe: { status: 'available', value: 'ffprobe version 6.1.1' },
   },
+  betaConfig,
+  betaReadiness,
 };
 
 describe('furypipe doctor renderer', () => {
@@ -24,6 +72,9 @@ describe('furypipe doctor renderer', () => {
     const output = renderDoctorReport(report);
     expect(output).toContain('Node: 26.8.2');
     expect(output).toContain('OpenClaw: unavailable');
+    expect(output).toContain('FFmpeg: available (ffmpeg version 6.1.1)');
+    expect(output).toContain('FFprobe: available (ffprobe version 6.1.1)');
+    expect(output).toContain('Beta readiness: degraded (task-ready=yes)');
     expect(output).not.toContain('API_KEY');
     expect(output).not.toContain('token');
   });
@@ -81,5 +132,64 @@ describe('furypipe doctor renderer', () => {
       },
       intlLocale: 'not_a_locale',
     })).toBe('en');
+  });
+
+  it('reports the effective model scope from config without mutating the environment', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'furypipe-doctor-'));
+    const file = path.join(dir, 'config.json');
+    fs.writeFileSync(file, JSON.stringify({ modelScopeMode: 'explicit', models: ['claude-opus-5'], visualPolicy: 'safe_exact' }));
+    try {
+      const result = collectDoctorReport({
+        env: { FURYPIPE_CONFIG: file },
+      });
+      expect(result.modelScope).toEqual({
+        mode: 'explicit',
+        source: 'config',
+        effectiveModels: ['claude-opus-5'],
+        visualPolicy: 'safe_exact',
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reports media tool availability without exposing environment secrets', () => {
+    const result = collectDoctorReport({ env: { FURYPIPE_CONFIG: path.join(os.tmpdir(), 'missing-furypipe-config.json') } });
+    expect(['available', 'unavailable']).toContain(result.tools.ffmpeg?.status);
+    expect(['available', 'unavailable']).toContain(result.tools.ffprobe?.status);
+    expect(JSON.stringify(result)).not.toContain('API_KEY');
+  });
+
+  it('reports environment scope as authoritative over persisted config', () => {
+    const result = collectDoctorReport({
+      env: { FURYPIPE_MODELS: 'off', FURYPIPE_VISUAL_POLICY: 'text_only' },
+    });
+    expect(result.modelScope).toEqual({
+      mode: 'off',
+      source: 'environment',
+      effectiveModels: [],
+      visualPolicy: 'text_only',
+    });
+  });
+
+  it('fails closed when the configured doctor file exceeds the bounded read size', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'furypipe-doctor-large-'));
+    const file = path.join(dir, 'config.json');
+    fs.writeFileSync(file, JSON.stringify({ modelScopeMode: 'explicit', models: ['claude-opus-5'] })
+      + ' '.repeat(1024 * 1024));
+    try {
+      const result = collectDoctorReport({
+        env: { FURYPIPE_CONFIG: file },
+        packageVersion: 'test-version',
+      });
+      expect(result.modelScope).toEqual({
+        mode: 'automatic',
+        source: 'automatic_default',
+        effectiveModels: [],
+        visualPolicy: 'auto',
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

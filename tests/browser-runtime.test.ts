@@ -288,6 +288,33 @@ describe('Phase 6 managed browser runtime', () => {
     }
   });
 
+  it('keeps a post-action host error unresolved instead of permitting replay', async () => {
+    const recoveryRoot = await mkdtemp(join(tmpdir(), 'furypipe-browser-effect-error-'));
+    let externalActionCount = 0;
+    try {
+      const recovery = createRecoveryStore(recoveryRoot, { namespace: 'browser_effects' });
+      const browser = runtime({
+        recovery,
+        browserHost: host({
+          click: async () => {
+            externalActionCount += 1;
+            throw new Error('connection lost after click dispatch');
+          },
+        }),
+      });
+      const session = await browser.createSession('operator-1');
+      const page = await browser.createPage(session);
+      const permit = await browser.authorize({ action: 'click', session, page, selector: '#submit-order' });
+      const result = await browser.invoke(permit);
+
+      expect(externalActionCount).toBe(1);
+      expect(result.receipt).toMatchObject({ outcome: 'outcome-unknown', errorCode: 'host-failed' });
+      expect(await browser.inspectOutcomeUnknown(permit.permitId)).toMatchObject({ state: 'outcome-unknown' });
+    } finally {
+      await rm(recoveryRoot, { recursive: true, force: true });
+    }
+  });
+
   it('denies submit and upload unless policy explicitly allows them', async () => {
     const browser = runtime({ allowedActions: ['navigate', 'click'] });
     const session = await browser.createSession('operator-1');

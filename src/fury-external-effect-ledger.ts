@@ -195,6 +195,7 @@ export function createFuryExternalEffectLedger(options: {
   }
   const list = options.store.list.bind(options.store);
   const putBounded = options.store.putBounded.bind(options.store);
+  const deleteRecord = options.store.delete.bind(options.store);
   const now = options.now ?? Date.now;
   const maxRecords = options.maxRecords ?? MAX_RECORDS;
   if (!Number.isSafeInteger(maxRecords) || maxRecords < 2 || maxRecords > MAX_RECORDS) {
@@ -238,6 +239,22 @@ export function createFuryExternalEffectLedger(options: {
     return latest;
   };
 
+  const reserveRecords = async (requiredFreeSlots: number): Promise<void> => {
+    let entries = await listStored();
+    if (entries.length + requiredFreeSlots <= maxRecords) return;
+    const terminal = [...latestByOperation(entries).values()]
+      .filter((record) => record.state === 'terminal')
+      .sort((left, right) => (left.resolvedAt ?? 0) - (right.resolvedAt ?? 0));
+    for (const record of terminal) {
+      for (const entry of entries.filter((candidate) => candidate.record.operationId === record.operationId)) {
+        await deleteRecord(entry.handle);
+      }
+      entries = await listStored();
+      if (entries.length + requiredFreeSlots <= maxRecords) return;
+    }
+    throw new FuryExternalEffectLedgerError('store-failed', 'external-effect ledger capacity is reserved by unresolved effects');
+  };
+
   return Object.freeze({
     async arm(input: {
       readonly operationId: string;
@@ -271,10 +288,15 @@ export function createFuryExternalEffectLedger(options: {
         executionAuthority: false as const,
       });
       try {
+        await reserveRecords(2);
         await putBounded(bytes(record), metadataFor(record), {
           metadata: { source: SOURCE, contentType: CONTENT_TYPE },
           maxMatches: maxRecords,
           additionalBounds: [{ metadata: { source: SOURCE, contentType: CONTENT_TYPE, operationId, state: 'outcome-unknown', revision: 0 }, maxMatches: 1 }],
+          matchConstraints: [{
+            metadata: { source: SOURCE, contentType: CONTENT_TYPE, effectKeySha256, state: 'outcome-unknown' },
+            maxMatches: 0,
+          }],
         });
       } catch (error) {
         throw new FuryExternalEffectLedgerError('conflict', `external-effect operation ${operationId} could not be armed: ${error instanceof Error ? error.message : 'unknown'}`);
@@ -292,6 +314,8 @@ export function createFuryExternalEffectLedger(options: {
       const current = latestByOperation(entries).get(id);
       if (current === undefined) throw new FuryExternalEffectLedgerError('not-found', `external-effect operation ${id} was not found`);
       if (current.state !== 'outcome-unknown') throw new FuryExternalEffectLedgerError('conflict', `external-effect operation ${id} is already terminal`);
+      const armedEntry = entries.find((entry) => entry.record.operationId === id && entry.record.state === 'outcome-unknown');
+      if (armedEntry === undefined) throw new FuryExternalEffectLedgerError('store-failed', 'armed external-effect ledger record is missing');
       if (resolvedAt < current.armedAt) throw new FuryExternalEffectLedgerError('invalid-input', 'external-effect settlement predates arming');
       const record = Object.freeze({
         ...current,
@@ -301,6 +325,7 @@ export function createFuryExternalEffectLedger(options: {
         resolvedAt,
       });
       try {
+        await reserveRecords(1);
         await putBounded(bytes(record), metadataFor(record), {
           metadata: { source: SOURCE, contentType: CONTENT_TYPE },
           maxMatches: maxRecords,
@@ -310,6 +335,7 @@ export function createFuryExternalEffectLedger(options: {
           ],
           additionalBounds: [{ metadata: { source: SOURCE, contentType: CONTENT_TYPE, operationId: id, state: 'terminal', revision: 1 }, maxMatches: 1 }],
         });
+        await deleteRecord(armedEntry.handle);
       } catch (error) {
         throw new FuryExternalEffectLedgerError('conflict', `external-effect operation ${id} could not be settled: ${error instanceof Error ? error.message : 'unknown'}`);
       }

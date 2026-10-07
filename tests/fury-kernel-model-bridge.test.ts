@@ -25,6 +25,7 @@ import {
   createProviderTransportRegistry,
   type ProviderTransport,
 } from '../src/provider-transport.js';
+import { createProviderStreamTransportRegistry } from '../src/provider-stream-transport.js';
 import type {
   FuryProviderRetryFallbackContinuationPolicy,
 } from '../src/provider-retry-fallback-orchestrator.js';
@@ -153,6 +154,66 @@ function memoryEngine(options: {
 }
 
 describe('Fury Kernel governed model bridge', () => {
+  it('uses an explicitly permitted stream fallback when the first route did not reach the network', async () => {
+    const now = 1_000;
+    const kernel = createFuryKernelConversationStore({ now: () => now });
+    const conversationId = kernel.openConversation().conversationId;
+    const accepted = kernel.submitUserMessage({ conversationId, messageId: 'stream-fallback-user', content: 'Answer.' });
+    const calls: string[] = [];
+    const streamTransports = createProviderStreamTransportRegistry([
+      {
+        providerId: 'openai',
+        protocol: 'openai',
+        async open(request) {
+          calls.push(request.providerId);
+          return {
+            providerId: 'openai', model: request.model,
+            networkStatus: 'not-executed', providerRequestStatus: 'unknown',
+            events: (async function* () {})(),
+          };
+        },
+      },
+      {
+        providerId: 'anthropic',
+        protocol: 'anthropic',
+        async open(request) {
+          calls.push(request.providerId);
+          return {
+            providerId: 'anthropic', model: request.model,
+            networkStatus: 'executed', providerRequestStatus: 'accepted',
+            events: (async function* () {
+              yield { kind: 'text-delta', providerEventType: 'content_block_delta', text: 'Fallback answer.' };
+              yield { kind: 'terminal', providerEventType: 'message_stop', terminalStatus: 'completed' };
+            })(),
+          };
+        },
+      },
+    ]);
+    const bridge = createFuryKernelModelBridge({
+      kernel,
+      providerRuntime: runtime(now),
+      transports: createProviderTransportRegistry([]),
+      streamTransports,
+      routes: [
+        { providerId: 'openai', model: 'gpt-5.6', allowProviderRequest: true, permitTtlMs: 5_000 },
+        { providerId: 'anthropic', model: 'claude-opus-5', allowProviderRequest: true, permitTtlMs: 5_000 },
+      ],
+      continuationPolicy: continuation({
+        fallbackOn: ['network-not-executed'],
+        allowCrossProviderFallback: true,
+      }),
+      now: () => now,
+    });
+
+    const result = await bridge.executeTurn({ conversationId, turnId: accepted.turn.turnId, onEvent: () => undefined });
+    expect(result).toMatchObject({
+      status: 'completed',
+      provider: { providerId: 'anthropic', networkStatus: 'executed', providerRequestStatus: 'accepted' },
+      attempts: { planned: 2, processed: 2, transportInvocations: 2, outcome: 'SUCCEEDED' },
+    });
+    expect(calls).toEqual(['openai', 'anthropic']);
+  });
+
   it('executes one host-allowlisted provider route and completes the Kernel turn', async () => {
     const now = 1_000;
     const kernel = createFuryKernelConversationStore({ now: () => now });

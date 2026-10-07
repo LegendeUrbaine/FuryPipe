@@ -175,13 +175,23 @@ describe('Node media generation host runtime', () => {
       });
       expect(await runtime.artifactRepository.list()).toHaveLength(1);
 
+      const repeatedConfirmedRequest = await runtime.mediaExecution.submit({
+        surface: 'image',
+        operation: 'text-to-image',
+        prompt: 'bounded host runtime test',
+        outputMimeType: 'image/png',
+        options: { provider: 'AUTO', model: 'AUTO' },
+      });
+      expect(repeatedConfirmedRequest.jobId).not.toBe(queued.jobId);
+      expect((await runtime.poll(repeatedConfirmedRequest.jobId)).status).toBe('SUCCEEDED');
+
       const restarted = await createFuryMediaGenerationHostRuntime(options);
       const restartedInspection = await restarted.mediaJobEngine.inspectOutputs(done.jobId);
       expect(restartedInspection).toMatchObject({
         status: 'VERIFIED',
         outputReferences: [{ status: 'VERIFIED', artifact: { status: 'VERIFIED' } }],
       });
-      expect(await restarted.artifactRepository.list()).toHaveLength(1);
+      expect(await restarted.artifactRepository.list()).toHaveLength(2);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

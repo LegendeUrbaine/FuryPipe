@@ -458,7 +458,7 @@ export async function createFuryMediaGenerationHostRuntime(
         executionAuthority: false,
       });
       const execution = createFuryMediaGenerationExecutionSession({ coordinator, request, plan, permit, now });
-      const job = await engine.create({ execution, idempotencyKey: `studio_${preview.idempotencySeedDigestSha256}` });
+      const job = await engine.create({ execution, idempotencyKey: `studio_${permit.approvalId}` });
       const submitted = await engine.submit(job.jobId);
       await artifactStore.flush();
       if (submitted.status === 'SUBMITTED' || submitted.status === 'QUEUED' || submitted.status === 'RUNNING') {

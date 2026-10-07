@@ -10,6 +10,52 @@ import {
 import { createRecoveryStore } from '../src/core/recovery-store.js';
 
 describe('Fury external effect ledger', () => {
+  it('atomically refuses concurrent unresolved duplicate effects', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'furypipe-external-effect-race-'));
+    try {
+      const store = createRecoveryStore(root, { namespace: 'external_effects' });
+      const first = createFuryExternalEffectLedger({ store });
+      const second = createFuryExternalEffectLedger({ store });
+      const effectKeySha256 = digestFuryExternalEffect({ action: 'submit', target: 'same-effect' });
+      const intentSha256 = digestFuryExternalEffect({ policy: 'test' });
+      const attempts = await Promise.allSettled([
+        first.arm({ operationId: 'op-concurrent-a', kind: 'browser', effectKeySha256, intentSha256 }),
+        second.arm({ operationId: 'op-concurrent-b', kind: 'browser', effectKeySha256, intentSha256 }),
+      ]);
+
+      expect(attempts.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(attempts.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('reclaims settled ledger pairs before capacity blocks later effects', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'furypipe-external-effect-capacity-'));
+    try {
+      const ledger = createFuryExternalEffectLedger({
+        store: createRecoveryStore(root, { namespace: 'external_effects' }),
+        maxRecords: 2,
+        now: () => 100,
+      });
+      const effectKeySha256 = digestFuryExternalEffect({ effect: 'first' });
+      const intentSha256 = digestFuryExternalEffect({ policy: 'test' });
+      await ledger.arm({ operationId: 'op-capacity-a', kind: 'coding', effectKeySha256, intentSha256 });
+      await ledger.settle('op-capacity-a', {
+        outcome: 'succeeded', evidenceSha256: 'a'.repeat(64), confirmation: 'operator-confirmed',
+      });
+
+      await expect(ledger.arm({
+        operationId: 'op-capacity-b',
+        kind: 'coding',
+        effectKeySha256: digestFuryExternalEffect({ effect: 'second' }),
+        intentSha256,
+      })).resolves.toMatchObject({ operationId: 'op-capacity-b', state: 'outcome-unknown' });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('survives a fresh store instance, blocks replay, and settles only with evidence', async () => {
     const root = await mkdtemp(join(tmpdir(), 'furypipe-external-effect-ledger-'));
     try {

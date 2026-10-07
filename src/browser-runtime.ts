@@ -892,6 +892,7 @@ export function createManagedBrowserRuntime(options: BrowserRuntimeOptions): Bro
     signal: AbortSignal,
     onRedirect: (url: string) => Promise<void>,
     expectedUploadSha256?: string,
+    onExternalActionStarted?: () => void,
   ): Promise<{ readonly value: unknown; readonly pageUrl?: string; readonly redirects?: readonly string[] }> => {
     const base = { sessionId: session.sessionId, pageId: page.pageId, signal };
     const navigation = (value: void | BrowserHostNavigationResult, resultValue: unknown = null): { readonly value: unknown; readonly pageUrl?: string; readonly redirects?: readonly string[] } => value === undefined
@@ -903,11 +904,12 @@ export function createManagedBrowserRuntime(options: BrowserRuntimeOptions): Bro
         const result = await options.host.navigate({ ...base, url: checked.url, resolvedAddresses: checked.addresses, onRedirect });
         return Object.freeze({ value: result, pageUrl: result.finalUrl, redirects: result.redirects });
       }
-      case 'click': return navigation(await options.host.click({ ...base, selector: request.selector, onRedirect }));
-      case 'fill': return navigation(await options.host.fill({ ...base, selector: request.selector, value: request.value, onRedirect }));
-      case 'select': return navigation(await options.host.select({ ...base, selector: request.selector, value: request.value, onRedirect }));
-      case 'keyboard': return navigation(await options.host.keyboard({ ...base, key: request.key, onRedirect }));
+      case 'click': onExternalActionStarted?.(); return navigation(await options.host.click({ ...base, selector: request.selector, onRedirect }));
+      case 'fill': onExternalActionStarted?.(); return navigation(await options.host.fill({ ...base, selector: request.selector, value: request.value, onRedirect }));
+      case 'select': onExternalActionStarted?.(); return navigation(await options.host.select({ ...base, selector: request.selector, value: request.value, onRedirect }));
+      case 'keyboard': onExternalActionStarted?.(); return navigation(await options.host.keyboard({ ...base, key: request.key, onRedirect }));
       case 'submit': {
+        onExternalActionStarted?.();
         const result = await options.host.submit({ ...base, formScope: request.formScope, onRedirect });
         return Object.freeze({ value: result, pageUrl: result.finalUrl, redirects: result.redirects });
       }
@@ -917,6 +919,7 @@ export function createManagedBrowserRuntime(options: BrowserRuntimeOptions): Bro
         if (expectedUploadSha256 !== undefined && file.sha256 !== expectedUploadSha256) {
           throw new BrowserRuntimeError('permit-invalid', 'upload file changed after permit authorization');
         }
+        onExternalActionStarted?.();
         const result = await options.host.upload({ ...base, filePath: file.filePath, destinationOrigin: destination.origin, destinationAddresses: destination.addresses, formScope: request.formScope, onRedirect });
         return navigation(result, file);
       }
@@ -1103,18 +1106,22 @@ export function createManagedBrowserRuntime(options: BrowserRuntimeOptions): Bro
         }
       };
       let invocation: { readonly value: unknown; readonly pageUrl?: string; readonly redirects?: readonly string[] };
+      let externalActionStarted = false;
       try {
         const result = await withTimeout(
-          (signal) => invokeHost(
-            state.request,
-            state.session,
-            state.page,
-            signal,
-            async (redirect) => {
-            await validateBrowserUrl(redirect, { allowedOrigins: policy.allowedOrigins, resolveHostname });
-            },
-            state.request.action === 'upload' && typeof state.target.fileSha256 === 'string' ? state.target.fileSha256 : undefined,
-          ),
+          (signal) => {
+            return invokeHost(
+              state.request,
+              state.session,
+              state.page,
+              signal,
+              async (redirect) => {
+                await validateBrowserUrl(redirect, { allowedOrigins: policy.allowedOrigins, resolveHostname });
+              },
+              state.request.action === 'upload' && typeof state.target.fileSha256 === 'string' ? state.target.fileSha256 : undefined,
+              () => { externalActionStarted = true; },
+            );
+          },
           Math.min(state.timeoutMs, policy.maxTimeoutMs ?? DEFAULT_MAX_TIMEOUT_MS),
           invokeOptions.signal,
         );
@@ -1131,6 +1138,16 @@ export function createManagedBrowserRuntime(options: BrowserRuntimeOptions): Bro
         }
       } catch (error) {
         const code = error instanceof BrowserRuntimeError ? error.code : 'host-failed';
+        if (externalActionStarted) {
+          return Object.freeze({
+            receipt: finish({
+              finishedAt: at(),
+              outcome: 'outcome-unknown',
+              verificationStatus: 'not-verified',
+              errorCode: code,
+            }),
+          });
+        }
         return settleResult(Object.freeze({ receipt: finish({ finishedAt: at(), outcome: 'failed', verificationStatus: 'not-verified', errorCode: code }) }));
       }
       if (invocation.pageUrl !== undefined) {

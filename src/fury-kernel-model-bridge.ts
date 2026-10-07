@@ -34,6 +34,7 @@ import {
   createProviderRetryFallbackOrchestrator,
   type FuryProviderRetryFallbackContinuationPolicy,
   type FuryProviderRetryFallbackResult,
+  type FuryProviderSafeContinuationReason,
 } from './provider-retry-fallback-orchestrator.js';
 import {
   prepareProviderAttemptContext,
@@ -42,6 +43,7 @@ import { createProviderAttemptPlanner } from './provider-attempt-planner.js';
 import { createProviderExecutionGate } from './provider-execution-gate.js';
 import { prepareProviderRequestEnvelope } from './provider-request-envelope.js';
 import { FuryGovernedProviderStreamError } from './provider-stream-errors.js';
+import { FuryGovernedProviderExecutorError } from './provider-execution-errors.js';
 import type { ProviderTransportRegistry } from './provider-transport.js';
 import type { ProviderStreamTransportRegistry } from './provider-stream-transport.js';
 import {
@@ -632,19 +634,22 @@ export function createFuryKernelModelBridge(
       const runStreamingProvider = async (
         preparedPrompt: FuryPromptCompileInput,
         onEvent: (event: FuryKernelModelStreamEvent) => void,
+        routeIndex = 0,
+        priorProcessed = 0,
+        priorTransportInvocations = 0,
       ): Promise<{
         readonly result: FuryKernelModelBridgeResult;
         readonly assistantMessage?: string;
       }> => {
-        const route = routes[0]!;
+        const route = routes[routeIndex]!;
         const withAttempts = (
           outcome: FuryProviderRetryFallbackResult['outcome'],
           processed: number,
           transportInvocations: number,
         ) => Object.freeze({
           planned: routes.length,
-          processed,
-          transportInvocations,
+          processed: priorProcessed + processed,
+          transportInvocations: priorTransportInvocations + transportInvocations,
           outcome,
         });
         const policy = Object.freeze({
@@ -672,6 +677,12 @@ export function createFuryKernelModelBridge(
               withAttempts(outcome, processed, transportInvocations),
             ),
           });
+        };
+        const continueBeforeNetwork = (reason: FuryProviderSafeContinuationReason): boolean => {
+          const next = routes[routeIndex + 1];
+          return next !== undefined
+            && options.continuationPolicy.fallbackOn.includes(reason)
+            && (next.providerId === route.providerId || options.continuationPolicy.allowCrossProviderFallback);
         };
 
         try {
@@ -721,6 +732,15 @@ export function createFuryKernelModelBridge(
             session.providerRequest.status !== 'accepted'
             || session.network.status !== 'executed'
           ) {
+            if (session.network.status === 'not-executed' && continueBeforeNetwork('network-not-executed')) {
+              return runStreamingProvider(
+                preparedPrompt,
+                onEvent,
+                routeIndex + 1,
+                priorProcessed + processed,
+                priorTransportInvocations + transportInvocations,
+              );
+            }
             if (
               session.providerRequest.status === 'unknown'
               || session.network.status === 'unknown'
@@ -848,6 +868,24 @@ export function createFuryKernelModelBridge(
                 executionAuthority: false as const,
               }),
             });
+          }
+          const continuationReason = error instanceof FuryGovernedProviderExecutorError
+            && !error.transportInvoked
+            && ['provider-not-registered', 'provider-health-not-fresh', 'provider-unavailable', 'model-not-supported', 'model-family-mismatch', 'transport-not-registered'].includes(error.code)
+            ? error.code as FuryProviderSafeContinuationReason
+            : error instanceof FuryGovernedProviderStreamError
+              && !error.transportInvoked
+              && error.code === 'stream-transport-not-registered'
+              ? 'transport-not-registered'
+              : undefined;
+          if (continuationReason !== undefined && continueBeforeNetwork(continuationReason)) {
+            return runStreamingProvider(
+              preparedPrompt,
+              onEvent,
+              routeIndex + 1,
+              priorProcessed + processed,
+              priorTransportInvocations + transportInvocations,
+            );
           }
           const transportError = error instanceof FuryGovernedProviderStreamError;
           return failStream(

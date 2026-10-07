@@ -5,6 +5,7 @@ const workflow = readFileSync(new URL('../.github/workflows/release.yml', import
 const publishStart = workflow.indexOf('\n  publish:\n');
 const releaseStart = workflow.indexOf('\n  release:\n', publishStart);
 const publishJob = workflow.slice(publishStart, releaseStart);
+const releaseJob = workflow.slice(releaseStart);
 
 describe('Release workflow contract', () => {
   it('installs and verifies FFmpeg in the OIDC publish job before npm publish', () => {
@@ -27,5 +28,12 @@ describe('Release workflow contract', () => {
     expect(installStep).toContain('sudo apt-get install -y ffmpeg');
     expect(installStep).toContain('ffmpeg -version');
     expect(publishCommand).toBeGreaterThan(installEnd);
+  });
+
+  it('uses versioned curated notes for the matching GitHub Release', () => {
+    expect(releaseJob).toContain('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1');
+    expect(releaseJob).toContain('RELEASE_NOTES_${GITHUB_REF_NAME#v}.md');
+    expect(releaseJob).toContain('--notes-file "$NOTES_FILE"');
+    expect(releaseJob).toContain('--generate-notes');
   });
 });

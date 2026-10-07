@@ -84,6 +84,9 @@ jobs:
     permissions:
       contents: write # create the GitHub Release for the pushed tag
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -91,5 +94,12 @@ jobs:
           # target instead of relying on a git remote that is not present.
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            exit 0
+          fi
+          NOTES_FILE="docs/release/RELEASE_NOTES_${GITHUB_REF_NAME#v}.md"
+          if [ -f "$NOTES_FILE" ]; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag --notes-file "$NOTES_FILE"
+          else
             gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+          fi

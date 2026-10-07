@@ -1,6 +1,6 @@
 {
   "name": "furypipe",
-  "version": "0.16.0",
+  "version": "0.16.1",
   "description": "FuryPipe — context, agents, skills, MCP, memory, provider routing and capability orchestration for production AI workflows.",
   "type": "module",
   "bin": {

@@ -30,9 +30,9 @@ FuryPipe is designed around a simple rule:
 
 That distinction is enforced throughout the project through explicit lifecycle states, receipts, source-bound evidence and fail-closed behavior.
 
-**Current public release:** [FuryPipe v0.15.0](https://github.com/LegendeUrbaine/FuryPipe/releases/tag/v0.15.0) · [npm package](https://www.npmjs.com/package/furypipe)
+**Latest public release:** [FuryPipe releases](https://github.com/LegendeUrbaine/FuryPipe/releases/latest) · [npm package](https://www.npmjs.com/package/furypipe)
 
-**0.16.0 release candidate:** the exact candidate is being validated in [PR #250](https://github.com/LegendeUrbaine/FuryPipe/pull/250) and is not published.
+**0.16.1 release target:** first successful public release planned for the 0.16 line. The earlier `v0.16.0` tag remains preserved; its release workflow failed before npm publication because FFmpeg was missing from the runner.
 
 FuryPipe is pre-1.0. Public APIs can still evolve. Package publication also remains distinct from production deployment and from optional hosted-integration verification.
 
@@ -359,9 +359,9 @@ A local green build does not replace required GitHub Actions checks.
 
 | Surface | Status |
 |---|---|
-| npm package | **0.16.0 candidate NOT_PUBLISHED; registry install remains external** |
-| GitHub Release | **v0.15.0 is the latest public release; 0.16.0 NOT_RELEASED** |
-| Core release gates | **PASS for the exact candidate CI scope** |
+| npm package | **See the npm registry for the currently published version; 0.16.1 is the 0.16-line target** |
+| GitHub Release | **The v0.16.1 workflow creates the release after OIDC publication; v0.16.0 was not published** |
+| Core release gates | **The release workflow runs typecheck, tests and build before publication** |
 | Hosted MCP conformance | **NOT_EXECUTED — no hosted target configured** |
 | Hosted Web Studio conformance | **NOT_EXECUTED — no hosted target configured** |
 | OAuth authorization-server flow | **NOT_EXECUTED** |
@@ -433,9 +433,9 @@ Security vulnerabilities must follow [SECURITY.md](SECURITY.md).
 
 **Construisez des workflows IA qui distinguent clairement ce qui est disponible, ce qui est autorisé, ce qui a réellement été exécuté et ce qui a été vérifié.**
 
-**Version publique actuelle :** [FuryPipe v0.15.0](https://github.com/LegendeUrbaine/FuryPipe/releases/tag/v0.15.0) · [package npm](https://www.npmjs.com/package/furypipe)
+**Dernière release publique :** [Releases FuryPipe](https://github.com/LegendeUrbaine/FuryPipe/releases/latest) · [package npm](https://www.npmjs.com/package/furypipe)
 
-**Release candidate 0.16.0 :** le candidat exact est validé dans la [PR #250](https://github.com/LegendeUrbaine/FuryPipe/pull/250) et n’est pas publié.
+**Release cible 0.16.1 :** première publication publique prévue pour la ligne 0.16. Le tag antérieur `v0.16.0` reste préservé; son workflow a échoué avant publication npm, car FFmpeg manquait sur le runner.
 
 FuryPipe est encore en pré-1.0. Les API publiques peuvent évoluer. La publication du package reste également distincte d’un déploiement en production et de la vérification des intégrations externes optionnelles.
 
@@ -759,9 +759,9 @@ Un build local vert ne remplace pas les checks GitHub Actions requis.
 
 | Surface | Statut |
 |---|---|
-| Package npm | **Candidat 0.16.0 NON PUBLIÉ ; installation registry à vérifier séparément** |
-| GitHub Release | **v0.15.0 est la dernière release publique ; 0.16.0 NON PUBLIÉE** |
-| Gates principales de release | **PASS pour le périmètre CI du candidat exact** |
+| Package npm | **Voir npm pour la version publiée ; 0.16.1 est la cible de la ligne 0.16** |
+| GitHub Release | **Le workflow v0.16.1 crée la release après publication OIDC ; v0.16.0 non publiée** |
+| Gates principales de release | **Le workflow vérifie typecheck, tests et build avant publication** |
 | Conformance Hosted MCP | **NOT_EXECUTED — aucune cible hosted configurée** |
 | Conformance Hosted Web Studio | **NOT_EXECUTED — aucune cible hosted configurée** |
 | Flux OAuth Authorization Server | **NOT_EXECUTED** |

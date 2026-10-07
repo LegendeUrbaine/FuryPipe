@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 const ROOT = process.cwd();
 const PREVIOUS_REF = process.env.FURYPIPE_PREVIOUS_REF?.trim() || 'v0.15.0';
 const EXPECTED_PREVIOUS_VERSION = process.env.FURYPIPE_PREVIOUS_VERSION?.trim() || '0.15.0';
-const EXPECTED_CANDIDATE_VERSION = process.env.FURYPIPE_CANDIDATE_VERSION?.trim() || '0.16.0';
+const EXPECTED_CANDIDATE_VERSION = process.env.FURYPIPE_CANDIDATE_VERSION?.trim() || '0.16.1';
 const OUTPUT_DIR = path.resolve(
   process.env.FURYPIPE_VALIDATION_OUTPUT_DIR?.trim() || 'artifacts/final-validation',
 );

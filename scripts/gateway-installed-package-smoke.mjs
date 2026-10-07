@@ -345,7 +345,7 @@ async function main() {
       'pack', '--json', '--ignore-scripts', '--quiet', '--pack-destination', workspace,
     ], ROOT);
     const packed = JSON.parse(packedResult.stdout)[0];
-    assert(packed?.filename && packed.version === '0.16.0', 'npm pack did not produce the 0.16.0 candidate');
+    assert(packed?.filename && packed.version === '0.16.1', 'npm pack did not produce the 0.16.1 candidate');
     const tarball = path.join(workspace, packed.filename);
     const tarballBytes = await readFile(tarball);
     const tarballSha256 = sha256(tarballBytes);
@@ -361,7 +361,7 @@ async function main() {
 
     const env = acceptanceEnv(installDir, configFile, await freePort());
     const version = await run(process.execPath, [installedCli(installDir), '--version'], installDir, env);
-    assert(version.stdout.trim() === '0.16.0', `installed CLI version mismatch: ${version.stdout}`);
+    assert(version.stdout.trim() === '0.16.1', `installed CLI version mismatch: ${version.stdout}`);
     const setup = await run(process.execPath, [installedCli(installDir), 'setup', '--lang=fr', '--yes', '--no-color'], installDir, env);
     assert(/status:\s+ready/u.test(setup.stdout), 'installed package setup did not reach ready');
 

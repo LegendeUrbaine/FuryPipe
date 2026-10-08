@@ -40,13 +40,14 @@ describe('FuryLocal fabric discovery', () => {
   it('reads Ollama models, version and advertises Anthropic-compatible messages from 0.14', async () => {
     const baseUrl = await serve((req, res) => {
       if (req.url === '/api/tags') json(res, { models: [{ name: 'qwen2.5-coder:7b', size: 4_700_000_000, details: { parameter_size: '7.6B', quantization_level: 'Q4_K_M' } }] });
+      else if (req.url === '/api/ps') json(res, { models: [{ name: 'qwen2.5-coder:7b', size: 4_700_000_000, size_vram: 4_400_000_000 }] });
       else if (req.url === '/api/version') json(res, { version: '0.14.2' });
       else json(res, {}, 404);
     });
     const { backends } = await discoverFuryLocalBackends({ endpoints: [{ kind: 'ollama', baseUrl }] });
     expect(backends[0]).toMatchObject({ kind: 'ollama', reachable: true, version: '0.14.2' });
     expect(backends[0]?.protocols).toEqual(['native', 'openai-chat', 'anthropic-messages']);
-    expect(backends[0]?.models[0]).toMatchObject({ id: 'qwen2.5-coder:7b', sizeBytes: 4_700_000_000, parameterSize: '7.6B', quantization: 'Q4_K_M' });
+    expect(backends[0]?.models[0]).toMatchObject({ id: 'qwen2.5-coder:7b', sizeBytes: 4_700_000_000, parameterSize: '7.6B', quantization: 'Q4_K_M', loaded: true });
   });
 
   it('does not claim Anthropic compatibility for older Ollama', async () => {
@@ -130,12 +131,24 @@ describe('FuryLocal hardware and fit', () => {
     expect(classifyFuryModelFit({ sizeBytes: Number.MAX_VALUE }, hw())).toBe('UNKNOWN');
   });
 
+  it('does not charge model weights twice when the same model is already loaded', () => {
+    const constrained = hw({
+      freeMemoryBytes: 8 * GiB,
+      gpus: [{ name: 'GPU', memoryBytes: 12 * GiB, freeMemoryBytes: 5 * GiB }],
+    });
+    expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, constrained)).toBe('DOES_NOT_FIT');
+    expect(classifyFuryModelFit({ sizeBytes: 5 * GiB, loaded: true }, constrained)).toBe('FITS');
+  });
+
   it('accepts a CPU-only fit only when available RAM has the safety margin', () => {
     expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({
       gpus: [], freeMemoryBytes: 16 * GiB,
     }))).toBe('FITS');
     expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({
       gpus: [], freeMemoryBytes: 1 * GiB,
+    }))).toBe('DOES_NOT_FIT');
+    expect(classifyFuryModelFit({ sizeBytes: 1 * GiB }, hw({
+      gpus: [], freeMemoryBytes: 2 * GiB,
     }))).toBe('DOES_NOT_FIT');
   });
 
@@ -145,6 +158,9 @@ describe('FuryLocal hardware and fit', () => {
     const without = await discoverFuryHardware({ gpuQuery: async () => { throw new Error('ENOENT'); } });
     expect(without.gpus).toEqual([]);
     expect(without.totalMemoryBytes).toBeGreaterThan(0);
+    const missingMeasurements = await discoverFuryHardware({ gpuQuery: async () => 'NVIDIA GPU, 12000, , 560.35\n' });
+    expect(missingMeasurements.gpus[0]).toMatchObject({ name: 'NVIDIA GPU', memoryBytes: 12000 * 1024 * 1024 });
+    expect(missingMeasurements.gpus[0]).not.toHaveProperty('freeMemoryBytes');
   });
 });
 

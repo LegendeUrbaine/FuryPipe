@@ -194,6 +194,32 @@ describe('Fury Capability Composer VNext-03', () => {
     expect(plan.runtime.model).toMatchObject({ id: 'qwen-coder:7b', resourceFit: 'FITS' });
   });
 
+  it('uses fresh local resources when building a new plan instead of refreshing cached observations', async () => {
+    const baseUrl = 'http://127.0.0.1:11434';
+    let hardwareCalls = 0;
+    const root = await mkdtemp(path.join(os.tmpdir(), 'furypipe-composer-fresh-plan-test-'));
+    roots.push(root);
+    const studio = createStudioApi({
+      projectRoot: root,
+      discoverHarnesses: async () => harnesses,
+      discoverLocal: async () => ({ backends: [{
+        kind: 'ollama', baseUrl, reachable: true, protocols: ['openai-chat'],
+        models: [{ backend: 'ollama', baseUrl, id: 'qwen-coder:7b', sizeBytes: 2 * 1024 ** 3, modality: 'text' }],
+      }] }),
+      discoverHardware: async () => ({ platform: 'win32', arch: 'x64', cpuModel: 'test', cpuCount: 8,
+        totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: ++hardwareCalls === 1 ? 16 * 1024 ** 3 : 1 * 1024 ** 3, unifiedMemory: false, gpus: [] }),
+      skillHub: createFurySkillHub({ projectRoot: root, stateDir: path.join(root, 'skills') }),
+      mcpHub: createFuryMcpHub({ projectRoot: root, homeDir: path.join(root, 'home'), stateDir: path.join(root, 'mcp') }),
+      composerDir: path.join(root, 'composer'),
+    });
+
+    await studio.handle('local', new Request('http://127.0.0.1/api/studio/local'));
+    const planned = await studio.handle('capability-composer-plan', post({ objective: 'Plan with current resources.' }));
+    const plan = (await planned.json() as { plan: { state: string; runtime: { state: string } } }).plan;
+    expect(hardwareCalls).toBe(2);
+    expect(plan).toMatchObject({ state: 'NOT_CONFIGURED', runtime: { state: 'NOT_CONFIGURED' } });
+  });
+
   it('revalidates resources immediately before inference and sends no request when RAM fell', async () => {
     const calls = { count: 0 };
     const baseUrl = await localCompletionServer(calls);

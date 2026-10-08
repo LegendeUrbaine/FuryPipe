@@ -614,7 +614,11 @@ export function createStudioApi(options: StudioApiOptions) {
     readonly responseStyle: StudioResponseStyle;
     readonly customInstructions?: string;
   }) => {
-    const [harnessDiscovery, localDiscovery, hardwareProfile] = await Promise.all([harnesses(), local(), hardware()]);
+    const discoverLocalFresh = discovery(options.discoverLocal ?? (() => discoverFuryLocalBackends()));
+    const discoverHardwareFresh = discovery(options.discoverHardware ?? (() => discoverFuryHardware()));
+    const [harnessDiscovery, localDiscovery, hardwareProfile] = await Promise.all([
+      harnesses(), discoverLocalFresh(), discoverHardwareFresh(),
+    ]);
     const readiness = assessFuryLocalModelReadiness(localDiscovery.backends, hardwareProfile, {
       now: now(),
     });

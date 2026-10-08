@@ -45,8 +45,10 @@ provider credential is added by the Composer.
 Reachability does not make a local model executable. Composer projects into
 Autopilot only discovered local `openai-chat` models with a current resource fit
 of `FITS`. The existing FuryLocal classifier requires known model size and
-valid available-memory telemetry, estimates model size × 1.5, keeps 20% memory
-headroom and reserves at least 2 GiB host RAM. `MAY_BE_SLOW`, `DOES_NOT_FIT`,
+valid available-memory telemetry, estimates unloaded models at size × 1.5,
+and estimates incremental overhead for models confirmed loaded by the local
+backend. CPU/RAM fit reserves 2 GiB host RAM first, then keeps 20% of the
+remaining usable capacity as headroom. `MAY_BE_SLOW`, `DOES_NOT_FIT`,
 and `UNKNOWN` models are not auto-selected; no model download or cloud fallback
 is attempted. The estimate is conservative but not a guarantee for a given
 context length or concurrent load.
@@ -55,8 +57,9 @@ New plans persist `resourceFit: FITS` and `resourcesObservedAt`; those values
 are covered by the plan digest. At execution, missing evidence (including plans
 persisted before this contract), evidence older than five minutes, changed
 backend/model identity, unavailable backend, or a non-fit current observation
-all require a new plan. Fresh local discovery and
-hardware observation run before inference, and Composer executions are
+all require a new plan. Fresh local discovery and hardware observation run
+both when planning and immediately before inference (Composer planning does
+not reuse the Studio dashboard's short-lived cache), and Composer executions are
 serialized per Studio API instance. Another process can still change system
 resources after the observation; runtime resource use is never guaranteed.
 

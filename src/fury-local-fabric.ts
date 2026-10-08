@@ -160,6 +160,14 @@ async function probeBackend(endpoint: FuryLocalEndpoint, options: { timeoutMs: n
       const tags = await boundedJson(url, '/api/tags', options.timeoutMs);
       if (tags.status !== 200) return unreachable(`HTTP ${tags.status}`);
       if (!Array.isArray((tags.body as { models?: unknown } | undefined)?.models)) return unreachable('not an Ollama /api/tags response');
+      const ps = await boundedJson(url, '/api/ps', options.timeoutMs).catch(() => undefined);
+      const runningModels = ps?.status === 200 && Array.isArray((ps.body as { models?: unknown } | undefined)?.models)
+        ? (ps.body as { models: unknown[] }).models : undefined;
+      const runningNames = runningModels?.flatMap((model) => {
+        const record = model as { name?: unknown; model?: unknown };
+        const name = str(record.name) ?? str(record.model);
+        return name ? [name] : [];
+      });
       const versionResponse = await boundedJson(url, '/api/version', options.timeoutMs).catch(() => undefined);
       const version = str((versionResponse?.body as { version?: unknown } | undefined)?.version, 64);
       const models = ((tags.body as { models?: unknown })?.models);
@@ -172,6 +180,7 @@ async function probeBackend(endpoint: FuryLocalEndpoint, options: { timeoutMs: n
           ...(num((m as { size?: unknown }).size) !== undefined ? { sizeBytes: num((m as { size?: unknown }).size)! } : {}),
           ...(str(details.parameter_size, 32) ? { parameterSize: str(details.parameter_size, 32)! } : {}),
           ...(str(details.quantization_level, 32) ? { quantization: str(details.quantization_level, 32)! } : {}),
+          ...(runningNames ? { loaded: runningNames.some((running) => running === id) } : {}),
         })];
       }) : [];
       // Anthropic-compatible Messages API shipped in Ollama 0.14.0.
@@ -248,8 +257,9 @@ export async function discoverFuryHardware(options: { readonly gpuQuery?: FuryGp
     const out = await (options.gpuQuery ?? defaultGpuQuery)();
     for (const line of out.split(/\r?\n/u).slice(0, 16)) {
       const [name, total, free, driver] = line.split(',').map((s) => s.trim());
+      if (!name || !total) continue;
       const totalMib = Number(total);
-      const freeMib = Number(free);
+      const freeMib = free ? Number(free) : Number.NaN;
       if (name && Number.isFinite(totalMib) && totalMib > 0) gpus.push({
         name: name.slice(0, 128),
         memoryBytes: totalMib * 1024 * 1024,
@@ -275,12 +285,17 @@ export async function discoverFuryHardware(options: { readonly gpuQuery?: FuryGp
 /**
  * Conservative resource estimate. Model weights need ~their file size plus
  * 50% for runtime/context overhead; at least 20% of currently free memory is
- * retained as headroom, with a 2 GiB host-RAM reserve. This is a selection
+ * retained as headroom. CPU/RAM fit reserves 2 GiB first, then retains 20% of
+ * usable RAM. Loaded models are charged only incremental overhead because
+ * their weights already consume reported free memory. This is a selection
  * estimate, not an execution guarantee.
  */
-export function classifyFuryModelFit(model: Pick<FuryLocalModel, 'sizeBytes'>, hardware: FuryHardwareProfile): FuryModelFit {
+export function classifyFuryModelFit(model: Pick<FuryLocalModel, 'sizeBytes' | 'loaded'>, hardware: FuryHardwareProfile): FuryModelFit {
   if (model.sizeBytes === undefined || !Number.isSafeInteger(model.sizeBytes) || model.sizeBytes <= 0) return 'UNKNOWN';
-  const needed = model.sizeBytes * 1.5;
+  // Loaded models already consume part of reported free memory. Estimate only
+  // incremental runtime/context overhead for them; un-loaded models include
+  // weights plus that overhead.
+  const needed = model.sizeBytes * (model.loaded === true ? 0.5 : 1.5);
   if (!Number.isFinite(needed) || !Number.isFinite(hardware.totalMemoryBytes) || hardware.totalMemoryBytes <= 0
     || !Number.isFinite(hardware.freeMemoryBytes) || hardware.freeMemoryBytes < 0
     || hardware.freeMemoryBytes > hardware.totalMemoryBytes) return 'UNKNOWN';
@@ -288,7 +303,8 @@ export function classifyFuryModelFit(model: Pick<FuryLocalModel, 'sizeBytes'>, h
   // memory. Keep a small fixed host-RAM reserve in addition to the fit margin.
   if (hardware.freeMemoryBytes < 2 * 1024 ** 3) return 'DOES_NOT_FIT';
 
-  const ramFits = needed <= hardware.freeMemoryBytes * 0.8;
+  const usableRamBytes = Math.max(0, hardware.freeMemoryBytes - 2 * 1024 ** 3);
+  const ramFits = needed <= usableRamBytes * 0.8;
   const gpuFacts = hardware.gpus.filter((gpu) => Number.isFinite(gpu.memoryBytes) && gpu.memoryBytes > 0);
   const hasGpuWithoutFreeTelemetry = gpuFacts.some((gpu) => gpu.freeMemoryBytes === undefined
     || !Number.isFinite(gpu.freeMemoryBytes) || gpu.freeMemoryBytes < 0 || gpu.freeMemoryBytes > gpu.memoryBytes);

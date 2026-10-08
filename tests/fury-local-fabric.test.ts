@@ -119,7 +119,7 @@ describe('FuryLocal hardware and fit', () => {
   });
 
   it('uses currently free memory and fails closed when resource telemetry is invalid or unavailable', () => {
-    expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({ freeMemoryBytes: 1 * GiB }))).toBe('DOES_NOT_FIT');
+    expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({ freeMemoryBytes: 1 * GiB, gpus: [] }))).toBe('DOES_NOT_FIT');
     expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({
       freeMemoryBytes: 16 * GiB,
       gpus: [{ name: 'GPU', memoryBytes: 12 * GiB, freeMemoryBytes: 1 * GiB }],
@@ -150,6 +150,13 @@ describe('FuryLocal hardware and fit', () => {
     expect(classifyFuryModelFit({ sizeBytes: 1 * GiB }, hw({
       gpus: [], freeMemoryBytes: 2 * GiB,
     }))).toBe('DOES_NOT_FIT');
+  });
+
+  it('does not apply the CPU host-RAM reserve to a model that fits in available VRAM', () => {
+    expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({
+      freeMemoryBytes: 1 * GiB,
+      gpus: [{ name: 'GPU', memoryBytes: 12 * GiB, freeMemoryBytes: 10 * GiB }],
+    }))).toBe('FITS');
   });
 
   it('parses nvidia-smi output and keeps working without it', async () => {

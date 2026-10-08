@@ -299,10 +299,8 @@ export function classifyFuryModelFit(model: Pick<FuryLocalModel, 'sizeBytes' | '
   if (!Number.isFinite(needed) || !Number.isFinite(hardware.totalMemoryBytes) || hardware.totalMemoryBytes <= 0
     || !Number.isFinite(hardware.freeMemoryBytes) || hardware.freeMemoryBytes < 0
     || hardware.freeMemoryBytes > hardware.totalMemoryBytes) return 'UNKNOWN';
-  // Model weights may fit in VRAM while the runtime itself has no working
-  // memory. Keep a small fixed host-RAM reserve in addition to the fit margin.
-  if (hardware.freeMemoryBytes < 2 * 1024 ** 3) return 'DOES_NOT_FIT';
-
+  // Keep the fixed host-RAM reserve scoped to RAM-based fitting. A model with
+  // sufficient observed VRAM remains eligible even when host RAM is constrained.
   const usableRamBytes = Math.max(0, hardware.freeMemoryBytes - 2 * 1024 ** 3);
   const ramFits = needed <= usableRamBytes * 0.8;
   const gpuFacts = hardware.gpus.filter((gpu) => Number.isFinite(gpu.memoryBytes) && gpu.memoryBytes > 0);

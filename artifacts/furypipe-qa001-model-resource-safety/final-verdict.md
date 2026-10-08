@@ -16,5 +16,5 @@ Sélection locale uniquement; estimation FITS conservatrice; confirmation explic
 
 ## Publication / fusion
 
-PR et CI exact-head encore à enregistrer dans les fichiers de preuve. Fusion non exécutée tant que les contrôles exact-head requis n’ont pas tous réussi.
+PR #254 est ouvert sur `v5-codex-review-clean`; workflows exact-head en attente. Fusion non exécutée tant que les contrôles requis du HEAD courant n’ont pas tous réussi.
 NPM publish, version/tag, release, déploiement et VNEXT-04: NON EXÉCUTÉS.

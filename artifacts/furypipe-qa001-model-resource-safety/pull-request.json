@@ -2,6 +2,9 @@
   "title": "FuryPipe — QA-001 Local Model Resource Safety",
   "base": "v5-codex-review-clean",
   "headBranch": "codex/furypipe-qa001-model-resource-safety",
-  "headCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
-  "state": "NOT_YET_CREATED"
+  "sourceCodeCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "number": 254,
+  "url": "https://github.com/LegendeUrbaine/FuryPipe/pull/254",
+  "state": "OPEN",
+  "exactHeadChecks": "PENDING"
 }

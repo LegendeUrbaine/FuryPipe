@@ -1,0 +1,24 @@
+{
+  "format": "furypipe-qa001-tests/v2",
+  "sourceCommit": "d376f55bd4b71b3878eefc86723dd6be9698d933",
+  "typecheck": "PASS",
+  "hostedMcpTypecheck": "PASS",
+  "strictLint": "PASS",
+  "fullVitest": {
+    "filesPassed": 364,
+    "testsPassed": 3671,
+    "skipped": 6,
+    "failed": 0,
+    "durationSeconds": 37.65
+  },
+  "build": "PASS",
+  "packageSmoke": "PASS",
+  "packageReproducibility": "PASS",
+  "cleanRoom": "PASS",
+  "recovery": "PASS (local crash recovery and migration interruption harness)",
+  "localContracts": "PASS (21 files, 187 tests)",
+  "accessibilityAutomation": "PASS (Chromium; 0 console errors)",
+  "studioBrowser": "PASS (Chromium, Firefox, WebKit)",
+  "diffCheck": "PASS",
+  "provenanceNotes": "Full Vitest rerun on d376f55. Package and clean-room gates were rerun on code commit 6918dc3; final exact-head hosted CI also passed on d376f55."
+}

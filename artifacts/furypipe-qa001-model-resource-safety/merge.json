@@ -1,0 +1,6 @@
+{
+  "mergePolicy": "normal merge only after all required exact-head checks pass and open alert query confirms no real alerts",
+  "state": "NOT_EXECUTED",
+  "mergeAllowedNow": false,
+  "releaseOrPublish": "NOT_EXECUTED"
+}

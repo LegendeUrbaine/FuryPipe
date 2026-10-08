@@ -1,0 +1,6 @@
+{
+  "scenario": "large installed model with insufficient free memory",
+  "before": "incorrectly READY_FOR_CONFIRMATION based on backend reachability/total capacity",
+  "reproduction": "red tests committed at 6e2a3e7730c34ae8934c6055cfa767e98b6dc63a",
+  "status": "REPRODUCED_BEFORE_FIX"
+}

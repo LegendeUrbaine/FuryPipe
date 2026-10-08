@@ -61,7 +61,7 @@ function api(baseUrl: string) {
     projectRoot: process.cwd(),
     discoverHarnesses: async () => harnesses,
     discoverLocal: async () => ({ backends: local(baseUrl) }),
-    discoverHardware: async () => ({ platform: 'linux', arch: 'x64', cpuModel: 't', cpuCount: 8, totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: 1, unifiedMemory: false, gpus: [{ name: 'g', memoryBytes: 12 * 1024 ** 3 }] }),
+    discoverHardware: async () => ({ platform: 'linux', arch: 'x64', cpuModel: 't', cpuCount: 8, totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: 16 * 1024 ** 3, unifiedMemory: false, gpus: [{ name: 'g', memoryBytes: 12 * 1024 ** 3, freeMemoryBytes: 10 * 1024 ** 3 }] }),
     evalHistoryDir: evalHistoryRoot,
   });
 }

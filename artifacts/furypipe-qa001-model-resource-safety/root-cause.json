@@ -1,0 +1,12 @@
+{
+  "format": "furypipe-qa001-root-cause/v1",
+  "cause": "Composer model discovery used backend reachability without gating selection on current free-memory fit; execute also trusted the persisted plan after resource state could change.",
+  "contributing_factors": [
+    "GPU inventory reported total VRAM but not free VRAM",
+    "model-fit estimate used total resources rather than currently free capacity",
+    "concurrent confirmations could pass a shared resource snapshot",
+    "legacy persisted plans had no resource evidence"
+  ],
+  "scope": "Local-only Composer model discovery, planning and execution revalidation.",
+  "not_in_scope": ["new model download", "cloud fallback", "FURYPIPE_MODELS policy migration", "Composer redesign"]
+}

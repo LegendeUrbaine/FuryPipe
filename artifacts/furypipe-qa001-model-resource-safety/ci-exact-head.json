@@ -1,0 +1,33 @@
+{
+  "format": "furypipe-qa001-exact-head-ci/v2",
+  "pullRequest": 254,
+  "repository": "LegendeUrbaine/FuryPipe",
+  "sourceHeadVerified": "6918dc3fb03bc3e406dcf23478092e4a05d21a29",
+  "state": "PASS",
+  "checks": {
+    "ciMatrix": "PASS",
+    "crossBrowser": "PASS",
+    "codeQL": "PASS",
+    "secretScan": "PASS",
+    "dependencyReviewAndAudit": "PASS",
+    "packageSmokeAndReproducibility": "PASS",
+    "contracts": "PASS",
+    "benchmarkComparison": "PASS",
+    "provenanceValidation": "PASS",
+    "securityEvidence": "PASS",
+    "workflowPinning": "PASS",
+    "npmAttestation": "SKIPPED_NOT_PUBLISHING"
+  },
+  "codeScanningOpenAlerts": 0,
+  "mergeAllowedForSourceHead": true,
+  "evidence": {
+    "ciRun": "https://github.com/LegendeUrbaine/FuryPipe/actions/runs/37826116038",
+    "crossBrowserRun": "https://github.com/LegendeUrbaine/FuryPipe/actions/runs/37826116159",
+    "securityRun": "https://github.com/LegendeUrbaine/FuryPipe/actions/runs/37826116104",
+    "secretScanRun": "https://github.com/LegendeUrbaine/FuryPipe/actions/runs/37826116042",
+    "dependencyRun": "https://github.com/LegendeUrbaine/FuryPipe/actions/runs/37826116099",
+    "packageProvenanceRun": "https://github.com/LegendeUrbaine/FuryPipe/actions/runs/37826116166",
+    "benchmarkRun": "https://github.com/LegendeUrbaine/FuryPipe/actions/runs/37826116087"
+  },
+  "note": "These checks completed for the production-source PR head. A subsequent evidence-only commit, if pushed, must receive its own exact-head CI before merge."
+}

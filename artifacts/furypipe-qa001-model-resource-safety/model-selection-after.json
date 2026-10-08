@@ -1,0 +1,9 @@
+{
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "scenarios": [
+    {"modelSizeGiB": 30, "freeRamGiB": 4, "expected": "NOT_CONFIGURED / RESOURCE_CONSTRAINED", "test": "pass"},
+    {"largeCandidateConstrained": true, "smallCandidateFits": true, "expected": "small FITS model selected", "test": "pass"},
+    {"modelSize": "unknown", "expected": "RESOURCE_UNKNOWN and blocked", "test": "pass"},
+    {"backendReachable": false, "expected": "UNAVAILABLE", "test": "pass"}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "format": "furypipe-qa001-fit-policy/v1",
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "heuristic": {
+    "unloadedModelWorkingSet": "model size × 1.5",
+    "confirmedLoadedModelWorkingSet": "incremental runtime/context overhead estimated at 50 percent of model size; loaded weights already consume reported free memory",
+    "cpuRamCapacity": "subtract 2 GiB fixed host reserve first, then retain 20 percent of remaining usable capacity",
+    "minimumHostFreeRamBytes": 2147483648,
+    "gpuCapacity": "maximum individual GPU free VRAM; never sum separate devices",
+    "cpuFallback": "FITS only when available free host RAM satisfies estimate",
+    "intent": "conservative automatic selection estimate; not an execution guarantee"
+  },
+  "composerPolicy": "freshly discovered reachable local openai-chat model + FITS resource estimate + explicit confirm:true + fresh pre-inference revalidation",
+  "cloudCalls": 0,
+  "executionAuthority": false,
+  "FURYPIPE_MODELS": "unchanged; existing scope is Visual Engine image compression, not Composer authorization"
+}

@@ -1,0 +1,11 @@
+{
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "localSecretScanner": "NOT_INSTALLED",
+  "secretScan": "EXACT_HEAD_GITHUB_GATE_PENDING",
+  "codeScanningOpenAlertsAtCheck": 0,
+  "codeScanningQuery": "GET repos/LegendeUrbaine/FuryPipe/code-scanning/alerts?state=open&per_page=100",
+  "queryResult": "[]",
+  "cloudCalls": 0,
+  "modelDownloads": 0,
+  "personalConfigEdits": 0
+}

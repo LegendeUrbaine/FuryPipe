@@ -1,0 +1,7 @@
+{
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "scenario": "persisted legacy plan without resourceFit/resourcesObservedAt",
+  "result": "409 resources-changed-replan-required before fetch",
+  "inferenceRequests": 0,
+  "test": "pass"
+}

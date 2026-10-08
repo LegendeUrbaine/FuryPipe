@@ -1,0 +1,8 @@
+{
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "beforeInference": "fresh local backend discovery + fresh hardware profile + same backend/base URL/model identity + FITS",
+  "staleEvidenceMaxAgeMs": 300000,
+  "resourceLoss": {"expectedHttp": 409, "inferenceRequests": 0, "test": "pass"},
+  "concurrentConfirmations": {"firstRequest": "200; consumes capacity", "secondRequest": "409 after serialized fresh check", "totalInferenceRequests": 1, "test": "pass"},
+  "limitation": "Another process can consume memory immediately after revalidation; estimate does not guarantee runtime allocation."
+}

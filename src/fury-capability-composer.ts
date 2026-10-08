@@ -74,6 +74,8 @@ export interface FuryCapabilityComposerLocalModel {
   readonly id: string;
   readonly capabilityId: string;
   readonly protocol: 'openai-chat';
+  readonly resourceFit: 'FITS';
+  readonly resourcesObservedAt: string;
 }
 
 export interface FuryCapabilityComposerStage {
@@ -101,6 +103,7 @@ export interface FuryCapabilityComposerPlan {
   readonly runtime: Readonly<{
     readonly state: 'READY' | 'BLOCKED' | 'NOT_CONFIGURED';
     readonly executionAuthority: false;
+    readonly reason?: string;
     readonly model?: FuryCapabilityComposerLocalModel;
   }>;
   readonly verification: Readonly<{
@@ -280,6 +283,7 @@ export function buildFuryCapabilityComposerPlan(input: {
   readonly ir: FuryIrDocument;
   readonly dispatch: FuryDispatchPlan;
   readonly localModel?: FuryCapabilityComposerLocalModel;
+  readonly runtimeBlockReason?: string;
 }): FuryCapabilityComposerPlan {
   const objective = boundedText(input.objective, 'objective', 32_768);
   if (!HEX64.test(input.objectiveDigestSha256)) throw new FuryCapabilityComposerError('invalid-input', 'objective digest is invalid', 400);
@@ -291,7 +295,7 @@ export function buildFuryCapabilityComposerPlan(input: {
   const stages = Object.freeze([
     { id: 'intent-analysis', status: 'PASS' as const, evidence: ['bounded objective', `objective:${input.objectiveDigestSha256}`], reason: 'Objective normalized and hashed.' },
     { id: 'capability-discovery', status: selectedCapabilities.length || blockedCapabilities.length ? 'PASS' as const : 'BLOCKED' as const, evidence: [`index:${input.route.capabilities.indexDigestSha256}`, `selection:${input.route.capabilities.selectionDigestSha256}`], reason: selectedCapabilities.length ? `${selectedCapabilities.length} capability(ies) selected by existing Capability Autopilot.` : 'No capability was selected; blocked candidates remain inspectable.' },
-    { id: 'compatibility', status: input.localModel ? 'PASS' as const : 'NOT_CONFIGURED' as const, evidence: input.localModel ? [`model:${input.localModel.capabilityId}`, `protocol:${input.localModel.protocol}`] : ['no reachable openai-chat local model'], reason: input.localModel ? 'Reachable local text model matches the execution boundary.' : 'A reachable local openai-chat text model is required.' },
+    { id: 'compatibility', status: input.localModel ? 'PASS' as const : 'NOT_CONFIGURED' as const, evidence: input.localModel ? [`model:${input.localModel.capabilityId}`, `protocol:${input.localModel.protocol}`, `resourceFit:${input.localModel.resourceFit}`, `resourcesObservedAt:${input.localModel.resourcesObservedAt}`] : ['no safe reachable openai-chat local model'], reason: input.localModel ? 'Reachable local text model has a conservative resource-fit observation.' : input.runtimeBlockReason ?? 'A safe reachable local openai-chat text model is required.' },
     { id: 'authority', status: 'PASS' as const, evidence: ['executionAuthority:false', 'privacy:local-only', 'cloudCalls:0'], reason: 'Composer does not grant implicit capability authority.' },
     { id: 'execution-plan', status: input.dispatch.status === 'PLANNED' ? 'PASS' as const : 'BLOCKED' as const, evidence: [`dispatch:${input.dispatch.status}`, `ir:${input.ir.digest}`], reason: input.dispatch.status === 'PLANNED' ? 'Existing FuryDispatcher produced a local-only plan.' : input.dispatch.reasons.join('; ') || 'Existing FuryDispatcher could not produce a plan.' },
     { id: 'confirmation', status: state === 'READY_FOR_CONFIRMATION' ? 'REQUIRED' as const : 'BLOCKED' as const, evidence: state === 'READY_FOR_CONFIRMATION' ? ['confirm:true required'] : ['execution unavailable'], reason: state === 'READY_FOR_CONFIRMATION' ? 'Operator confirmation is required before local inference.' : 'Confirmation cannot bypass a missing or blocked runtime.' },
@@ -312,7 +316,7 @@ export function buildFuryCapabilityComposerPlan(input: {
     stages,
     state,
     confirmation: Object.freeze({ required: state === 'READY_FOR_CONFIRMATION', reason: state === 'READY_FOR_CONFIRMATION' ? 'confirm:true is required for the existing local inference boundary.' : 'Runtime is not ready for confirmation.' }),
-    runtime: Object.freeze({ state: runtimeState, executionAuthority: false as const, ...(input.localModel ? { model: input.localModel } : {}) }),
+    runtime: Object.freeze({ state: runtimeState, executionAuthority: false as const, ...(!input.localModel && input.runtimeBlockReason ? { reason: input.runtimeBlockReason } : {}), ...(input.localModel ? { model: input.localModel } : {}) }),
     verification: Object.freeze({ requirements: furyIrRequirements(input.ir), executionAuthority: false as const, modelReceiptSubject: subjects.model, provenanceReceiptSubject: subjects.provenance }),
     evaluation,
     prompt: Object.freeze({ text: input.route.prompt.text, digest: input.route.prompt.digest, bytes: input.route.prompt.bytes, budgetBytes: input.route.prompt.budgetBytes }),
@@ -356,6 +360,8 @@ export async function executeFuryCapabilityComposerLocal(input: {
   readonly confirm: boolean;
   readonly ledger: FuryProofLedger;
   readonly fetchImpl?: typeof fetch;
+  readonly revalidateResources: () => Promise<boolean>;
+  readonly now?: () => number;
   readonly userMessage?: string;
 }): Promise<FuryCapabilityComposerExecutionResult> {
   const plan = input.plan;
@@ -365,6 +371,16 @@ export async function executeFuryCapabilityComposerLocal(input: {
   const model = plan.runtime.model;
   if (model.protocol !== 'openai-chat') throw new FuryCapabilityComposerError('runtime-not-supported', 'composer execution requires the openai-chat local protocol', 409);
   const userMessage = input.userMessage === undefined ? plan.objective : boundedText(input.userMessage, 'userMessage', 32_768);
+  const now = input.now ?? Date.now;
+  const observedAt = Date.parse(model.resourcesObservedAt);
+  const currentTime = now();
+  if (model.resourceFit !== 'FITS' || !Number.isFinite(currentTime) || !Number.isFinite(observedAt)
+    || observedAt > currentTime || currentTime - observedAt > 5 * 60_000) {
+    throw new FuryCapabilityComposerError('resources-changed-replan-required', 'resource evidence is missing or stale; rebuild the Composer routing plan', 409);
+  }
+  if (!(await input.revalidateResources())) {
+    throw new FuryCapabilityComposerError('resources-changed-replan-required', 'local model availability, policy, or free memory changed; rebuild the Composer routing plan', 409);
+  }
   const endpoint = assertFuryLocalEndpoint(model.baseUrl);
   const target = new URL('v1/chat/completions', endpoint.href.endsWith('/') ? endpoint.href : `${endpoint.href}/`);
   const completionRequest: Record<string, unknown> = {

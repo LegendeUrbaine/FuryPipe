@@ -1,0 +1,16 @@
+{
+  "format": "furypipe-qa001-hosted-ci-diagnostic/v1",
+  "failedHead": "15b67622e9a905ea7a354c9162e1aec47cb2a97f",
+  "job": "test (macos-14, 22.23.2)",
+  "failure": "reopens the persisted plan in a fresh Studio API instance expected HTTP 200, received 409",
+  "cause": "Test factory omitted discoverHardware on the reopened Studio instance, so the test used real macOS runner telemetry and correctly failed the new resource gate.",
+  "productionFailure": false,
+  "change": "Inject deterministic sufficient free-RAM hardware fixture into the persistence test factory.",
+  "verification": {
+    "targetedTests": "PASS 9/9",
+    "fullTests": "PASS 364 files; 3669 passed; 6 skipped",
+    "typecheck": "PASS standard and hosted MCP",
+    "lint": "PASS"
+  },
+  "next": "Wait for all required checks on the post-fix PR HEAD; do not merge before green."
+}

@@ -255,6 +255,8 @@ describe('Fury Capability Composer VNext-03', () => {
       projectRoot: root,
       discoverHarnesses: async () => harnesses,
       discoverLocal: async () => ({ backends: localBackend(baseUrl) }),
+      discoverHardware: async () => ({ platform: 'win32', arch: 'x64', cpuModel: 'test', cpuCount: 8,
+        totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: 16 * 1024 ** 3, unifiedMemory: false, gpus: [] }),
       skillHub: createFurySkillHub({ projectRoot: root, stateDir: path.join(root, 'skills') }),
       mcpHub: createFuryMcpHub({ projectRoot: root, homeDir: path.join(root, 'home'), stateDir: path.join(root, 'mcp') }),
       composerDir,

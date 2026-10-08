@@ -1,8 +1,9 @@
 {
   "format": "furypipe-qa001-exact-head-ci/v1",
   "pullRequest": 254,
-  "head": "PENDING_CURRENT_PR_HEAD_CAPTURE",
-  "state": "PENDING",
+  "head": "PENDING_NEXT_PUSH_AFTER_TEST_FIX",
+  "previousHead": "15b67622e9a905ea7a354c9162e1aec47cb2a97f",
+  "state": "PENDING_AFTER_FIX",
   "mergeAllowed": false,
   "required": ["all required exact-head workflows green", "no real open code scanning alerts"]
 }

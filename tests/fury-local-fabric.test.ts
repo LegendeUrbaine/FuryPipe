@@ -111,7 +111,7 @@ describe('FuryLocal fabric discovery', () => {
 describe('FuryLocal hardware and fit', () => {
   it('classifies fit against VRAM, unified memory and RAM without guessing unknown sizes', () => {
     expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw())).toBe('FITS');
-    expect(classifyFuryModelFit({ sizeBytes: 20 * GiB }, hw())).toBe('MAY_BE_SLOW');
+    expect(classifyFuryModelFit({ sizeBytes: 20 * GiB }, hw())).toBe('DOES_NOT_FIT');
     expect(classifyFuryModelFit({ sizeBytes: 60 * GiB }, hw())).toBe('DOES_NOT_FIT');
     expect(classifyFuryModelFit({ sizeBytes: 20 * GiB }, hw({ gpus: [], unifiedMemory: true, totalMemoryBytes: 64 * GiB, freeMemoryBytes: 40 * GiB }))).toBe('FITS');
     expect(classifyFuryModelFit({}, hw())).toBe('UNKNOWN');
@@ -140,8 +140,8 @@ describe('FuryLocal hardware and fit', () => {
   });
 
   it('parses nvidia-smi output and keeps working without it', async () => {
-    const withGpu = await discoverFuryHardware({ gpuQuery: async () => 'NVIDIA RTX 4090, 24564, 560.35\n' });
-    expect(withGpu.gpus[0]).toMatchObject({ name: 'NVIDIA RTX 4090', memoryBytes: 24564 * 1024 * 1024, driver: '560.35' });
+    const withGpu = await discoverFuryHardware({ gpuQuery: async () => 'NVIDIA RTX 4090, 24564, 12000, 560.35\n' });
+    expect(withGpu.gpus[0]).toMatchObject({ name: 'NVIDIA RTX 4090', memoryBytes: 24564 * 1024 * 1024, freeMemoryBytes: 12000 * 1024 * 1024, driver: '560.35' });
     const without = await discoverFuryHardware({ gpuQuery: async () => { throw new Error('ENOENT'); } });
     expect(without.gpus).toEqual([]);
     expect(without.totalMemoryBytes).toBeGreaterThan(0);

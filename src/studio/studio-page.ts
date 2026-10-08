@@ -932,6 +932,11 @@ const SCRIPT = String.raw`
     'No bounded output returned.': 'Aucune sortie bornée retournée.',
     'Execution refused before local inference: ': 'Exécution refusée avant l’inférence locale : ',
     'No model is configured on this machine. Local execution stays unavailable.': 'Aucun modèle n’est configuré sur cette machine. L’exécution locale reste indisponible.',
+    'Resource fit': 'Compatibilité mémoire',
+    'Installed local model(s) exceed currently free memory; no safe local model is available for this plan.': 'Un ou plusieurs modèles locaux dépassent la mémoire actuellement libre ; aucun modèle local sûr n’est disponible pour ce plan.',
+    'Only local model(s) requiring CPU/RAM offload were found; Composer needs a model classified FITS for automatic selection.': 'Seuls des modèles nécessitant un déport CPU/RAM ont été trouvés ; Composer exige le statut FITS pour proposer une sélection automatique.',
+    'Local model size or current memory telemetry is unknown; execution remains blocked.': 'La taille du modèle local ou la mémoire disponible est inconnue ; l’exécution reste bloquée.',
+    'No safe, reachable local chat model is available; Composer does not fall back to cloud.': 'Aucun modèle local sûr et joignable ; Composer ne bascule pas vers le cloud.',
     'Skills and MCP remain advisory; no tool was invoked by this route.': 'Les Skills et MCP restent consultatifs ; aucun outil n’a été appelé par ce routage.',
     'Planning metadata never grants execution authority.': 'Les métadonnées de planification n’accordent jamais d’autorité d’exécution.',
     'Review the governed route before any local request is submitted.': 'Vérifiez le routage gouverné avant de soumettre une requête locale.',
@@ -2851,6 +2856,7 @@ const SCRIPT = String.raw`
       ),
       el('p', { class: 'composer-runtime-model', text: model ? String(model.backend) + ' · ' + String(model.id) + ' · ' + String(model.protocol) : 'NOT_CONFIGURED' }),
     );
+    if (model) runtimeCard.append(el('p', { class: 'muted', text: text('Resource fit') + ': ' + String(model.resourceFit || 'UNKNOWN') + ' · ' + String(model.resourcesObservedAt || '—') }));
     const resultSlot = el('div', { id: 'capability-composer-execution-result' });
     const confirmationStatus = el('p', { id: 'capability-composer-execution-status', class: 'status muted composer-execution-status', role: 'status', 'aria-live': 'polite', text: text('Waiting for explicit confirmation. No request has been submitted.') });
     const updateExecutionState = (execution) => {
@@ -2938,7 +2944,7 @@ const SCRIPT = String.raw`
       confirmation.append(explainer, confirmLabel, el('div', { class: 'composer-actions' }, execute), confirmationStatus);
       runtimeCard.append(el('p', { class: 'muted', text: text('Local inference sends this objective to the selected loopback model. Review the route, then approve one request.') }), confirmation);
     } else {
-      runtimeCard.append(el('p', { class: 'status warn', role: 'status', text: text('No model is configured on this machine. Local execution stays unavailable.') }));
+      runtimeCard.append(el('p', { class: 'status warn', role: 'status', text: text(plan.runtime && plan.runtime.reason || 'No model is configured on this machine. Local execution stays unavailable.') }));
     }
 
     const planDetails = el('details', { id: 'capability-composer-expert-evidence', class: 'composer-advanced composer-expert-only' }, el('summary', { text: text('Expert evidence · raw Composer plan') }), el('pre', { class: 'code-view composer-expert-evidence-view', tabindex: '0', 'aria-label': 'Raw capability composer plan', text: JSON.stringify(plan, null, 2) }));

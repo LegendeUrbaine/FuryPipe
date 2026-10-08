@@ -40,6 +40,30 @@ The local runtime request is bounded to one non-streaming completion. Response
 bytes and output characters are bounded. No authorization header or cloud
 provider credential is added by the Composer.
 
+## Local resource readiness
+
+Reachability does not make a local model executable. Composer projects into
+Autopilot only discovered local `openai-chat` models with a current resource fit
+of `FITS`. The existing FuryLocal classifier requires known model size and
+valid available-memory telemetry, estimates model size × 1.5, keeps 20% memory
+headroom and reserves at least 2 GiB host RAM. `MAY_BE_SLOW`, `DOES_NOT_FIT`,
+and `UNKNOWN` models are not auto-selected; no model download or cloud fallback
+is attempted. The estimate is conservative but not a guarantee for a given
+context length or concurrent load.
+
+New plans persist `resourceFit: FITS` and `resourcesObservedAt`; those values
+are covered by the plan digest. At execution, missing evidence (including plans
+persisted before this contract), evidence older than five minutes, changed
+backend/model identity, unavailable backend, or a non-fit current observation
+all require a new plan. Fresh local discovery and
+hardware observation run before inference, and Composer executions are
+serialized per Studio API instance. Another process can still change system
+resources after the observation; runtime resource use is never guaranteed.
+
+`FURYPIPE_MODELS` is intentionally not applied to Composer: the repository
+documents it as the Visual Engine image-compression scope. Composer keeps its
+existing local-discovery policy and explicit `confirm: true` execution gate.
+
 ## Existing systems reused
 
 - Capability Autopilot: index projection, deterministic selection, Skill

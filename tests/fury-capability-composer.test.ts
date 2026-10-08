@@ -11,6 +11,8 @@ import type { FuryLocalBackendStatus } from '../src/fury-local-fabric.js';
 import { createFuryMcpHub } from '../src/fury-mcp-hub.js';
 import { createFurySkillHub } from '../src/fury-skill-hub.js';
 import { createStudioApi } from '../src/studio/studio-api.js';
+import { digestFuryCapabilityComposerPlan, executeFuryCapabilityComposerLocal, type FuryCapabilityComposerPlan } from '../src/fury-capability-composer.js';
+import { createFuryProofLedger } from '../src/fury-proof.js';
 
 const servers: Server[] = [];
 const roots: string[] = [];
@@ -29,13 +31,14 @@ const harnesses: FuryHarnessDiscovery = {
   })),
 };
 
-async function localCompletionServer(calls = { count: 0 }): Promise<string> {
+async function localCompletionServer(calls = { count: 0 }, onInference?: () => void): Promise<string> {
   const server = createServer((request, response) => {
     if (request.url !== '/v1/chat/completions') {
       response.writeHead(404).end();
       return;
     }
     calls.count += 1;
+    onInference?.();
     let body = '';
     request.on('data', (chunk) => { body += chunk; });
     request.on('end', () => {
@@ -56,7 +59,11 @@ function localBackend(baseUrl: string, sizeBytes = 2 * 1024 ** 3): FuryLocalBack
   }];
 }
 
-async function makeStudio(baseUrl: string, withLocal = true, freeMemory: () => number = () => 16 * 1024 ** 3) {
+async function makeStudio(
+  baseUrl: string,
+  withLocal = true,
+  freeMemory: () => number = () => 16 * 1024 ** 3,
+) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'furypipe-composer-test-'));
   roots.push(root);
   const studio = createStudioApi({
@@ -161,6 +168,32 @@ describe('Fury Capability Composer VNext-03', () => {
       .toMatchObject({ state: 'NOT_CONFIGURED', runtime: { state: 'NOT_CONFIGURED' } });
   });
 
+  it('falls back to a smaller local candidate when the requested larger model is constrained', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'furypipe-composer-fallback-test-'));
+    roots.push(root);
+    const baseUrl = 'http://127.0.0.1:11434';
+    const studio = createStudioApi({
+      projectRoot: root,
+      discoverHarnesses: async () => harnesses,
+      discoverLocal: async () => ({ backends: [{
+        kind: 'ollama', baseUrl, reachable: true, protocols: ['openai-chat'],
+        models: [
+          { backend: 'ollama', baseUrl, id: 'qwen-coder:30b', sizeBytes: 30 * 1024 ** 3, modality: 'text' },
+          { backend: 'ollama', baseUrl, id: 'qwen-coder:7b', sizeBytes: 4 * 1024 ** 3, modality: 'text' },
+        ],
+      }] }),
+      discoverHardware: async () => ({ platform: 'win32', arch: 'x64', cpuModel: 'test', cpuCount: 8,
+        totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: 10 * 1024 ** 3, unifiedMemory: false, gpus: [] }),
+      skillHub: createFurySkillHub({ projectRoot: root, stateDir: path.join(root, 'skills') }),
+      mcpHub: createFuryMcpHub({ projectRoot: root, homeDir: path.join(root, 'home'), stateDir: path.join(root, 'mcp') }),
+      composerDir: path.join(root, 'composer'),
+    });
+    const response = await studio.handle('capability-composer-plan', post({ objective: 'Use qwen-coder:30b to explain the TypeScript route.' }));
+    const plan = (await response.json() as { plan: { state: string; runtime: { model?: { id: string; resourceFit: string } } } }).plan;
+    expect(plan.state).toBe('READY_FOR_CONFIRMATION');
+    expect(plan.runtime.model).toMatchObject({ id: 'qwen-coder:7b', resourceFit: 'FITS' });
+  });
+
   it('revalidates resources immediately before inference and sends no request when RAM fell', async () => {
     const calls = { count: 0 };
     const baseUrl = await localCompletionServer(calls);
@@ -174,6 +207,43 @@ describe('Fury Capability Composer VNext-03', () => {
     expect(refused.status).toBe(409);
     expect(await refused.json()).toMatchObject({ error: { code: 'resources-changed-replan-required' } });
     expect(calls.count).toBe(0);
+  });
+
+  it('serializes concurrent confirmations and rechecks the second request after the first inference', async () => {
+    let freeMemory = 16 * 1024 ** 3;
+    const calls = { count: 0 };
+    const baseUrl = await localCompletionServer(calls, () => { freeMemory = 1 * 1024 ** 3; });
+    const studio = await makeStudio(baseUrl, true, () => freeMemory);
+    const planned = await studio.handle('capability-composer-plan', post({ objective: 'Answer with the local model.' }));
+    const plan = (await planned.json() as { plan: { planDigestSha256: string } }).plan;
+    const request = () => studio.handle('capability-composer-execute', post({ planDigest: plan.planDigestSha256, confirm: true }));
+
+    const [first, second] = await Promise.all([request(), request()]);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(409);
+    expect(calls.count).toBe(1);
+  });
+
+  it('rejects a legacy persisted plan without resource evidence before fetch', async () => {
+    const baseUrl = await localCompletionServer();
+    const studio = await makeStudio(baseUrl);
+    const planned = await studio.handle('capability-composer-plan', post({ objective: 'Create a legacy plan fixture.' }));
+    const plan = (await planned.json() as { plan: FuryCapabilityComposerPlan }).plan;
+    const legacy = structuredClone(plan) as FuryCapabilityComposerPlan;
+    const model = legacy.runtime.model as unknown as Record<string, unknown>;
+    delete model.resourceFit;
+    delete model.resourcesObservedAt;
+    const legacyPlan = { ...legacy, planDigestSha256: digestFuryCapabilityComposerPlan(legacy) };
+    const fetchCalls = { count: 0 };
+
+    await expect(executeFuryCapabilityComposerLocal({
+      plan: legacyPlan,
+      confirm: true,
+      ledger: createFuryProofLedger(),
+      revalidateResources: async () => true,
+      fetchImpl: async () => { fetchCalls.count += 1; throw new Error('must not fetch'); },
+    })).rejects.toMatchObject({ code: 'resources-changed-replan-required' });
+    expect(fetchCalls.count).toBe(0);
   });
 
   it('reopens the persisted plan in a fresh Studio API instance', async () => {

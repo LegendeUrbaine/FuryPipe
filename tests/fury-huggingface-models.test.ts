@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { inspectHuggingFaceGguf, parseHuggingFaceModelRef, recommendHuggingFaceGguf } from '../src/fury-huggingface-models.js';
 import type { FuryHardwareProfile } from '../src/fury-local-fabric.js';
 
-const hw:FuryHardwareProfile={platform:'win32',arch:'x64',cpuModel:'test',cpuCount:16,totalMemoryBytes:32*1024**3,freeMemoryBytes:16*1024**3,unifiedMemory:false,gpus:[{name:'RTX',memoryBytes:8*1024**3}]};
+const hw:FuryHardwareProfile={platform:'win32',arch:'x64',cpuModel:'test',cpuCount:16,totalMemoryBytes:32*1024**3,freeMemoryBytes:16*1024**3,unifiedMemory:false,gpus:[{name:'RTX',memoryBytes:8*1024**3,freeMemoryBytes:6*1024**3}]};
 const response=(body:unknown)=>new Response(JSON.stringify(body),{status:200,headers:{'content-type':'application/json'}});
 
 describe('Hugging Face GGUF catalog',()=>{

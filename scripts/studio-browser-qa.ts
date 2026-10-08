@@ -126,7 +126,7 @@ async function startStudio(mode: 'normal' | 'empty' | 'error', backendUrl: strin
       if (mode === 'error') throw new Error('probe failed');
       return { backends: local() };
     },
-    discoverHardware: async () => ({ platform: 'linux', arch: 'x64', cpuModel: 'qa', cpuCount: 8, totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: 1, unifiedMemory: false, gpus: [{ name: 'QA GPU', memoryBytes: 12 * 1024 ** 3 }] }),
+    discoverHardware: async () => ({ platform: 'linux', arch: 'x64', cpuModel: 'qa', cpuCount: 8, totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: 16 * 1024 ** 3, unifiedMemory: false, gpus: [{ name: 'QA GPU', memoryBytes: 12 * 1024 ** 3, freeMemoryBytes: 10 * 1024 ** 3 }] }),
     videoEngine: new LocalVideoEngine({ workspaceRoot: path.join(projectRoot, '.qa-video', state), assetRoot: projectRoot }),
     // Bounded, local execution drives the real runFuryTask pipeline without
     // calling a paid provider. It writes only a QA fixture in a temporary repo.

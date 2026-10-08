@@ -52,6 +52,7 @@ import { createModelFabricRegistry, inspectRuntimeModels } from '../core/model-f
 import { DEFAULT_PROVIDER_REGISTRY } from '../core/provider-fabric.js';
 import { buildFuryModelHubSnapshot } from '../fury-model-hub.js';
 import { localModelCapabilityId, observeFuryLocalModelsInModelFabric } from '../fury-local-model-fabric.js';
+import { assessFuryLocalModelReadiness } from '../fury-local-model-readiness.js';
 import { buildFuryWorkspaceGraph } from '../fury-workspace-graph.js';
 import { evaluateFuryDataset, type FuryEvalDataset } from '../fury-eval.js';
 import { createFuryArtifactRepository, type FuryArtifactRepository } from '../fury-artifact-repository-node.js';
@@ -417,6 +418,14 @@ function gitHead(cwd: string): Promise<string> {
 export function createStudioApi(options: StudioApiOptions) {
   const now = options.now ?? Date.now;
   const traceBuilder = options.traceBuilder ?? buildFuryRunTrace;
+  let composerExecutionTail = Promise.resolve();
+  const serializeComposerExecution = async <T>(run: () => Promise<T>): Promise<T> => {
+    const previous = composerExecutionTail;
+    let release!: () => void;
+    composerExecutionTail = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try { return await run(); } finally { release(); }
+  };
   const cache = new Map<string, { at: number; value: Promise<unknown> }>();
   const cached = <T>(key: string, load: () => Promise<T>): Promise<T> => {
     const hit = cache.get(key);
@@ -605,10 +614,19 @@ export function createStudioApi(options: StudioApiOptions) {
     readonly responseStyle: StudioResponseStyle;
     readonly customInstructions?: string;
   }) => {
-    const [harnessDiscovery, localDiscovery] = await Promise.all([harnesses(), local()]);
+    const [harnessDiscovery, localDiscovery, hardwareProfile] = await Promise.all([harnesses(), local(), hardware()]);
+    const readiness = assessFuryLocalModelReadiness(localDiscovery.backends, hardwareProfile, {
+      now: now(),
+    });
+    const safeModelKeys = new Set(readiness.filter((item) => item.state === 'READY')
+      .map((item) => `${item.backend.kind}\0${item.backend.baseUrl}\0${item.model.id}`));
     // Composer stage 1 deliberately exposes only reachable OpenAI-compatible
-    // local backends to Model Fabric. No cloud catalog is admitted here.
-    const localBackends = localDiscovery.backends.filter((backend) => backend.reachable && backend.protocols.includes('openai-chat'));
+    // local backends with a current, conservative resource-fit observation.
+    // Reachability alone is never sufficient for executable selection.
+    const localBackends = localDiscovery.backends
+      .filter((backend) => backend.reachable && backend.protocols.includes('openai-chat'))
+      .map((backend) => ({ ...backend, models: backend.models.filter((model) => safeModelKeys.has(`${backend.kind}\0${backend.baseUrl}\0${model.id}`)) }))
+      .filter((backend) => backend.models.length > 0);
     const modelFabric = createModelFabricRegistry();
     observeFuryLocalModelsInModelFabric(modelFabric, localBackends);
     const compiled = await planStudioAutopilot({
@@ -634,7 +652,16 @@ export function createStudioApi(options: StudioApiOptions) {
         .map((model) => ({ backend, model }))).sort((a, b) => a.backend.baseUrl.localeCompare(b.backend.baseUrl) || a.model.id.localeCompare(b.model.id))[0]
       : undefined;
     const localModel: FuryCapabilityComposerLocalModel | undefined = localModelRecord
-      ? { backend: localModelRecord.backend.kind, baseUrl: localModelRecord.backend.baseUrl, id: localModelRecord.model.id, capabilityId: selectedModel!.id, protocol: 'openai-chat' }
+      ? {
+        backend: localModelRecord.backend.kind,
+        baseUrl: localModelRecord.backend.baseUrl,
+        id: localModelRecord.model.id,
+        capabilityId: selectedModel!.id,
+        protocol: 'openai-chat',
+        resourceFit: 'FITS',
+        resourcesObservedAt: readiness.find((item) => item.backend.kind === localModelRecord.backend.kind
+          && item.backend.baseUrl === localModelRecord.backend.baseUrl && item.model.id === localModelRecord.model.id)!.observedAt,
+      }
       : undefined;
     const objectiveDigestSha256 = createHash('sha256').update(input.objective.trim(), 'utf8').digest('hex');
     const ir = compileFuryCapabilityComposerIr({ objective: input.objective, objectiveDigestSha256 });
@@ -651,7 +678,17 @@ export function createStudioApi(options: StudioApiOptions) {
       contextInspector: compiled.contextInspector,
       prompt: compiled.prompt,
     };
-    const plan = buildFuryCapabilityComposerPlan({ objective: input.objective, objectiveDigestSha256, route, ir, dispatch, ...(localModel ? { localModel } : {}) });
+    const blocked = readiness.filter((item) => item.state !== 'READY');
+    const runtimeBlockReason = !localModel
+      ? blocked.some((item) => item.state === 'RESOURCE_CONSTRAINED')
+          ? blocked.some((item) => item.resourceFit === 'MAY_BE_SLOW')
+            ? 'Only local model(s) requiring CPU/RAM offload were found; Composer needs a model classified FITS for automatic selection.'
+            : 'Installed local model(s) exceed currently free memory; no safe local model is available for this plan.'
+          : blocked.some((item) => item.state === 'RESOURCE_UNKNOWN')
+            ? 'Local model size or current memory telemetry is unknown; execution remains blocked.'
+            : 'No safe, reachable local chat model is available; Composer does not fall back to cloud.'
+      : undefined;
+    const plan = buildFuryCapabilityComposerPlan({ objective: input.objective, objectiveDigestSha256, route, ir, dispatch, ...(localModel ? { localModel } : {}), ...(runtimeBlockReason ? { runtimeBlockReason } : {}) });
     const handle = await persistComposerObject('plan', plan.planDigestSha256, plan);
     return { plan, handle, candidates: candidates.map((candidate) => ({ id: candidate.id, harnessId: candidate.harnessId, provider: candidate.provider, model: candidate.model, locality: candidate.locality })) };
   };
@@ -922,12 +959,30 @@ export function createStudioApi(options: StudioApiOptions) {
             }
             const plan = await loadComposerObject<FuryCapabilityComposerPlan>('plan', body.planDigest);
             if (!plan || !verifyFuryCapabilityComposerPlan(plan)) return problem(404, 'unknown-plan', 'composer plan not found or integrity verification failed');
-            const execution = await executeFuryCapabilityComposerLocal({
-              plan,
-              confirm: true,
-              ledger,
-              ...(typeof body.userMessage === 'string' ? { userMessage: body.userMessage } : {}),
-            });
+            const plannedModel = plan.runtime.model;
+            const execution = await serializeComposerExecution(() => executeFuryCapabilityComposerLocal({
+                plan,
+                confirm: true,
+                ledger,
+                revalidateResources: async () => {
+                  if (!plannedModel) return false;
+                  try {
+                    const [currentLocal, currentHardware] = await Promise.all([
+                      (options.discoverLocal ?? (() => discoverFuryLocalBackends()))(),
+                      (options.discoverHardware ?? (() => discoverFuryHardware()))(),
+                    ]);
+                    return assessFuryLocalModelReadiness(currentLocal.backends, currentHardware, {
+                      now: now(),
+                    }).some((candidate) => candidate.state === 'READY' && candidate.resourceFit === 'FITS'
+                      && candidate.backend.kind === plannedModel.backend && candidate.backend.baseUrl === plannedModel.baseUrl
+                      && candidate.model.id === plannedModel.id);
+                  } catch {
+                    return false;
+                  }
+                },
+                now,
+                ...(typeof body.userMessage === 'string' ? { userMessage: body.userMessage } : {}),
+              }));
             const resultHandle = await persistComposerObject('execution', `${execution.planDigestSha256}:${execution.outputDigestSha256}`.slice(0, 128), execution);
             return json({
               execution,

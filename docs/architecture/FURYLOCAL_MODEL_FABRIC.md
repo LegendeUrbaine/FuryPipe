@@ -10,7 +10,11 @@ Boundary: loopback only by default. LAN only when explicitly allowed, and only p
 
 Hardware (`discoverFuryHardware`): CPU, RAM, unified memory (Apple silicon) and NVIDIA GPUs via `nvidia-smi` (no shell, 3 s timeout). It stays in-process.
 
-Fit (`classifyFuryModelFit`): FITS if weights × 1.2 fit in 80 % of the fastest memory pool; MAY_BE_SLOW if they fit in 90 % of RAM + VRAM; DOES_NOT_FIT otherwise; UNKNOWN when the size is not reported. This is a heuristic, labelled as such.
+Fit (`classifyFuryModelFit`) is a conservative estimate, not a runtime guarantee. It requires a positive safe-integer model size and valid current free-RAM telemetry; estimates weights plus 50% for context/runtime overhead, keeps 20% of free memory as headroom, and requires at least 2 GiB free host RAM. NVIDIA discovery records both total and currently free VRAM. FITS requires a known memory pool with the estimate inside that margin; MAY_BE_SLOW means CPU/RAM offload may be possible but is not eligible for automatic Composer selection; DOES_NOT_FIT means observed capacity is insufficient; UNKNOWN means size or required telemetry is unavailable/invalid. GPU pools are not summed, so multi-GPU capacity is intentionally not assumed.
+
+The Capability Composer selects only reachable `openai-chat` models classified FITS. A plan records the resource fit and observation timestamp; execution rejects plans without this evidence, plans older than five minutes, and revalidates the exact backend/model and current resources immediately before inference. Composer executions are serialized within one Studio API instance to prevent simultaneous confirmations from both relying on the same resource snapshot. This reduces, but cannot eliminate, resource races from other processes after revalidation.
+
+`FURYPIPE_MODELS` remains scoped to the Visual Engine image-compression policy documented by the Studio dashboard; it is not repurposed as a Composer allowlist. The Composer keeps its local-only discovery boundary and still requires explicit `confirm: true`. Older persisted plans without resource evidence require a new plan and are never upgraded automatically.
 
 Measurement (`measureFuryLocalModel`): streams one short completion from a local endpoint and reports TTFT and streamed chunks/s. Chunks are not claimed to be exact tokens.
 

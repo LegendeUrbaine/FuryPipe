@@ -1,17 +1,31 @@
 {
-  "format": "furypipe-qa001-browser-qa/v1",
-  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
-  "browserVersions": {"chromium": "153.0.8010.12", "firefox": "155.0", "webkit": "26.6"},
-  "dashboard": {"status": "PASS", "cases": "117/117"},
-  "webStudio": {"status": "PASS", "cases": "120/120"},
+  "format": "furypipe-qa001-browser-qa/v2",
+  "sourceCommit": "6918dc3fb03bc3e406dcf23478092e4a05d21a29",
+  "browserVersions": {
+    "chromium": "153.0.8010.12",
+    "firefox": "155.0",
+    "webkit": "26.6"
+  },
+  "dashboard": {
+    "status": "PASS",
+    "cases": "117/117"
+  },
+  "webStudio": {
+    "status": "PASS",
+    "cases": "120/120"
+  },
   "composerLive": {
     "status": "NOT_EXECUTED",
     "requiredModel": "qwen3.5:latest",
     "reason": "Ollama or required model unavailable; no fixture substituted."
   },
-  "accessibilityAutomation": {"status": "PASS", "automatedChromium": true, "consoleErrors": 0},
+  "accessibilityAutomation": {
+    "status": "PASS",
+    "automatedChromium": true,
+    "consoleErrors": 0
+  },
   "manualScreenReader": "MANUAL_REQUIRED",
   "humanVisualGate": "OWNER_REVIEW_REQUIRED",
-  "rawCrossBrowserReport": "artifacts/cross-browser-qa/report.json (local generated artifact, ignored by Git)",
+  "rawCrossBrowserReport": "artifacts/cross-browser-qa/report.json (local generated artifact, ignored by Git; sourceCommit 6918dc3fb03bc3e406dcf23478092e4a05d21a29)",
   "rawComposerReport": "artifacts/furypipe-qa001-model-resource-safety/composer-browser-qa/browser-qa.json"
 }

@@ -33,7 +33,7 @@ const json = (res: ServerResponse, body: unknown, status = 200) => {
 const GiB = 1024 ** 3;
 const hw = (overrides: Partial<FuryHardwareProfile> = {}): FuryHardwareProfile => ({
   platform: 'linux', arch: 'x64', cpuModel: 'test', cpuCount: 8, totalMemoryBytes: 32 * GiB, freeMemoryBytes: 16 * GiB,
-  unifiedMemory: false, gpus: [{ name: 'GPU', memoryBytes: 12 * GiB }], ...overrides,
+  unifiedMemory: false, gpus: [{ name: 'GPU', memoryBytes: 12 * GiB, freeMemoryBytes: 10 * GiB }], ...overrides,
 });
 
 describe('FuryLocal fabric discovery', () => {
@@ -113,8 +113,30 @@ describe('FuryLocal hardware and fit', () => {
     expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw())).toBe('FITS');
     expect(classifyFuryModelFit({ sizeBytes: 20 * GiB }, hw())).toBe('MAY_BE_SLOW');
     expect(classifyFuryModelFit({ sizeBytes: 60 * GiB }, hw())).toBe('DOES_NOT_FIT');
-    expect(classifyFuryModelFit({ sizeBytes: 20 * GiB }, hw({ gpus: [], unifiedMemory: true, totalMemoryBytes: 64 * GiB }))).toBe('FITS');
+    expect(classifyFuryModelFit({ sizeBytes: 20 * GiB }, hw({ gpus: [], unifiedMemory: true, totalMemoryBytes: 64 * GiB, freeMemoryBytes: 40 * GiB }))).toBe('FITS');
     expect(classifyFuryModelFit({}, hw())).toBe('UNKNOWN');
+  });
+
+  it('uses currently free memory and fails closed when resource telemetry is invalid or unavailable', () => {
+    expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({ freeMemoryBytes: 1 * GiB }))).toBe('DOES_NOT_FIT');
+    expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({
+      freeMemoryBytes: 16 * GiB,
+      gpus: [{ name: 'GPU', memoryBytes: 12 * GiB, freeMemoryBytes: 1 * GiB }],
+    }))).toBe('MAY_BE_SLOW');
+    expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({
+      freeMemoryBytes: Number.NaN,
+      gpus: [{ name: 'GPU', memoryBytes: 12 * GiB }],
+    }))).toBe('UNKNOWN');
+    expect(classifyFuryModelFit({ sizeBytes: Number.MAX_VALUE }, hw())).toBe('UNKNOWN');
+  });
+
+  it('accepts a CPU-only fit only when available RAM has the safety margin', () => {
+    expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({
+      gpus: [], freeMemoryBytes: 16 * GiB,
+    }))).toBe('FITS');
+    expect(classifyFuryModelFit({ sizeBytes: 5 * GiB }, hw({
+      gpus: [], freeMemoryBytes: 1 * GiB,
+    }))).toBe('DOES_NOT_FIT');
   });
 
   it('parses nvidia-smi output and keeps working without it', async () => {

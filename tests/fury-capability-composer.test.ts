@@ -29,12 +29,13 @@ const harnesses: FuryHarnessDiscovery = {
   })),
 };
 
-async function localCompletionServer(): Promise<string> {
+async function localCompletionServer(calls = { count: 0 }): Promise<string> {
   const server = createServer((request, response) => {
     if (request.url !== '/v1/chat/completions') {
       response.writeHead(404).end();
       return;
     }
+    calls.count += 1;
     let body = '';
     request.on('data', (chunk) => { body += chunk; });
     request.on('end', () => {
@@ -48,20 +49,22 @@ async function localCompletionServer(): Promise<string> {
   return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }
 
-function localBackend(baseUrl: string): FuryLocalBackendStatus[] {
+function localBackend(baseUrl: string, sizeBytes = 2 * 1024 ** 3): FuryLocalBackendStatus[] {
   return [{
     kind: 'ollama', baseUrl, reachable: true, protocols: ['openai-chat'],
-    models: [{ backend: 'ollama', baseUrl, id: 'qwen-local:7b', modality: 'text' }],
+    models: [{ backend: 'ollama', baseUrl, id: 'qwen-local:7b', sizeBytes, modality: 'text' }],
   }];
 }
 
-async function makeStudio(baseUrl: string, withLocal = true) {
+async function makeStudio(baseUrl: string, withLocal = true, freeMemory: () => number = () => 16 * 1024 ** 3) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'furypipe-composer-test-'));
   roots.push(root);
   const studio = createStudioApi({
     projectRoot: root,
     discoverHarnesses: async () => harnesses,
     discoverLocal: async () => ({ backends: withLocal ? localBackend(baseUrl) : [] }),
+    discoverHardware: async () => ({ platform: 'win32', arch: 'x64', cpuModel: 'test', cpuCount: 8,
+      totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: freeMemory(), unifiedMemory: false, gpus: [] }),
     skillHub: createFurySkillHub({ projectRoot: root, stateDir: path.join(root, 'skills') }),
     mcpHub: createFuryMcpHub({ projectRoot: root, homeDir: path.join(root, 'home'), stateDir: path.join(root, 'mcp') }),
     composerDir: path.join(root, 'composer'),
@@ -136,6 +139,41 @@ describe('Fury Capability Composer VNext-03', () => {
     expect(body.plan).toMatchObject({ state: 'NOT_CONFIGURED', runtime: { state: 'NOT_CONFIGURED' }, dispatch: { status: 'BLOCKED' } });
     expect(body.plan.dispatch.reasons.join(' ')).toMatch(/local binding|available/u);
     expect(body.plan.evaluation.byDomain.providers?.successRate).toBe(0);
+  });
+
+  it('does not auto-select a reachable local model that exceeds currently free RAM', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'furypipe-composer-resource-test-'));
+    roots.push(root);
+    const baseUrl = 'http://127.0.0.1:11434';
+    const studio = createStudioApi({
+      projectRoot: root,
+      discoverHarnesses: async () => harnesses,
+      discoverLocal: async () => ({ backends: localBackend(baseUrl, 30 * 1024 ** 3) }),
+      discoverHardware: async () => ({ platform: 'win32', arch: 'x64', cpuModel: 'test', cpuCount: 8,
+        totalMemoryBytes: 32 * 1024 ** 3, freeMemoryBytes: 4 * 1024 ** 3, unifiedMemory: false, gpus: [] }),
+      skillHub: createFurySkillHub({ projectRoot: root, stateDir: path.join(root, 'skills') }),
+      mcpHub: createFuryMcpHub({ projectRoot: root, homeDir: path.join(root, 'home'), stateDir: path.join(root, 'mcp') }),
+      composerDir: path.join(root, 'composer'),
+    });
+    const response = await studio.handle('capability-composer-plan', post({ objective: 'Answer with the local model.' }));
+    expect(response.status).toBe(200);
+    expect((await response.json() as { plan: { state: string; runtime: { state: string; model?: unknown } } }).plan)
+      .toMatchObject({ state: 'NOT_CONFIGURED', runtime: { state: 'NOT_CONFIGURED' } });
+  });
+
+  it('revalidates resources immediately before inference and sends no request when RAM fell', async () => {
+    const calls = { count: 0 };
+    const baseUrl = await localCompletionServer(calls);
+    let freeMemory = 16 * 1024 ** 3;
+    const studio = await makeStudio(baseUrl, true, () => freeMemory);
+    const planned = await studio.handle('capability-composer-plan', post({ objective: 'Answer with the local model.' }));
+    const plan = (await planned.json() as { plan: { planDigestSha256: string } }).plan;
+    freeMemory = 1 * 1024 ** 3;
+
+    const refused = await studio.handle('capability-composer-execute', post({ planDigest: plan.planDigestSha256, confirm: true }));
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ error: { code: 'resources-changed-replan-required' } });
+    expect(calls.count).toBe(0);
   });
 
   it('reopens the persisted plan in a fresh Studio API instance', async () => {

@@ -1,0 +1,17 @@
+{
+  "format": "furypipe-qa001-tests/v1",
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "typecheck": "PASS",
+  "hostedMcpTypecheck": "PASS",
+  "strictLint": "PASS",
+  "fullVitest": {"filesPassed": 364, "testsPassed": 3669, "skipped": 6, "failed": 0},
+  "build": "PASS",
+  "packageSmoke": "PASS",
+  "packageReproducibility": "PASS",
+  "cleanRoom": "PASS",
+  "recovery": "PASS (local run during current worktree validation; crash recovery and migration interruption)",
+  "localContracts": "PASS (21 files, 187 tests)",
+  "accessibilityAutomation": "PASS (Chromium; 0 console errors)",
+  "studioBrowser": "PASS (Chromium, Firefox, WebKit)",
+  "diffCheck": "PASS"
+}

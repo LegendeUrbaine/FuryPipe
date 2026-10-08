@@ -1,0 +1,13 @@
+{
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "negativeScenarios": [
+    "missing model size -> UNKNOWN",
+    "invalid/extreme model size -> UNKNOWN",
+    "resource evidence stale/missing/future-dated -> 409 before inference",
+    "resource revalidation false/unavailable -> 409 before inference",
+    "legacy persisted plan without resource proof -> 409 before fetch",
+    "second concurrent confirmation after memory loss -> 409; no second inference",
+    "FURYPIPE_MODELS=off does not change Composer authorization semantics"
+  ],
+  "result": "PASS"
+}

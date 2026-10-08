@@ -1,0 +1,7 @@
+{
+  "format": "furypipe-studio-capability-composer-browser-qa/v1",
+  "status": "NOT_EXECUTED",
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "liveModel": "qwen3.5:latest",
+  "reason": "Ollama or required model unavailable; no fixture substituted."
+}

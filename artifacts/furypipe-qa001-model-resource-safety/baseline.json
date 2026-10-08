@@ -1,0 +1,18 @@
+{
+  "format": "furypipe-qa001-baseline/v1",
+  "baseBranch": "v5-codex-review-clean",
+  "baseCommit": "4a4baebcfcfb8e299db957a11fb6727486707d03",
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "branch": "codex/furypipe-qa001-model-resource-safety",
+  "dirtyWorktreeAtStart": false,
+  "historicalRedTestCommit": "6e2a3e7730c34ae8934c6055cfa767e98b6dc63a",
+  "historicalRedTests": {
+    "expectedFailures": 4,
+    "reproduced": [
+      "30 GiB model incorrectly ready with 4 GiB free RAM",
+      "resource loss before execute still made inference request",
+      "classifier used total memory instead of free memory",
+      "CPU-only adequate RAM was classified MAY_BE_SLOW"
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "format": "furypipe-qa001-hardware-observation/v1",
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "platform": "Windows x64",
+  "totalRamBytes": 33601871872,
+  "freeRamBytes": 7255486464,
+  "gpuClass": "NVIDIA discrete GPU; model name omitted from evidence",
+  "totalVramBytes": 8546942976,
+  "freeVramBytes": 6860832768,
+  "loopbackBackends": {
+    "ollama": "UNREACHABLE",
+    "lmStudio": "UNREACHABLE",
+    "llamaCpp": "UNREACHABLE",
+    "vllm": "UNREACHABLE",
+    "sglang": "UNREACHABLE",
+    "jan": "UNREACHABLE"
+  },
+  "modelDownloads": 0,
+  "modelInference": "NOT_EXECUTED",
+  "personalConfigurationChanged": false
+}

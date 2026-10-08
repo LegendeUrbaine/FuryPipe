@@ -1,0 +1,8 @@
+{
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "oversizedModel": "excluded from Composer candidates",
+  "smallerFitModel": "selected when available",
+  "cloudFallback": false,
+  "testFile": "tests/fury-capability-composer.test.ts",
+  "result": "PASS"
+}

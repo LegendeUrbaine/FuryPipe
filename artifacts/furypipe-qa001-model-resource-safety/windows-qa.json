@@ -1,0 +1,20 @@
+{
+  "format": "furypipe-qa001-windows-qa/v1",
+  "sourceCommit": "c34d4748be961513f59e2a0ff4a8b93c036eb100",
+  "os": "win32",
+  "arch": "x64",
+  "node": "v26.8.2",
+  "typecheck": "PASS (standard + hosted MCP)",
+  "lint": "PASS",
+  "tests": {"filesPassed": 364, "passed": 3669, "skipped": 6, "failed": 0},
+  "build": "PASS; package version smoke 0.16.1",
+  "packageSmoke": "PASS; local furypipe-0.16.1.tgz; no public publish",
+  "packageReproducibility": {
+    "status": "PASS",
+    "fileCount": 819,
+    "contentDigest": "5d888ed11cbce0c2094b6f1cf4c3d61551f2ef268",
+    "tarballSha256": "31494df717411f37de845b71175cf6b1401b7487f0f33217285b3754f4c6c7b4"
+  },
+  "cleanRoom": "PASS; isolated install/start/stop/restart/persistence/rollback/uninstall-reinstall",
+  "gitDiffCheck": "PASS"
+}

@@ -897,7 +897,7 @@
     "wrangler": "^4.131.0"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "1.4.0",
+    "@agentclientprotocol/sdk": "1.7.0",
     "@modelcontextprotocol/client": "2.2.0",
     "@modelcontextprotocol/server": "2.0.0",
     "gpt-tokenizer": "^4.0.0",

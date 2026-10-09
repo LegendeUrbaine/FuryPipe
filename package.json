@@ -885,7 +885,7 @@
     "@cloudflare/workers-types": "^5.20260911.1",
     "@napi-rs/canvas": "^1.0.9",
     "@types/node": "^26.5.1",
-    "@types/ws": "8.18.1",
+    "@types/ws": "8.18.2",
     "esbuild": "^0.28.2",
     "eslint": "10.11.0",
     "globals": "17.13.0",
@@ -902,7 +902,7 @@
     "@modelcontextprotocol/server": "2.0.0",
     "gpt-tokenizer": "^4.0.0",
     "json5": "^2.2.3",
-    "ws": "8.21.3",
+    "ws": "8.22.0",
     "zod": "4.6.2"
   },
   "repository": {

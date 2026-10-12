@@ -145,7 +145,11 @@ async function main(): Promise<void> {
     discoverHarnesses: async () => harnesses,
     // Re-probe on every discovery: execution-time revalidation must not reuse a
     // stale "loaded" observation, or a since-evicted model is under-charged.
-    discoverLocal: async () => ({ backends: [localBackend(tags, await ollamaLoadedModels())] }),
+    // Evidence must describe the facts the plan actually saw, so keep the latest probe.
+    discoverLocal: async () => {
+      backend = localBackend(tags, await ollamaLoadedModels());
+      return { backends: [backend] };
+    },
     skillHub: createFurySkillHub({ projectRoot: process.cwd(), homeDir: path.join(OUT, 'home'), stateDir: path.join(OUT, 'skill-hub'), projectTrustedForInstructions: true }),
     mcpHub: createFuryMcpHub({ projectRoot: process.cwd(), homeDir: path.join(OUT, 'home'), stateDir: path.join(OUT, 'mcp-hub') }),
   });

@@ -57,16 +57,43 @@ async function ollamaTags(): Promise<JsonRecord> {
   return await readJson(response);
 }
 
-function localBackend(tags: JsonRecord): FuryLocalBackendStatus {
+async function ollamaLoadedModels(): Promise<Set<string>> {
+  // /api/ps is advisory: an unreachable endpoint means "not known loaded", which
+  // keeps the resource estimate conservative (weights are charged in full).
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/ps`, { signal: AbortSignal.timeout(5_000) });
+    if (!response.ok) {
+      console.warn(`Ollama /api/ps answered HTTP ${response.status}; treating model as not loaded`);
+      return new Set();
+    }
+    const payload = await readJson(response);
+    return new Set(modelEntries(payload).flatMap((entry) => [entry.name, entry.model]).filter((value): value is string => typeof value === 'string'));
+  } catch (error) {
+    console.warn(`Ollama /api/ps probe failed; treating model as not loaded: ${error instanceof Error ? error.message : String(error)}`);
+    return new Set();
+  }
+}
+
+function localBackend(tags: JsonRecord, loaded: ReadonlySet<string>): FuryLocalBackendStatus {
   const model = findModel(tags);
   if (!model) throw new Error(`required local model is not installed: ${MODEL_ID}`);
+  // The QA-001 resource gate fails closed on unknown model size, so the live
+  // probe must forward the real installed size reported by Ollama.
+  const sizeBytes = typeof model.size === 'number' && Number.isSafeInteger(model.size) && model.size > 0 ? model.size : undefined;
   return {
     kind: 'ollama',
     baseUrl: OLLAMA_BASE_URL,
     reachable: true,
     version: 'live-probed',
     protocols: ['native', 'openai-chat'],
-    models: [{ backend: 'ollama', baseUrl: OLLAMA_BASE_URL, id: MODEL_ID, modality: 'text' }],
+    models: [{
+      backend: 'ollama',
+      baseUrl: OLLAMA_BASE_URL,
+      id: MODEL_ID,
+      modality: 'text',
+      ...(sizeBytes !== undefined ? { sizeBytes } : {}),
+      loaded: loaded.has(MODEL_ID),
+    }],
   };
 }
 
@@ -93,7 +120,7 @@ async function main(): Promise<void> {
 
   let backend: FuryLocalBackendStatus;
   try {
-    backend = localBackend(tags);
+    backend = localBackend(tags, await ollamaLoadedModels());
   } catch (error) {
     const evidence = {
       format: 'furypipe-capability-composer-live-acceptance/v1',
@@ -130,6 +157,28 @@ async function main(): Promise<void> {
   const planned = await readJson(plannedResponse);
   if (plannedResponse.status !== 200) throw new Error(`Composer plan failed HTTP ${plannedResponse.status}: ${JSON.stringify(planned)}`);
   const plan = planned.plan;
+  if (!isRecord(plan) || typeof plan.planDigestSha256 !== 'string') throw new Error(`Composer plan response is malformed: ${JSON.stringify(planned)}`);
+  if (plan.state !== 'READY_FOR_CONFIRMATION') {
+    // The resource gate refused local inference on this host right now. That is
+    // the intended fail-closed outcome, not a live pass: record it and stop.
+    const runtime = isRecord(plan.runtime) ? plan.runtime : {};
+    const evidence = {
+      format: 'furypipe-capability-composer-live-acceptance/v1',
+      status: 'NOT_EXECUTED',
+      locality: 'loopback',
+      endpoint: OLLAMA_BASE_URL,
+      model: MODEL_ID,
+      modelFacts: backend.models[0],
+      planState: plan.state,
+      reason: typeof runtime.reason === 'string' ? runtime.reason : 'composer runtime not ready',
+      download: 'NOT_REQUESTED',
+      fixtureEvidence: 'SEPARATE: tests/fury-capability-composer.test.ts',
+    };
+    writeEvidence(evidence);
+    console.log(JSON.stringify(evidence, null, 2));
+    process.exitCode = 2;
+    return;
+  }
 
   const deniedResponse = await api.handle('capability-composer-execute', request({ planDigest: plan.planDigestSha256 }));
   const denied = await readJson(deniedResponse);

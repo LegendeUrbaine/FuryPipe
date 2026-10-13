@@ -9,14 +9,26 @@
   "package": {
     "name": "furypipe",
     "version": "0.16.1",
-    "tarballSha256": "1dc386ced6ebec7f471c16a8279cfb048e78b0a6b76727a65c8a410aad46a0e9"
+    "tarballSha256": "0742687731b006681a187863e45c18ade018e1e10caf89972fa3cb669c292fd4"
   },
   "gateway": {
     "installedBin": "bin/cli.js",
     "ready": true,
     "processAliveAfterReady": true,
     "loopbackEndpoint": "PASS",
-    "cleanShutdown": "NOT_VERIFIED",
+    "cleanShutdown": true,
+    "shutdowns": [
+      {
+        "code": 0,
+        "signal": null,
+        "forced": false
+      },
+      {
+        "code": 0,
+        "signal": null,
+        "forced": false
+      }
+    ],
     "dynamicRequireError": 0,
     "startEnvelope": {
       "format": "furypipe-gateway-local-start/v1",

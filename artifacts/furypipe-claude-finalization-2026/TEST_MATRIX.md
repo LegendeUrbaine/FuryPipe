@@ -4,9 +4,9 @@
 |----------|----------|------|----------|
 | QA-001 — gates du dépôt | eslint, `pnpm typecheck` | eb9c5f1 | PASS |
 | QA-001 — tsc strict isolé | tsc isolé | eb9c5f1 | PARTIAL : 9 erreurs préexistantes (16 auparavant) |
-| Le Gateway démarre-t-il, authentifie-t-il, se reconnecte-t-il ? | `validation:gateway` | 95c1336 | PASS. Réserve : `invalidOriginDenied` (nommé `staleOriginDenied` par le script à ce HEAD) prouve seulement le rejet d'une origine invalide sur le premier daemon. Le refus de l'ancien endpoint après redémarrage n'est pas testé à ce HEAD (NOT_EXECUTED) ; #270 l'ajoute. |
+| Le Gateway démarre-t-il, authentifie-t-il, se reconnecte-t-il ? | `validation:gateway` (script de #270) | 2ac0eb5 | PASS : origine invalide refusée sur les deux daemons, ancien endpoint refusé après redémarrage (`ECONNREFUSED`). JSON `05-gateway/gateway-restart.json` = sortie brute de ce script. À 95c1336, le script ne vérifiait que l'origine invalide sur le premier daemon (champ alors nommé `staleOriginDenied`). |
 | Le vrai CLI `gateway start` est-il opérationnel ? | `gateway start --json` | 95c1336 | PASS : ready, loopback, bootstrap one-time, executionAuthority=false |
-| Le paquet installé démarre-t-il le Gateway et inspecte-t-il un MCP ? | `validation:gateway-installed-package` | 95c1336 | PASS. Réserve : le script à ce HEAD écrivait `cleanShutdown: true` sans vérifier le code de sortie (SIGKILL possible) → enregistré NOT_VERIFIED ; #270 ajoute la vérification. En revanche, `validation:gateway-mcp-runtime` vérifie bien l'arrêt réel. |
+| Le paquet installé démarre-t-il le Gateway et inspecte-t-il un MCP ? | `validation:gateway-installed-package` (script de #270) | 2ac0eb5 | PASS : les deux arrêts du Gateway vérifiés (code 0, aucun signal, pas d'arrêt forcé). JSON `05-gateway/gateway-installed-package.json` = sortie brute de ce script. À 95c1336, le script écrivait `cleanShutdown: true` sans vérifier l'arrêt. |
 | FuryPipe exécute-t-il réellement un outil MCP ? | `validation:gateway-mcp-runtime` | 29a7cb1 | PASS : DISCOVERED / CONNECTED / AUTHORIZED / EXECUTED / VERIFIED |
 | La mémoire survit-elle à un vrai redémarrage ? | `validation:memory-restart` | 437d1bd | PASS 8/8 |
 | MCP direct, contrats | vitest (7 fichiers) | 95c1336 | 51/51 PASS |
@@ -26,7 +26,7 @@
 |----------|--------|--------|
 | Run Mission Control live | BLOCKED | Il faut un harness agent (claude-code / codex) et un runtime local. Ce conteneur n'a pas d'Ollama, et `claude` y passerait par une API payante (interdit). |
 | Fury Trace issue d'un run réel | NOT_EXECUTED | Dépend du run Mission Control live |
-| QA-001 live | PARTIAL | NOT_EXECUTED sur la machine du propriétaire (refus mémoire fail-closed attendu) |
+| QA-001 live | NOT_EXECUTED | pas exécuté sur la machine du propriétaire (refus mémoire fail-closed attendu) |
 | WebChat : appel d'outil piloté par un fournisseur | NOT_EXECUTED | Nécessite un fournisseur cloud payant |
 | QA navigateur du dépôt en local | NOT_EXECUTED | Version de Chromium Playwright incompatible (pas de téléchargement) ; couvert par la CI |
 | Lecteur d'écran | MANUAL_REQUIRED | — |

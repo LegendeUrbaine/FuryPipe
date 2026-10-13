@@ -1,7 +1,7 @@
 {
   "format": "furypipe-final-gateway-restart/v1",
   "status": "PASS",
-  "generatedAt": "2026-10-13T12:25:15.261Z",
+  "generatedAt": "2026-10-13T14:16:02.308Z",
   "platform": {
     "os": "linux",
     "node": "v22.22.0"
@@ -13,8 +13,10 @@
     "abruptRestart": "PASS",
     "reconnect": "PASS",
     "invalidOriginDenied": "PASS",
+    "staleEndpointRefused": "PASS",
+    "staleEndpointOutcome": "ECONNREFUSED",
     "executionAuthority": false,
     "externalOpenClaw": "NOT_EXECUTED"
   },
-  "durationMs": 451
+  "durationMs": 558
 }

@@ -1083,9 +1083,7 @@ const SCRIPT = String.raw`
     'Title': 'Titre',
     'Workspace title': 'Titre de l’espace de travail',
     '2 · Task': '2 · Tâche',
-    '3 · Artifact': '3 · Artefact',
-    'task': 'tâche',
-    'artifact': 'artefact'
+    '3 · Artifact': '3 · Artefact'
   });
   function detectedLanguage() {
     const langs = [...(Array.isArray(navigator.languages) ? navigator.languages : []), navigator.language, Intl.DateTimeFormat().resolvedOptions().locale, SERVER_LANGUAGE].filter(Boolean);
@@ -1421,8 +1419,8 @@ const SCRIPT = String.raw`
       : workspace.conversationIds.length + ' conversation(s) · ' + workspace.tasks.length + ' task(s) · ' + workspace.artifactIds.length + ' artifact(s) · revision ' + workspace.revision;
     const counts = $('#workspace-counts'); counts.replaceChildren(
       el('span', {}, el('b', { text: String(workspace.conversationIds.length) }), ' conversation'),
-      el('span', {}, el('b', { text: String(workspace.tasks.length) }), ' task'),
-      el('span', {}, el('b', { text: String(workspace.artifactIds.length) }), ' artifact'),
+      el('span', {}, el('b', { text: String(workspace.tasks.length) }), activeLanguage === 'fr' ? ' tâche' : ' task'),
+      el('span', {}, el('b', { text: String(workspace.artifactIds.length) }), activeLanguage === 'fr' ? ' artefact' : ' artifact'),
     );
     const hasConversation = workspace.conversationIds.length > 0;
     const hasTask = workspace.tasks.length > 0;
@@ -1500,7 +1498,7 @@ const SCRIPT = String.raw`
     const r = state.lastRoute; const chip = $('#route-chip');
     if (!r) { chip.hidden = true; $('#privacy').hidden = true; return; }
     const ap = r.autopilot;
-    chip.hidden = false; chip.replaceChildren(ic('route'), el('span', { text: r.model }), el('span', { class: 'sep', text: '·' }), el('span', { text: PROVIDER[r.kind] || r.kind }), el('span', { class: 'sep', text: '·' }), el('span', { text: 'Local' + (ap ? ' · ' + ap.profile.label + ' · ' + ap.effort.effective : '') }));
+    chip.hidden = false; chip.replaceChildren(ic('route'), el('span', { 'data-user-content': '', text: r.model }), el('span', { class: 'sep', text: '·' }), el('span', { text: PROVIDER[r.kind] || r.kind }), el('span', { class: 'sep', text: '·' }), el('span', { text: 'Local' + (ap ? ' · ' + ap.profile.label + ' · ' + ap.effort.effective : '') }));
     chip.setAttribute('aria-label', 'Route: ' + r.model + ', ' + (PROVIDER[r.kind] || r.kind) + ', local' + (ap ? ', ' + ap.profile.label + ', effort ' + ap.effort.effective : '') + '. Why this route?');
     $('#privacy').hidden = document.body.dataset.view !== 'chat';
   }
@@ -1626,9 +1624,9 @@ const SCRIPT = String.raw`
         }
       } else if (!b.models.length) card.append(el('p', { text: 'Running, but no model is installed yet.' }));
       for (const m of b.models) { models++;
-        const row = el('div', { class: 'model-row' }, el('span', { class: 'mn', text: m.id }), el('span', { class: 'ms', text: [m.parameterSize, m.quantization, m.modality === 'embeddings' ? 'embeddings' : ''].filter(Boolean).join(' · ') }), fitPill(m.fit));
+        const row = el('div', { class: 'model-row' }, el('span', { 'data-user-content': '', class: 'mn', text: m.id }), el('span', { class: 'ms', text: [m.parameterSize, m.quantization, m.modality === 'embeddings' ? 'embeddings' : ''].filter(Boolean).join(' · ') }), fitPill(m.fit));
         card.append(row);
-        table.append(el('tr', {}, el('td', { text: name }), el('td', { text: b.baseUrl }), el('td', {}, badge('up', 'ok')), el('td', { text: m.id }), el('td', { text: m.fit })));
+        table.append(el('tr', {}, el('td', { text: name }), el('td', { text: b.baseUrl }), el('td', {}, badge('up', 'ok')), el('td', { 'data-user-content': '', text: m.id }), el('td', { text: m.fit })));
       }
       if (!b.reachable) table.append(el('tr', {}, el('td', { text: name }), el('td', { text: b.baseUrl }), el('td', {}, badge('offline', 'muted')), el('td', { text: '—' }), el('td', { text: '—' })));
       grid.append(card);
@@ -1638,7 +1636,7 @@ const SCRIPT = String.raw`
   const gb = (n) => n == null ? 'size unknown' : (n / 1073741824).toFixed(n >= 10 * 1073741824 ? 1 : 2) + ' GB';
   function catalogCard(m, ranked) {
     const card = el('div', { class: 'card catalog-card' });
-    const title = el('h3', { text: m.id }); const meta = el('div', { class: 'catalog-meta' });
+    const title = el('h3', { 'data-user-content': '', text: m.id }); const meta = el('div', { class: 'catalog-meta' });
     if (ranked && typeof m.score === 'number') meta.append(el('span', { class: 'badge score', text: 'score ' + m.score }));
     if (m.downloads != null) meta.append(badge(m.downloads.toLocaleString() + ' downloads', 'muted'));
     if (m.license) meta.append(badge(m.license, 'muted'));
@@ -2421,14 +2419,14 @@ const SCRIPT = String.raw`
       items.push({ icon: a.dataset.view, label: 'Go to ' + a.textContent.trim(), run: () => { location.hash = '#/' + a.dataset.view; } });
     }
     for (const m of LEVELS) items.push({ icon: 'settings', label: 'Switch to ' + MODE_TEXT[m] + ' mode', run: () => applyMode(m) });
-    for (const b of $$('#chat-list .conv')) items.push({ icon: 'chat', label: b.textContent, hint: 'Conversation', run: () => b.click() });
+    for (const b of $$('#chat-list .conv')) items.push({ icon: 'chat', label: b.textContent, hint: 'Conversation', userContent: true, run: () => b.click() });
     return items;
   }
   function renderPalette() {
     const q = $('#palette-input').value.toLowerCase().trim(); const ul = $('#palette-list'); ul.replaceChildren();
     palItems = paletteItems().filter(x => !q || x.label.toLowerCase().includes(q)).slice(0, 40); palIndex = Math.min(palIndex, Math.max(0, palItems.length - 1));
     if (!palItems.length) { ul.append(el('li', { class: 'p-empty', role: 'presentation', text: 'No match.' })); $('#palette-input').removeAttribute('aria-activedescendant'); return; }
-    palItems.forEach((x, i) => { const li = el('li', { role: 'option', id: 'pal-' + i, 'aria-selected': String(i === palIndex) }, ic(x.icon), el('span', { text: x.label }), x.hint ? el('small', { text: x.hint }) : null);
+    palItems.forEach((x, i) => { const li = el('li', { role: 'option', id: 'pal-' + i, 'aria-selected': String(i === palIndex) }, ic(x.icon), el('span', x.userContent ? { 'data-user-content': '', text: x.label } : { text: x.label }), x.hint ? el('small', { text: x.hint }) : null);
       li.addEventListener('mousemove', () => { if (palIndex !== i) { palIndex = i; renderPalette(); } }); li.addEventListener('click', () => runPal(i)); ul.append(li); });
     $('#palette-input').setAttribute('aria-activedescendant', 'pal-' + palIndex);
     const sel = $('#pal-' + palIndex); if (sel) sel.scrollIntoView({ block: 'nearest' });
@@ -2744,7 +2742,7 @@ const SCRIPT = String.raw`
             stop.addEventListener('click', async () => { try { await getJson('/api/studio/runs/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ runId: run.runId, workerId: w.workerId, action: 'STOP' }) }); loadRuns(); } catch (e) { $('#run-status').textContent = e.message; } }); actionCell.append(stop); }
           else actionCell.append(el('span', { class: 'muted', text: runTerminal ? 'Historical' : 'No action' }));
           const stateClass = ['done','completed','accepted'].includes(String(w.state).toLowerCase()) ? 'ok' : ['failed','error','rejected'].includes(String(w.state).toLowerCase()) ? 'bad' : ['running','awaiting-approval','paused'].includes(String(w.state).toLowerCase()) ? 'warn' : 'muted';
-          tb.append(el('tr', {}, el('td', { text: w.workerId }), el('td', { text: w.role }), el('td', { text: w.harnessId }), el('td', { text: w.model }), el('td', { text: w.locality }), el('td', {}, badge(w.state, stateClass)), el('td', { text: String(w.usage.tokens) }), el('td', { text: String(w.receipts) }), actionCell)); }
+          tb.append(el('tr', {}, el('td', { text: w.workerId }), el('td', { text: w.role }), el('td', { text: w.harnessId }), el('td', { 'data-user-content': '', text: w.model }), el('td', { text: w.locality }), el('td', {}, badge(w.state, stateClass)), el('td', { text: String(w.usage.tokens) }), el('td', { text: String(w.receipts) }), actionCell)); }
         t.append(tb); const tableScroll = el('div', { class: 'worker-table-scroll', role: 'region', tabindex: '0', 'aria-label': 'Worker status table. Scroll horizontally if needed.' }); tableScroll.append(t); card.append(tableScroll);
         if (run.requirements) { const ul = el('ul', { class: 'reasons' }); for (const q of run.requirements) ul.append(el('li', { text: q.id + ': ' + q.status })); card.append(ul); }
         box.append(card);

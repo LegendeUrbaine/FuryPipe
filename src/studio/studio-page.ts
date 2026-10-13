@@ -1058,13 +1058,16 @@ const SCRIPT = String.raw`
   function translated(value) {
     return activeLanguage === 'fr' ? (FR[value] || value) : value;
   }
+  // User data (messages, conversation titles) is never a UI label.
+  const USER_DATA = '.msg .body,.conv,[data-user-content]';
+  const USER_CONTENT = 'script,style,pre,code,textarea,.code,' + USER_DATA;
   function translateTextNode(node) {
     const raw = node.nodeValue || '';
     const value = raw.trim();
     if (!value) return;
     const parent = node.parentElement;
     // Conversation content (user and model text) is data, never a UI label.
-    if (parent && parent.closest('script,style,pre,code,textarea,.code,.msg .body')) return;
+    if (parent && parent.closest(USER_CONTENT)) return;
     const next = translated(value);
     if (next === value) return;
     const start = raw.match(/^\s*/u)?.[0] || '';
@@ -1078,9 +1081,12 @@ const SCRIPT = String.raw`
     while (walker.nextNode()) nodes.push(walker.currentNode);
     for (const node of nodes) translateTextNode(node);
     const elements = root.querySelectorAll ? root.querySelectorAll('[placeholder],[title],[aria-label]') : [];
-    for (const node of elements) for (const attr of ['placeholder','title','aria-label']) {
-      const value = node.getAttribute(attr);
-      if (value && FR[value]) node.setAttribute(attr, FR[value]);
+    for (const node of elements) {
+      if (node.closest(USER_DATA)) continue;
+      for (const attr of ['placeholder','title','aria-label']) {
+        const value = node.getAttribute(attr);
+        if (value && FR[value]) node.setAttribute(attr, FR[value]);
+      }
     }
   }
   function applyLanguage() {
@@ -1302,7 +1308,10 @@ const SCRIPT = String.raw`
     const more = $('#nav-more');
     if (activeNav && activeNav.closest('.nav-more') && more) more.open = true;
     document.body.dataset.view = name;
-    $('#top-title').textContent = name === 'chat' ? (state.conv && state.conv.title ? state.conv.title : '') : (VIEW_TITLES[name] || '');
+    const topTitle = $('#top-title');
+    // A conversation title is user data; a view title is a translatable label.
+    topTitle.toggleAttribute('data-user-content', name === 'chat');
+    topTitle.textContent = name === 'chat' ? (state.conv && state.conv.title ? state.conv.title : '') : (VIEW_TITLES[name] || '');
     $('#privacy').hidden = name !== 'chat' || !state.lastRoute;
     const h = document.querySelector('main > section[data-view="' + name + '"] h1');
     if (h) {
@@ -1785,6 +1794,7 @@ const SCRIPT = String.raw`
       box.append(acts); log.append(box);
     });
     const sc = $('#chat-scroll'); sc.scrollTop = sc.scrollHeight;
+    $('#top-title').toggleAttribute('data-user-content', document.body.dataset.view === 'chat');
     $('#top-title').textContent = document.body.dataset.view === 'chat' && state.conv && state.conv.title ? state.conv.title : (document.body.dataset.view === 'chat' ? '' : $('#top-title').textContent);
   }
   function morphToConversation() {

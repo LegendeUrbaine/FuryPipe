@@ -964,17 +964,12 @@ const SCRIPT = String.raw`
     'Gateway accounts · no chat switch required': 'Comptes Gateway · aucun changement de discussion requis',
     'Reasoning effort': 'Effort de raisonnement',
     'Picks a model per message from what is really running here: it prefers models that fit your hardware and coding models for code. Click the route under the composer to see why.': 'Choisit un modèle pour chaque message parmi ce qui tourne réellement ici : il privilégie les modèles adaptés à votre matériel, et les modèles de code pour le code. Cliquez sur le routage sous la zone de saisie pour voir pourquoi.',
-    'Start Ollama on this computer and FuryPipe will find it automatically.': 'Démarrez Ollama sur cet ordinateur et FuryPipe le détectera automatiquement.',
-    'Start LM Studio on this computer and FuryPipe will find it automatically.': 'Démarrez LM Studio sur cet ordinateur et FuryPipe le détectera automatiquement.',
-    'Start llama.cpp on this computer and FuryPipe will find it automatically.': 'Démarrez llama.cpp sur cet ordinateur et FuryPipe le détectera automatiquement.',
-    'Start vLLM on this computer and FuryPipe will find it automatically.': 'Démarrez vLLM sur cet ordinateur et FuryPipe le détectera automatiquement.',
-    'Start SGLang on this computer and FuryPipe will find it automatically.': 'Démarrez SGLang sur cet ordinateur et FuryPipe le détectera automatiquement.',
-    'Start LocalAI on this computer and FuryPipe will find it automatically.': 'Démarrez LocalAI sur cet ordinateur et FuryPipe le détectera automatiquement.',
-    'Start Jan on this computer and FuryPipe will find it automatically.': 'Démarrez Jan sur cet ordinateur et FuryPipe le détectera automatiquement.',
     'Configured · not live-verified': 'Configuré · non vérifié en direct',
     'No adapter registered': 'Aucun adaptateur enregistré',
-    'Adapter not registered. Selection never grants execution authority.': 'Adaptateur non enregistré. La sélection n’accorde jamais d’autorité d’exécution.',
-    'Adapter registered. Selection never grants execution authority.': 'Adaptateur enregistré. La sélection n’accorde jamais d’autorité d’exécution.',
+    'Adapter registered': 'Adaptateur enregistré',
+    'Adapter not registered': 'Adaptateur non enregistré',
+    'Credential source detected': 'Source d’identifiants détectée',
+    'Selection never grants execution authority.': 'La sélection n’accorde jamais d’autorité d’exécution.',
     'No local model running yet.': 'Aucun modèle local en cours d’exécution pour l’instant.',
     'No run yet. Start one above; only local runtimes are used unless you allow cloud runtimes.': 'Aucun run pour l’instant. Lancez-en un ci-dessus ; seuls les runtimes locaux sont utilisés, sauf si vous autorisez les runtimes cloud.',
     'Every MCP server your coding tools are configured with, one place to decide what each tool may do. Health checks never send configured secrets.': 'Tous les serveurs MCP configurés dans vos outils de code, réunis pour décider de ce que chaque outil peut faire. Les contrôles de santé n’envoient jamais les secrets configurés.',
@@ -1538,11 +1533,13 @@ const SCRIPT = String.raw`
         el('span', { class: 'state' }, badge(stateLabel, stateClass)),
       ));
       const facts = [];
-      if (provider.registration === 'registered') facts.push('Adapter registered');
-      else facts.push('Adapter not registered');
-      if (provider.configuredVia && provider.configuredVia.length) facts.push('Credential source detected: ' + provider.configuredVia.join(', '));
+      // Translate each fragment before joining: the exact-match dictionary
+      // cannot match a sentence that carries runtime values.
+      if (provider.registration === 'registered') facts.push(translated('Adapter registered'));
+      else facts.push(translated('Adapter not registered'));
+      if (provider.configuredVia && provider.configuredVia.length) facts.push(translated('Credential source detected') + ': ' + provider.configuredVia.join(', '));
       if (provider.runtimes && provider.runtimes.length) facts.push('Runtime: ' + provider.runtimes.join(', '));
-      card.append(el('p', { text: facts.join(' · ') + '. Selection never grants execution authority.' }));
+      card.append(el('p', { text: facts.join(' · ') + '. ' + translated('Selection never grants execution authority.') }));
       providerGrid.append(card);
     }
     let models = 0;
@@ -1551,7 +1548,9 @@ const SCRIPT = String.raw`
       const card = el('div', { class: 'backend' + (b.reachable ? ' up' : '') });
       card.append(el('div', { class: 'backend-h' }, el('span', { class: 'dot' + (b.reachable ? ' on' : '') }), el('b', { text: name }), b.version ? el('span', { class: 'muted', text: 'v' + b.version }) : '', el('span', { class: 'state' }, b.reachable ? badge('Running', 'ok') : badge('Not running', 'muted'))));
       if (!b.reachable) {
-        card.append(el('p', { text: 'Start ' + name + ' on this computer and FuryPipe will find it automatically.' }));
+        card.append(el('p', { text: activeLanguage === 'fr'
+          ? 'Démarrez ' + name + ' sur cet ordinateur et FuryPipe le détectera automatiquement.'
+          : 'Start ' + name + ' on this computer and FuryPipe will find it automatically.' }));
         if (SETUP[b.kind]) {
           const control = (b.kind === 'ollama' || b.kind === 'lmstudio')
             ? el('button', { type: 'button', class: 'btn', 'data-install-runtime': b.kind, text: 'Install ' + name })

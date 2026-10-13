@@ -1410,7 +1410,7 @@ const SCRIPT = String.raw`
   function renderWorkspace(data) {
     const workspace = data.workspace || data;
     state.workspace = workspace;
-    $('#workspace-title').textContent = workspace.title;
+    const workspaceTitle = $('#workspace-title'); workspaceTitle.textContent = workspace.title; workspaceTitle.setAttribute('data-user-content', '');
     $('#workspace-name').value = workspace.title;
     $('#workspace-summary').textContent = activeLanguage === 'fr'
       ? workspace.conversationIds.length + ' conversation(s) · ' + workspace.tasks.length + ' tâche(s) · ' + workspace.artifactIds.length + ' artefact(s) · révision ' + workspace.revision
@@ -1431,7 +1431,7 @@ const SCRIPT = String.raw`
     if (!workspace.tasks.length) list.append(el('p', { class: 'muted', text: 'No task yet. Plan one from this project.' }));
     for (const task of workspace.tasks.slice().reverse()) {
       const record = el('div', { class: 'workspace-record' });
-      const copy = el('div'); copy.append(el('h3', { text: task.objective }), el('p', { text: task.dispatch.status + ' · ' + task.dispatch.mode + ' · ' + task.planDigest.slice(0, 12) }));
+      const copy = el('div'); copy.append(el('h3', { 'data-user-content': '', text: task.objective }), el('p', { text: task.dispatch.status + ' · ' + task.dispatch.mode + ' · ' + task.planDigest.slice(0, 12) }));
       const actions = el('div'); actions.append(badge(task.status, workspaceBadgeClass(task.status)));
       if (task.status === 'PLANNED') {
         const confirmButton = el('button', { type: 'button', class: 'secondary', text: 'Confirm task' });
@@ -1673,7 +1673,7 @@ const SCRIPT = String.raw`
     for (const f of state.files) {
       const rm = el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove ' + f.name }, ic('x'));
       rm.addEventListener('click', () => { state.files = state.files.filter(x => x !== f); renderTray(); autosize(); input.focus(); });
-      tray.append(el('div', { class: 'att' }, el('div', { class: 'kind' }, ic('file'), el('span', { text: (f.name.split('.').pop() || 'file').slice(0, 6) })), el('div', {}, el('div', { class: 'nm', text: f.name, title: f.name }), el('div', { class: 'sz', text: fmtSize(f.size) })), rm));
+      tray.append(el('div', { class: 'att' }, el('div', { class: 'kind' }, ic('file'), el('span', { text: (f.name.split('.').pop() || 'file').slice(0, 6) })), el('div', {}, el('div', { 'data-user-content': '', class: 'nm', text: f.name, title: f.name }), el('div', { class: 'sz', text: fmtSize(f.size) })), rm));
     }
   }
   async function addFiles(list) {
@@ -3156,7 +3156,7 @@ const SCRIPT = String.raw`
         const gov = el('select', { 'aria-label': 'Governance for ' + s.name }); for (const g of ['DRAFT_ONLY','ASK_BEFORE_WRITE','AUTO_APPLY_LOW_RISK','LOCKED']) { const o = el('option', { text: g }); if (g === s.governance) o.selected = true; gov.append(o); }
         gov.addEventListener('change', () => skillAct(s.name, 'GOVERNANCE', gov.value));
         const state = s.pinMismatch ? badge('pin mismatch', 'warn') : !s.enabled ? badge('disabled', 'muted') : s.trust === 'trusted-instructions' ? badge('trusted', 'ok') : badge('untrusted', 'muted');
-        body.append(el('tr', {}, el('td', {}, el('b', { text: s.name }), el('div', { class: 'muted', text: s.description })), el('td', { text: s.scope }), el('td', {}, state),
+        body.append(el('tr', {}, el('td', {}, el('b', { 'data-user-content': '', text: s.name }), el('div', { 'data-user-content': '', class: 'muted', text: s.description })), el('td', { text: s.scope }), el('td', {}, state),
           el('td', { text: s.version + ' · ' + s.type }), el('td', { text: s.compatibleHarnesses.join(', ') || 'any' }), el('td', { text: s.stats.uses + ' (' + s.stats.successes + '✓/' + s.stats.failures + '✗)' }),
           el('td', { class: 'code', text: s.checksum.slice(0, 12) }), el('td', {}, gov), el('td', {}, toggle, pin)));
       }
@@ -3255,7 +3255,7 @@ const SCRIPT = String.raw`
       for (const s of r.sources) {
         const card = el('div', { class: 'card' });
         const health = s.health ? (s.health.ok ? badge('healthy · ' + s.health.toolCount + ' tool(s)', 'ok') : badge('unhealthy', 'warn')) : badge('not probed', 'muted');
-        card.append(el('h2', { text: s.name }), el('p', { class: 'muted', text: s.origin + ' · ' + s.transport + ' · ' + s.locality + ' · ' + (s.command ? s.command + ' ' + (s.args || []).join(' ') : s.url) }), el('p', {}, health, ' ', s.trusted ? badge('trusted', 'ok') : badge('untrusted', 'muted'), ' ', s.enabled ? badge('enabled', 'ok') : badge('disabled', 'muted')));
+        card.append(el('h2', { 'data-user-content': '', text: s.name }), el('p', { class: 'muted', text: s.origin + ' · ' + s.transport + ' · ' + s.locality + ' · ' + (s.command ? s.command + ' ' + (s.args || []).join(' ') : s.url) }), el('p', {}, health, ' ', s.trusted ? badge('trusted', 'ok') : badge('untrusted', 'muted'), ' ', s.enabled ? badge('enabled', 'ok') : badge('disabled', 'muted')));
         if (s.envNames.length || s.headerNames.length) card.append(el('p', { class: 'muted', text: 'Credentials referenced (values never shown or sent by probes): ' + [...s.envNames, ...s.headerNames].join(', ') }));
         if (s.health && s.health.error) card.append(el('p', { class: 'bad', text: s.health.error }));
         const row = el('div', { class: 'row' });
@@ -3276,7 +3276,7 @@ const SCRIPT = String.raw`
           const tb = el('tbody');
           for (const tool of s.health.tools) { const sel = el('select', { 'aria-label': 'Policy for ' + tool.name }); for (const p of ['(default)','ALLOW','ASK','DENY','READ_ONLY']) { const o = el('option', { text: p }); if ((s.toolPolicies[tool.name] || '(default)') === p) o.selected = true; sel.append(o); }
             sel.addEventListener('change', async () => { try { await mcpPost('/api/studio/mcp/act', { sourceId: s.sourceId, action: 'TOOL_POLICY', tool: tool.name, value: sel.value === '(default)' ? null : sel.value }); status.textContent = tool.name + ': ' + sel.value; } catch (e) { status.textContent = e.message; } });
-            tb.append(el('tr', {}, el('td', { text: tool.name }), el('td', { text: tool.riskClass }), el('td', { text: tool.readOnly ? 'yes' : 'no' }), el('td', {}, sel))); }
+            tb.append(el('tr', {}, el('td', { 'data-user-content': '', text: tool.name }), el('td', { text: tool.riskClass }), el('td', { text: tool.readOnly ? 'yes' : 'no' }), el('td', {}, sel))); }
           t.append(tb); card.append(t);
         }
         box.append(card);
@@ -3291,7 +3291,7 @@ const SCRIPT = String.raw`
       const open = el('button', { type: 'button', class: 'secondary', text: 'Open history' });
       open.addEventListener('click', () => openArtifact(artifact.id));
       grid.append(el('article', { class: 'card extension-card' },
-        el('h2', { text: artifact.title }),
+        el('h2', { 'data-user-content': '', text: artifact.title }),
         el('p', { class: 'muted code', text: artifact.id + ' · ' + artifact.kind }),
         el('div', { class: 'extension-meta' }, badge(artifact.versions + ' version(s)', 'muted'), badge(latest.mediaType, 'muted')),
         el('p', { class: 'muted', text: latest.byteLength + ' bytes · sha256 ' + latest.contentSha256.slice(0, 12) + '…' }),
@@ -3315,7 +3315,7 @@ const SCRIPT = String.raw`
     try {
       const r = await mcpPost('/api/studio/artifacts/get', { id });
       const artifact = r.artifact;
-      const card = el('div', { class: 'card' }, el('h2', { text: artifact.title + ' · history' }));
+      const card = el('div', { class: 'card' }, el('h2', { 'data-user-content': '', text: artifact.title + ' · history' }));
       card.append(el('p', { class: 'muted', text: artifact.id + ' · ' + artifact.kind + ' · ' + artifact.versions.length + ' version(s)' }));
       const list = el('div');
       for (const version of [...artifact.versions].reverse()) {
@@ -3398,10 +3398,10 @@ const SCRIPT = String.raw`
         const riskClass = x.risk === 'LOW' ? 'ok' : x.risk === 'MEDIUM' ? 'muted' : x.risk === 'HIGH' ? 'warn' : 'bad';
         const card = el('article', { class: 'card extension-card' });
         card.append(
-          el('h2', { text: x.name }),
+          el('h2', { 'data-user-content': '', text: x.name }),
           el('p', { class: 'muted', text: x.creator + ' · ' + x.kind.replaceAll('_', ' ') }),
           el('div', { class: 'extension-meta' }, badge(x.trust.replaceAll('_', ' '), 'muted'), badge(x.risk, riskClass), badge(x.autoActivation.replaceAll('_', ' '), x.autoActivation === 'DENIED' ? 'bad' : 'muted')),
-          el('p', { text: x.description }),
+          el('p', { 'data-user-content': '', text: x.description }),
           el('p', { class: 'muted', text: x.integration }),
           el('p', { class: x.risk === 'RESTRICTED' ? 'bad' : 'muted', text: x.safety }),
           el('a', { class: 'btn secondary', href: x.sourceUrl, target: '_blank', rel: 'noopener noreferrer', text: 'Inspect source' }),
@@ -3466,8 +3466,8 @@ const SCRIPT = String.raw`
     const action = $('#web-action').value; const input = $('#web-input').value.trim();
     status.textContent = action === 'CRAWL' ? 'Crawling (same site, robots.txt honoured)…' : 'Working…';
     try { const r = await mcpPost('/api/studio/web', action === 'SEARCH' ? { action, query: input } : { action, url: input });
-      if (action === 'SEARCH') { const ol = el('ol'); for (const x of r.results) ol.append(el('li', {}, el('b', { text: x.title || x.url }), el('div', { class: 'muted', text: x.url }), el('p', { text: x.snippet }))); out.append(ol); status.textContent = r.results.length + ' result(s) via ' + r.adapter + '.'; }
-      else if (action === 'FETCH') { out.append(el('h2', { text: r.title || r.url }), el('p', { class: 'muted', text: r.status + ' · ' + r.contentType + ' · ' + r.bytes + ' bytes · sha256 ' + r.sha256.slice(0, 12) + (r.redirects.length ? ' · redirected ' + r.redirects.length + '×' : '') }), el('pre', { text: r.text.slice(0, 4000) })); status.textContent = 'Fetched without a browser; receipt ' + (r.receiptId || 'n/a') + '.'; }
+      if (action === 'SEARCH') { const ol = el('ol'); for (const x of r.results) ol.append(el('li', {}, el('b', { 'data-user-content': '', text: x.title || x.url }), el('div', { class: 'muted', text: x.url }), el('p', { 'data-user-content': '', text: x.snippet }))); out.append(ol); status.textContent = r.results.length + ' result(s) via ' + r.adapter + '.'; }
+      else if (action === 'FETCH') { out.append(el('h2', { 'data-user-content': '', text: r.title || r.url }), el('p', { class: 'muted', text: r.status + ' · ' + r.contentType + ' · ' + r.bytes + ' bytes · sha256 ' + r.sha256.slice(0, 12) + (r.redirects.length ? ' · redirected ' + r.redirects.length + '×' : '') }), el('pre', { text: r.text.slice(0, 4000) })); status.textContent = 'Fetched without a browser; receipt ' + (r.receiptId || 'n/a') + '.'; }
       else if (action === 'MAP') { const ul = el('ul'); for (const l of r.sameOrigin) ul.append(el('li', { text: l.url + (l.text ? ' — ' + l.text : '') })); out.append(ul); status.textContent = r.sameOrigin.length + ' same-site link(s), ' + r.external.length + ' external.'; }
       else { const ul = el('ul'); for (const p of r.pages) ul.append(el('li', { text: p.url + ' — ' + (p.title || 'untitled') })); out.append(ul); status.textContent = r.pages.length + ' page(s), ' + r.skipped.length + ' skipped' + (r.truncated ? ', stopped at the page limit' : '') + '.'; }
     } catch (e) { status.textContent = 'Refused: ' + e.message; }
@@ -3624,7 +3624,7 @@ const SCRIPT = String.raw`
     try { const r = await getJson('/api/studio/integrations.json'); body.replaceChildren();
       for (const e of r.entries) {
         const st = e.status === 'ready' ? badge('ready', 'ok') : e.status === 'needs-credentials' ? badge('needs credentials', 'warn') : badge('invalid', 'bad');
-        body.append(el('tr', {}, el('td', {}, el('b', { text: e.name }), el('div', { class: 'muted', text: e.endpoint || '' })), el('td', { text: e.kind }), el('td', {}, st),
+        body.append(el('tr', {}, el('td', {}, el('b', { 'data-user-content': '', text: e.name }), el('div', { class: 'muted', text: e.endpoint || '' })), el('td', { text: e.kind }), el('td', {}, st),
           el('td', { text: e.auth.schemes.join(', ') + (e.auth.credentialNames.length ? ' (' + e.auth.credentialNames.join(', ') + ')' : '') }), el('td', { text: e.capabilities.join(', ') }), el('td', { text: e.defaultDecision }), el('td', { text: e.trust }),
           el('td', { text: (e.operations ? e.operations.length + ' operation(s). ' : '') + e.problems.join('; ') })));
       }
@@ -3634,7 +3634,7 @@ const SCRIPT = String.raw`
   async function loadTree(p) {
     try { const r = await post('/api/studio/code/tree', { path: p }); const ul = $('#tree'); ul.replaceChildren(); $('#tree-path').textContent = '/' + r.path;
       if (r.path) { const up = el('button', { type: 'button', class: 'linkish', text: '..' }); up.addEventListener('click', () => loadTree(r.path.split('/').slice(0, -1).join('/'))); ul.append(el('li', {}, up)); }
-      for (const e of r.entries) { const full = (r.path ? r.path + '/' : '') + e.name; const b = el('button', { type: 'button', class: 'linkish', text: e.name + (e.kind === 'dir' ? '/' : '') });
+      for (const e of r.entries) { const full = (r.path ? r.path + '/' : '') + e.name; const b = el('button', { 'data-user-content': '', type: 'button', class: 'linkish', text: e.name + (e.kind === 'dir' ? '/' : '') });
         b.addEventListener('click', () => e.kind === 'dir' ? loadTree(full) : openFile(full)); ul.append(el('li', {}, b)); }
     } catch (e) { $('#tree-path').textContent = 'Files unavailable: ' + e.message; }
   }

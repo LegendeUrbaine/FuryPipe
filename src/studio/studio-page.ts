@@ -446,6 +446,7 @@ legend{padding:0 6px;font-size:12.5px}
 .row{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-top:12px}
 .empty{border:1px dashed var(--line-2);border-radius:var(--r-md);padding:18px;color:var(--muted)}
 .status{min-height:1.5em;color:var(--ink-2);font-size:13.5px}
+#setup-status:empty{min-height:0;margin:0}
 ul.reasons{margin:8px 0 0;padding-left:18px;color:var(--ink-2)}
 pre{font:13px/1.6 var(--mono)}
 .tree{list-style:none;margin:0;padding:0;max-height:42vh;overflow:auto}

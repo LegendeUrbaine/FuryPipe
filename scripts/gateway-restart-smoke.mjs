@@ -178,6 +178,7 @@ async function main() {
     const evidence = {
       format: 'furypipe-final-gateway-restart/v1',
       status: 'PASS',
+      sourceCommit: process.env.FURYPIPE_SOURCE_COMMIT?.trim() || 'not-bound',
       generatedAt: new Date().toISOString(),
       platform: { os: process.platform, node: process.version },
       contract: {

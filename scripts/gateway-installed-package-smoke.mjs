@@ -431,6 +431,7 @@ async function main() {
     const evidence = {
       format: 'furypipe-installed-gateway-mcp-smoke/v1',
       status: 'PASS',
+      sourceCommit: process.env.FURYPIPE_SOURCE_COMMIT?.trim() || 'not-bound',
       platform: { os: process.platform, arch: process.arch, node: process.version },
       package: { name: packed.name, version: packed.version, tarballSha256 },
       gateway: {

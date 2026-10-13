@@ -625,7 +625,10 @@ const SCRIPT = String.raw`
   /* ---------- Locale / i18n ---------- */
   const SUPPORTED_LANGUAGES = Object.freeze(['en', 'fr']);
   const FR = Object.freeze({
-    'Workspace': 'ESPACE DE TRAVAIL',
+    'Workspace': 'Espace de travail',
+    'Pasted text': 'Texte collé',
+    'Project knowledge': 'Connaissances du projet',
+    'web page': 'page web',
     'Explore workspace': 'Explorer l’espace de travail',
     'Explore': 'EXPLORER',
     'Operate': 'PILOTER',
@@ -951,7 +954,139 @@ const SCRIPT = String.raw`
     'Local inference sends this objective to the selected loopback model. Review the route, then approve one request.': 'L’inférence locale envoie cet objectif au modèle loopback sélectionné. Vérifiez le routage, puis approuvez une requête.',
     'Builder request': 'Demande de construction',
     'Compose local route': 'Composer un routage local',
-    'Execution requires explicit confirmation after the route is inspectable.': 'L’exécution exige une confirmation explicite après inspection du routage.'
+    'Execution requires explicit confirmation after the route is inspectable.': 'L’exécution exige une confirmation explicite après inspection du routage.',
+    'Ask, build and inspect in one governed workspace for models, agents and tools.': 'Demandez, construisez et inspectez dans un seul espace gouverné pour vos modèles, agents et outils.',
+    'How this workspace runs': 'Fonctionnement de cet espace',
+    'Studio is the primary user experience. Chat uses a configured local model through the loopback boundary; agent tools, Skills, MCP and the Gateway keep their own explicit permissions and receipts.': 'Studio est l’expérience principale. La discussion utilise un modèle local configuré via la limite loopback ; les outils d’agents, les Skills, MCP et le Gateway gardent leurs propres permissions explicites et leurs reçus.',
+    'Advanced Gateway WebChat remains available for diagnostics and governed provider streaming. It is not required for ordinary Studio use.': 'Le WebChat avancé du Gateway reste disponible pour le diagnostic et le streaming gouverné des fournisseurs. Il n’est pas nécessaire pour l’usage courant de Studio.',
+    'Choose a local model': 'Choisir un modèle local',
+    'Studio chat requires a reachable loopback model. Gateway provider accounts remain visible under Connections and the advanced diagnostics surface.': 'La discussion Studio exige un modèle loopback joignable. Les comptes fournisseurs du Gateway restent visibles dans Connexions et dans la surface de diagnostic avancée.',
+    'Configure local model': 'Configurer un modèle local',
+    'Ollama · LM Studio · compatible endpoints': 'Ollama · LM Studio · endpoints compatibles',
+    'Provider diagnostics': 'Diagnostic des fournisseurs',
+    'Gateway accounts · no chat switch required': 'Comptes Gateway · aucun changement de discussion requis',
+    'Reasoning effort': 'Effort de raisonnement',
+    'Picks a model per message from what is really running here: it prefers models that fit your hardware and coding models for code. Click the route under the composer to see why.': 'Choisit un modèle pour chaque message parmi ce qui tourne réellement ici : il privilégie les modèles adaptés à votre matériel, et les modèles de code pour le code. Cliquez sur le routage sous la zone de saisie pour voir pourquoi.',
+    'Configured · not live-verified': 'Configuré · non vérifié en direct',
+    'No adapter registered': 'Aucun adaptateur enregistré',
+    'Adapter registered': 'Adaptateur enregistré',
+    'Adapter not registered': 'Adaptateur non enregistré',
+    'Credential source detected': 'Source d’identifiants détectée',
+    'Selection never grants execution authority.': 'La sélection n’accorde jamais d’autorité d’exécution.',
+    'No local model running yet.': 'Aucun modèle local en cours d’exécution pour l’instant.',
+    'No run yet. Start one above; only local runtimes are used unless you allow cloud runtimes.': 'Aucun run pour l’instant. Lancez-en un ci-dessus ; seuls les runtimes locaux sont utilisés, sauf si vous autorisez les runtimes cloud.',
+    'Every MCP server your coding tools are configured with, one place to decide what each tool may do. Health checks never send configured secrets.': 'Tous les serveurs MCP configurés dans vos outils de code, réunis pour décider de ce que chaque outil peut faire. Les contrôles de santé n’envoient jamais les secrets configurés.',
+    'Add project MCP': 'Ajouter un MCP au projet',
+    'HTTPS URL': 'URL HTTPS',
+    'Add disabled + untrusted for review': 'Ajouter désactivé et non approuvé, pour revue',
+    'Add MCP': 'Ajouter le MCP',
+    'Studio refuses embedded credentials. Configure secrets outside this form.': 'Studio refuse les identifiants intégrés. Configurez les secrets en dehors de ce formulaire.',
+    'No MCP server configured. FuryPipe reads .mcp.json, .cursor/mcp.json, .vscode/mcp.json, opencode.json, ~/.claude.json and ~/.codex/config.toml.': 'Aucun serveur MCP configuré. FuryPipe lit .mcp.json, .cursor/mcp.json, .vscode/mcp.json, opencode.json, ~/.claude.json et ~/.codex/config.toml.',
+    'Agent Skills found in this project and your home folder (.furypipe, .agents, .claude, .opencode, .github). Pin a skill to block it automatically if its content changes.': 'Agent Skills trouvés dans ce projet et dans votre dossier personnel (.furypipe, .agents, .claude, .opencode, .github). Épinglez un skill pour le bloquer automatiquement si son contenu change.',
+    'Creates a validated project-local SKILL.md. Declared tools are routing metadata only and never grant execution authority.': 'Crée un SKILL.md validé, local au projet. Les outils déclarés sont de simples métadonnées de routage et n’accordent jamais d’autorité d’exécution.',
+    'Metadata and validation': 'Métadonnées et validation',
+    'Compatible runtimes (one id per line)': 'Runtimes compatibles (un identifiant par ligne)',
+    'Declared tools (one per line, metadata only)': 'Outils déclarés (un par ligne, métadonnées uniquement)',
+    'Trigger conditions (one per line)': 'Conditions de déclenchement (une par ligne)',
+    'Examples (one per line)': 'Exemples (un par ligne)',
+    'Skill acceptance tests (one per line)': 'Tests d’acceptation du skill (un par ligne)',
+    'Create this local instruction skill after validation': 'Créer ce skill d’instructions local après validation',
+    'Create skill': 'Créer le skill',
+    'No script, shell command, network permission or secret is created by this form.': 'Ce formulaire ne crée aucun script, commande shell, permission réseau ni secret.',
+    'Import a local skill': 'Importer un skill local',
+    'Folder containing SKILL.md': 'Dossier contenant SKILL.md',
+    'I reviewed this skill and want FuryPipe to import it': 'J’ai vérifié ce skill et je veux que FuryPipe l’importe',
+    'Import skill': 'Importer le skill',
+    'Remote repositories are never downloaded automatically from this form.': 'Les dépôts distants ne sont jamais téléchargés automatiquement depuis ce formulaire.',
+    'Which skills would a task use?': 'Quels skills une tâche utiliserait-elle ?',
+    'What FuryPipe remembers for this project and for you. Stored encrypted on this machine; you can disable or forget any item.': 'Ce que FuryPipe retient pour ce projet et pour vous. Stocké chiffré sur cette machine ; vous pouvez désactiver ou oublier chaque élément.',
+    'Memory is off. Set FURYPIPE_WEBCHAT_MEMORY_CONFIG to an encrypted memory config to turn it on.': 'La mémoire est désactivée. Pour l’activer, définissez FURYPIPE_WEBCHAT_MEMORY_CONFIG vers une configuration mémoire chiffrée.',
+    'Custom instructions': 'Instructions personnalisées',
+    'Your own turn-level preferences, applied after Fury Autopilot\'s safety boundary. They cannot grant tools or permissions.': 'Vos préférences pour chaque tour, appliquées après la limite de sécurité de Fury Autopilot. Elles ne peuvent accorder ni outils ni permissions.',
+    'Save instructions': 'Enregistrer les instructions',
+    ': the technical dashboard with sessions, compression, readiness, provider and MCP evidence.': ' : le tableau de bord technique avec sessions, compression, état de préparation et preuves fournisseurs et MCP.',
+    'Engineer and Expert modes add Code, Agents, Runtimes, Integrations, Automations and Mission Control to the sidebar.': 'Les modes Ingénieur et Expert ajoutent Code, Agents, Runtimes, Intégrations, Automatisations et Centre de contrôle à la barre latérale.',
+    'Saved locally in this Studio browser.': 'Enregistré localement dans ce navigateur Studio.',
+    'Custom instructions cleared.': 'Instructions personnalisées effacées.',
+    'Dispatch preview: FuryDispatcher plans runtimes, parallel groups, worktrees and authority for a contract. Preview only — no agent is started.': 'Aperçu du dispatch : FuryDispatcher planifie runtimes, groupes parallèles, worktrees et autorités pour un contrat. Aperçu uniquement — aucun agent n’est démarré.',
+    'Intent contract (FuryIR)': 'Contrat d’intention (FuryIR)',
+    'Preview plan': 'Prévisualiser le plan',
+    'Project graph for this workspace (Graphify when present, native indexer otherwise) and change blast radius.': 'Graphe du projet pour cet espace (Graphify s’il est présent, sinon l’indexeur natif) et rayon d’impact des changements.',
+    'Project graph': 'Graphe du projet',
+    'none (native indexer)': 'aucun (indexeur natif)',
+    'Plan lifecycle': 'Cycle de vie du plan',
+    'Refresh Graphify': 'Actualiser Graphify',
+    'Blast radius': 'Rayon d’impact',
+    'Changed files (one per line)': 'Fichiers modifiés (un par ligne)',
+    'FuryEval history': 'Historique FuryEval',
+    'Run the bounded evaluation dataset, persist the report locally, and compare runs after a restart. Evaluation never grants execution authority.': 'Exécutez le jeu d’évaluation borné, conservez le rapport localement et comparez les exécutions après un redémarrage. L’évaluation n’accorde jamais d’autorité d’exécution.',
+    'Dataset JSON': 'Jeu de données JSON',
+    'Run and persist evaluation': 'Exécuter et conserver l’évaluation',
+    'Refresh history': 'Actualiser l’historique',
+    'No FuryEval run persisted yet.': 'Aucune exécution FuryEval conservée pour l’instant.',
+    'Project checks': 'Vérifications du projet',
+    'No free shell. Only allowlisted package scripts can run, and FuryPipe shows the exact script text and SHA-256 before confirmation.': 'Pas de shell libre. Seuls les scripts de package autorisés peuvent s’exécuter, et FuryPipe affiche le texte exact du script et son SHA-256 avant confirmation.',
+    'Every agent writes in its own worktree. Diffs are read-only here; merging goes through FuryIntegrator.': 'Chaque agent écrit dans son propre worktree. Les diffs sont en lecture seule ici ; la fusion passe par FuryIntegrator.',
+    'Show diff': 'Afficher le diff',
+    'FuryFlow: build a workflow and see where non-determinism lives. Validation and dry-run only here; scheduled runs use the Gateway automation scheduler.': 'FuryFlow : construisez un workflow et repérez où se trouve le non-déterminisme. Ici, validation et simulation uniquement ; les exécutions planifiées passent par le planificateur d’automatisations du Gateway.',
+    'Flow (FuryFlow JSON)': 'Flux (JSON FuryFlow)',
+    'Dry-run (refund branch)': 'Simulation (branche remboursement)',
+    'Solid border: deterministic zone': 'Bordure pleine : zone déterministe',
+    'Dashed orange border: agentic zone': 'Bordure orange en pointillés : zone agentique',
+    'Thick border: critical step': 'Bordure épaisse : étape critique',
+    'Agent harnesses installed on this machine. Harness, provider and model are independent choices.': 'Harnais d’agents installés sur cette machine. Harnais, fournisseur et modèle sont des choix indépendants.',
+    'Local models via': 'Modèles locaux via',
+    'not installed': 'non installé',
+    'Any ACP agent': 'Tout agent ACP',
+    'Any A2A agent': 'Tout agent A2A',
+    'Outputs': 'Sorties',
+    'Branch': 'Branche',
+    'Changed': 'Modifiés',
+    'Agents · receipts': 'Agents · reçus',
+    'Add conversation context': 'Ajouter le contexte de la conversation',
+    'Advanced evidence': 'Preuves avancées',
+    'Auto effort': 'Effort auto',
+    'Low': 'Faible',
+    'Medium': 'Moyen',
+    'High': 'Élevé',
+    'XHigh': 'Très élevé',
+    'Commit and verify': 'Enregistrer et vérifier',
+    'Commit verified artifact': 'Enregistrer l’artefact vérifié',
+    'Confirmed task': 'Tâche confirmée',
+    'Content': 'Contenu',
+    'Create a skill': 'Créer une skill',
+    'Create conversation': 'Créer une conversation',
+    'Detecting AI connections…': 'Détection des connexions IA…',
+    'Discovering runtimes…': 'Recherche des runtimes…',
+    'Evolving': 'Évolutive',
+    'Generated': 'Générée',
+    'Static': 'Statique',
+    'File': 'Fichier',
+    'Files': 'Fichiers',
+    'Edges': 'Liens',
+    'Freshness': 'Fraîcheur',
+    'Graph-aware': 'Tenir compte du graphe',
+    'I confirm this local artifact write': 'Je confirme cette écriture locale d’artefact',
+    'Keep the request in this project context.': 'Garder la demande dans le contexte de ce projet.',
+    'Legacy SSE (deprecated)': 'SSE historique (obsolète)',
+    'Name': 'Nom',
+    'No task yet. Plan one from this project.': 'Aucune tâche pour l’instant. Planifiez-en une depuis ce projet.',
+    'Objective': 'Objectif',
+    'One governed path': 'Un parcours gouverné',
+    'One project context for conversation, governed tasks and verified artifacts. Advanced runtime details stay available without taking over the main path.': 'Un seul contexte de projet pour la conversation, les tâches gouvernées et les artefacts vérifiés. Les détails avancés du runtime restent accessibles sans encombrer le parcours principal.',
+    'Opening message': 'Message d’ouverture',
+    'Persist, reread and verify the content digest.': 'Enregistrer, relire et vérifier l’empreinte du contenu.',
+    'Plan a governed task': 'Planifier une tâche gouvernée',
+    'Plan and confirm a task first': 'Planifiez et confirmez d’abord une tâche',
+    'Plan and confirm before any governed write.': 'Planifier et confirmer avant toute écriture gouvernée.',
+    'Plan task': 'Planifier la tâche',
+    'Select a file.': 'Sélectionnez un fichier.',
+    'Skip to content': 'Aller au contenu',
+    'Tasks': 'Tâches',
+    'Title': 'Titre',
+    'Workspace title': 'Titre de l’espace de travail',
+    '2 · Task': '2 · Tâche',
+    '3 · Artifact': '3 · Artefact'
   });
   function detectedLanguage() {
     const langs = [...(Array.isArray(navigator.languages) ? navigator.languages : []), navigator.language, Intl.DateTimeFormat().resolvedOptions().locale, SERVER_LANGUAGE].filter(Boolean);
@@ -975,12 +1110,16 @@ const SCRIPT = String.raw`
   function translated(value) {
     return activeLanguage === 'fr' ? (FR[value] || value) : value;
   }
+  // User data (messages, conversation titles) is never a UI label.
+  const USER_DATA = '.msg .body,.conv,[data-user-content]';
+  const USER_CONTENT = 'script,style,pre,code,textarea,.code,' + USER_DATA;
   function translateTextNode(node) {
     const raw = node.nodeValue || '';
     const value = raw.trim();
     if (!value) return;
     const parent = node.parentElement;
-    if (parent && parent.closest('script,style,pre,code,textarea,.code')) return;
+    // Conversation content (user and model text) is data, never a UI label.
+    if (parent && parent.closest(USER_CONTENT)) return;
     const next = translated(value);
     if (next === value) return;
     const start = raw.match(/^\s*/u)?.[0] || '';
@@ -994,9 +1133,12 @@ const SCRIPT = String.raw`
     while (walker.nextNode()) nodes.push(walker.currentNode);
     for (const node of nodes) translateTextNode(node);
     const elements = root.querySelectorAll ? root.querySelectorAll('[placeholder],[title],[aria-label]') : [];
-    for (const node of elements) for (const attr of ['placeholder','title','aria-label']) {
-      const value = node.getAttribute(attr);
-      if (value && FR[value]) node.setAttribute(attr, FR[value]);
+    for (const node of elements) {
+      if (node.closest(USER_DATA)) continue;
+      for (const attr of ['placeholder','title','aria-label']) {
+        const value = node.getAttribute(attr);
+        if (value && FR[value]) node.setAttribute(attr, FR[value]);
+      }
     }
   }
   function applyLanguage() {
@@ -1004,6 +1146,10 @@ const SCRIPT = String.raw`
     document.documentElement.lang = activeLanguage;
     for (const r of document.querySelectorAll('input[name="pref-language"]')) r.checked = r.value === languagePreference();
     translateDom(document);
+    // The file viewer is excluded from translation as file content; only its
+    // placeholder, shown before any file is opened, is UI text.
+    const fileView = $('#file-view');
+    if (fileView && fileView.dataset.placeholder === 'true') fileView.textContent = activeLanguage === 'fr' ? 'Sélectionnez un fichier.' : 'Select a file.';
   }
   async function getJson(url, init) {
     const res = await fetch(url, init);
@@ -1218,7 +1364,10 @@ const SCRIPT = String.raw`
     const more = $('#nav-more');
     if (activeNav && activeNav.closest('.nav-more') && more) more.open = true;
     document.body.dataset.view = name;
-    $('#top-title').textContent = name === 'chat' ? (state.conv && state.conv.title ? state.conv.title : '') : (VIEW_TITLES[name] || '');
+    const topTitle = $('#top-title');
+    // A conversation title is user data; a view title is a translatable label.
+    topTitle.toggleAttribute('data-user-content', name === 'chat');
+    topTitle.textContent = name === 'chat' ? (state.conv && state.conv.title ? state.conv.title : '') : (VIEW_TITLES[name] || '');
     $('#privacy').hidden = name !== 'chat' || !state.lastRoute;
     const h = document.querySelector('main > section[data-view="' + name + '"] h1');
     if (h) {
@@ -1266,13 +1415,15 @@ const SCRIPT = String.raw`
   function renderWorkspace(data) {
     const workspace = data.workspace || data;
     state.workspace = workspace;
-    $('#workspace-title').textContent = workspace.title;
+    const workspaceTitle = $('#workspace-title'); workspaceTitle.textContent = workspace.title; workspaceTitle.setAttribute('data-user-content', '');
     $('#workspace-name').value = workspace.title;
-    $('#workspace-summary').textContent = workspace.conversationIds.length + ' conversation(s) · ' + workspace.tasks.length + ' task(s) · ' + workspace.artifactIds.length + ' artifact(s) · revision ' + workspace.revision;
+    $('#workspace-summary').textContent = activeLanguage === 'fr'
+      ? workspace.conversationIds.length + ' conversation(s) · ' + workspace.tasks.length + ' tâche(s) · ' + workspace.artifactIds.length + ' artefact(s) · révision ' + workspace.revision
+      : workspace.conversationIds.length + ' conversation(s) · ' + workspace.tasks.length + ' task(s) · ' + workspace.artifactIds.length + ' artifact(s) · revision ' + workspace.revision;
     const counts = $('#workspace-counts'); counts.replaceChildren(
       el('span', {}, el('b', { text: String(workspace.conversationIds.length) }), ' conversation'),
-      el('span', {}, el('b', { text: String(workspace.tasks.length) }), ' task'),
-      el('span', {}, el('b', { text: String(workspace.artifactIds.length) }), ' artifact'),
+      el('span', {}, el('b', { text: String(workspace.tasks.length) }), activeLanguage === 'fr' ? ' tâche' : ' task'),
+      el('span', {}, el('b', { text: String(workspace.artifactIds.length) }), activeLanguage === 'fr' ? ' artefact' : ' artifact'),
     );
     const hasConversation = workspace.conversationIds.length > 0;
     const hasTask = workspace.tasks.length > 0;
@@ -1285,7 +1436,7 @@ const SCRIPT = String.raw`
     if (!workspace.tasks.length) list.append(el('p', { class: 'muted', text: 'No task yet. Plan one from this project.' }));
     for (const task of workspace.tasks.slice().reverse()) {
       const record = el('div', { class: 'workspace-record' });
-      const copy = el('div'); copy.append(el('h3', { text: task.objective }), el('p', { text: task.dispatch.status + ' · ' + task.dispatch.mode + ' · ' + task.planDigest.slice(0, 12) }));
+      const copy = el('div'); copy.append(el('h3', { 'data-user-content': '', text: task.objective }), el('p', { text: task.dispatch.status + ' · ' + task.dispatch.mode + ' · ' + task.planDigest.slice(0, 12) }));
       const actions = el('div'); actions.append(badge(task.status, workspaceBadgeClass(task.status)));
       if (task.status === 'PLANNED') {
         const confirmButton = el('button', { type: 'button', class: 'secondary', text: 'Confirm task' });
@@ -1296,7 +1447,7 @@ const SCRIPT = String.raw`
     const select = $('#workspace-artifact-task');
     const previous = select.value;
     select.replaceChildren(el('option', { value: '', text: workspace.tasks.some((task) => task.status === 'CONFIRMED') ? 'Choose a confirmed task' : 'Plan and confirm a task first' }));
-    for (const task of workspace.tasks.filter((candidate) => candidate.status === 'CONFIRMED')) select.append(el('option', { value: task.id, text: task.id + ' · ' + task.objective.slice(0, 70) }));
+    for (const task of workspace.tasks.filter((candidate) => candidate.status === 'CONFIRMED')) select.append(el('option', { 'data-user-content': '', value: task.id, text: task.id + ' · ' + task.objective.slice(0, 70) }));
     if ([...select.options].some((option) => option.value === previous)) select.value = previous;
     $('#workspace-evidence').textContent = JSON.stringify({ format: workspace.format, workspaceId: workspace.workspaceId, revision: workspace.revision, conversationIds: workspace.conversationIds, tasks: workspace.tasks.map((task) => ({ id: task.id, status: task.status, dispatch: task.dispatch, execution: task.execution, artifactId: task.artifactId || null, artifactContentSha256: task.artifactContentSha256 || null, verification: task.verification || null })), artifactIds: workspace.artifactIds, executionAuthority: false }, null, 2);
   }
@@ -1350,7 +1501,7 @@ const SCRIPT = String.raw`
     const r = state.lastRoute; const chip = $('#route-chip');
     if (!r) { chip.hidden = true; $('#privacy').hidden = true; return; }
     const ap = r.autopilot;
-    chip.hidden = false; chip.replaceChildren(ic('route'), el('span', { text: r.model }), el('span', { class: 'sep', text: '·' }), el('span', { text: PROVIDER[r.kind] || r.kind }), el('span', { class: 'sep', text: '·' }), el('span', { text: 'Local' + (ap ? ' · ' + ap.profile.label + ' · ' + ap.effort.effective : '') }));
+    chip.hidden = false; chip.replaceChildren(ic('route'), el('span', { 'data-user-content': '', text: r.model }), el('span', { class: 'sep', text: '·' }), el('span', { text: PROVIDER[r.kind] || r.kind }), el('span', { class: 'sep', text: '·' }), el('span', { text: 'Local' + (ap ? ' · ' + ap.profile.label + ' · ' + ap.effort.effective : '') }));
     chip.setAttribute('aria-label', 'Route: ' + r.model + ', ' + (PROVIDER[r.kind] || r.kind) + ', local' + (ap ? ', ' + ap.profile.label + ', effort ' + ap.effort.effective : '') + '. Why this route?');
     $('#privacy').hidden = document.body.dataset.view !== 'chat';
   }
@@ -1427,7 +1578,7 @@ const SCRIPT = String.raw`
       $('#hw').textContent = gpu ? gpu.name : (hw.unifiedMemory ? 'Unified memory' : hw.cpuModel);
       const spec = $('#hw-spec'); spec.replaceChildren();
       if (gpu) spec.append(el('span', { text: gib(gpu.memoryBytes) + ' GB VRAM' }));
-      spec.append(el('span', { text: gib(hw.totalMemoryBytes) + ' GB RAM' }), el('span', { text: hw.cpuCount + ' CPU threads' }));
+      spec.append(el('span', { text: gib(hw.totalMemoryBytes) + ' GB RAM' }), el('span', { text: hw.cpuCount + (activeLanguage === 'fr' ? ' threads CPU' : ' CPU threads') }));
       const fits = candidates().filter(x => x.m.fit === 'FITS').length;
       $('#hw-rec').textContent = candidates().length ? fits + ' of ' + candidates().length + ' local model' + (candidates().length === 1 ? '' : 's') + ' fit this machine comfortably.' : 'Start a local runtime to see which models fit.';
     }
@@ -1450,11 +1601,13 @@ const SCRIPT = String.raw`
         el('span', { class: 'state' }, badge(stateLabel, stateClass)),
       ));
       const facts = [];
-      if (provider.registration === 'registered') facts.push('Adapter registered');
-      else facts.push('Adapter not registered');
-      if (provider.configuredVia && provider.configuredVia.length) facts.push('Credential source detected: ' + provider.configuredVia.join(', '));
+      // Translate each fragment before joining: the exact-match dictionary
+      // cannot match a sentence that carries runtime values.
+      if (provider.registration === 'registered') facts.push(translated('Adapter registered'));
+      else facts.push(translated('Adapter not registered'));
+      if (provider.configuredVia && provider.configuredVia.length) facts.push(translated('Credential source detected') + ': ' + provider.configuredVia.join(', '));
       if (provider.runtimes && provider.runtimes.length) facts.push('Runtime: ' + provider.runtimes.join(', '));
-      card.append(el('p', { text: facts.join(' · ') + '. Selection never grants execution authority.' }));
+      card.append(el('p', { text: facts.join(' · ') + '. ' + translated('Selection never grants execution authority.') }));
       providerGrid.append(card);
     }
     let models = 0;
@@ -1463,18 +1616,20 @@ const SCRIPT = String.raw`
       const card = el('div', { class: 'backend' + (b.reachable ? ' up' : '') });
       card.append(el('div', { class: 'backend-h' }, el('span', { class: 'dot' + (b.reachable ? ' on' : '') }), el('b', { text: name }), b.version ? el('span', { class: 'muted', text: 'v' + b.version }) : '', el('span', { class: 'state' }, b.reachable ? badge('Running', 'ok') : badge('Not running', 'muted'))));
       if (!b.reachable) {
-        card.append(el('p', { text: 'Start ' + name + ' on this computer and FuryPipe will find it automatically.' }));
+        card.append(el('p', { text: activeLanguage === 'fr'
+          ? 'Démarrez ' + name + ' sur cet ordinateur et FuryPipe le détectera automatiquement.'
+          : 'Start ' + name + ' on this computer and FuryPipe will find it automatically.' }));
         if (SETUP[b.kind]) {
           const control = (b.kind === 'ollama' || b.kind === 'lmstudio')
             ? el('button', { type: 'button', class: 'btn', 'data-install-runtime': b.kind, text: 'Install ' + name })
-            : el('a', { class: 'btn', href: SETUP[b.kind], target: '_blank', rel: 'noopener noreferrer', text: 'Set up ' + name });
+            : el('a', { class: 'btn', href: SETUP[b.kind], target: '_blank', rel: 'noopener noreferrer', text: (activeLanguage === 'fr' ? 'Configurer ' : 'Set up ') + name });
           card.append(el('div', {}, control));
         }
       } else if (!b.models.length) card.append(el('p', { text: 'Running, but no model is installed yet.' }));
       for (const m of b.models) { models++;
-        const row = el('div', { class: 'model-row' }, el('span', { class: 'mn', text: m.id }), el('span', { class: 'ms', text: [m.parameterSize, m.quantization, m.modality === 'embeddings' ? 'embeddings' : ''].filter(Boolean).join(' · ') }), fitPill(m.fit));
+        const row = el('div', { class: 'model-row' }, el('span', { 'data-user-content': '', class: 'mn', text: m.id }), el('span', { class: 'ms', text: [m.parameterSize, m.quantization, m.modality === 'embeddings' ? 'embeddings' : ''].filter(Boolean).join(' · ') }), fitPill(m.fit));
         card.append(row);
-        table.append(el('tr', {}, el('td', { text: name }), el('td', { text: b.baseUrl }), el('td', {}, badge('up', 'ok')), el('td', { text: m.id }), el('td', { text: m.fit })));
+        table.append(el('tr', {}, el('td', { text: name }), el('td', { text: b.baseUrl }), el('td', {}, badge('up', 'ok')), el('td', { 'data-user-content': '', text: m.id }), el('td', { text: m.fit })));
       }
       if (!b.reachable) table.append(el('tr', {}, el('td', { text: name }), el('td', { text: b.baseUrl }), el('td', {}, badge('offline', 'muted')), el('td', { text: '—' }), el('td', { text: '—' })));
       grid.append(card);
@@ -1484,7 +1639,7 @@ const SCRIPT = String.raw`
   const gb = (n) => n == null ? 'size unknown' : (n / 1073741824).toFixed(n >= 10 * 1073741824 ? 1 : 2) + ' GB';
   function catalogCard(m, ranked) {
     const card = el('div', { class: 'card catalog-card' });
-    const title = el('h3', { text: m.id }); const meta = el('div', { class: 'catalog-meta' });
+    const title = el('h3', { 'data-user-content': '', text: m.id }); const meta = el('div', { class: 'catalog-meta' });
     if (ranked && typeof m.score === 'number') meta.append(el('span', { class: 'badge score', text: 'score ' + m.score }));
     if (m.downloads != null) meta.append(badge(m.downloads.toLocaleString() + ' downloads', 'muted'));
     if (m.license) meta.append(badge(m.license, 'muted'));
@@ -1518,12 +1673,12 @@ const SCRIPT = String.raw`
     for (const p of state.pastes) {
       const rm = el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove pasted text' }, ic('x'));
       rm.addEventListener('click', () => { state.pastes = state.pastes.filter(x => x !== p); renderTray(); autosize(); input.focus(); });
-      tray.append(el('div', { class: 'att pasted' }, el('div', { class: 'snip', text: p.text.slice(0, 240) }), el('span', { class: 'tag', text: 'Pasted · ' + p.text.length + ' chars' }), rm));
+      tray.append(el('div', { class: 'att pasted' }, el('div', { 'data-user-content': '', class: 'snip', text: p.text.slice(0, 240) }), el('span', { class: 'tag', text: (activeLanguage === 'fr' ? 'Collé · ' + p.text.length + ' caractères' : 'Pasted · ' + p.text.length + ' chars') }), rm));
     }
     for (const f of state.files) {
       const rm = el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove ' + f.name }, ic('x'));
       rm.addEventListener('click', () => { state.files = state.files.filter(x => x !== f); renderTray(); autosize(); input.focus(); });
-      tray.append(el('div', { class: 'att' }, el('div', { class: 'kind' }, ic('file'), el('span', { text: (f.name.split('.').pop() || 'file').slice(0, 6) })), el('div', {}, el('div', { class: 'nm', text: f.name, title: f.name }), el('div', { class: 'sz', text: fmtSize(f.size) })), rm));
+      tray.append(el('div', { class: 'att' }, el('div', { class: 'kind' }, ic('file'), el('span', { text: (f.name.split('.').pop() || 'file').slice(0, 6) })), el('div', {}, el('div', { 'data-user-content': '', class: 'nm', text: f.name, title: f.name }), el('div', { class: 'sz', text: fmtSize(f.size) })), rm));
     }
   }
   async function addFiles(list) {
@@ -1644,7 +1799,8 @@ const SCRIPT = String.raw`
     const chips = el('div', { class: 'att-chips' });
     for (const m of ctx.matchAll(/^\[(File|Pasted text|Web|Knowledge)(?::\s*([^\]\n]*))?\]/gm)) {
       const kind = m[1]; const label = kind === 'File' ? m[2] : kind === 'Web' ? (m[2] || 'web page') : kind === 'Knowledge' ? 'Project knowledge' : 'Pasted text';
-      chips.append(el('span', { class: 'att-chip' }, ic(kind === 'Web' ? 'web' : kind === 'Knowledge' ? 'knowledge' : 'file'), el('span', { text: label })));
+      const userLabel = kind === 'File' || (kind === 'Web' && m[2]);
+      chips.append(el('span', { class: 'att-chip' }, ic(kind === 'Web' ? 'web' : kind === 'Knowledge' ? 'knowledge' : 'file'), el('span', userLabel ? { text: label, 'data-user-content': '' } : { text: label })));
     }
     return chips.children.length ? chips : null;
   }
@@ -1697,6 +1853,7 @@ const SCRIPT = String.raw`
       box.append(acts); log.append(box);
     });
     const sc = $('#chat-scroll'); sc.scrollTop = sc.scrollHeight;
+    $('#top-title').toggleAttribute('data-user-content', document.body.dataset.view === 'chat');
     $('#top-title').textContent = document.body.dataset.view === 'chat' && state.conv && state.conv.title ? state.conv.title : (document.body.dataset.view === 'chat' ? '' : $('#top-title').textContent);
   }
   function morphToConversation() {
@@ -2266,14 +2423,14 @@ const SCRIPT = String.raw`
       items.push({ icon: a.dataset.view, label: 'Go to ' + a.textContent.trim(), run: () => { location.hash = '#/' + a.dataset.view; } });
     }
     for (const m of LEVELS) items.push({ icon: 'settings', label: 'Switch to ' + MODE_TEXT[m] + ' mode', run: () => applyMode(m) });
-    for (const b of $$('#chat-list .conv')) items.push({ icon: 'chat', label: b.textContent, hint: 'Conversation', run: () => b.click() });
+    for (const b of $$('#chat-list .conv')) items.push({ icon: 'chat', label: b.textContent, hint: 'Conversation', userContent: true, run: () => b.click() });
     return items;
   }
   function renderPalette() {
     const q = $('#palette-input').value.toLowerCase().trim(); const ul = $('#palette-list'); ul.replaceChildren();
     palItems = paletteItems().filter(x => !q || x.label.toLowerCase().includes(q)).slice(0, 40); palIndex = Math.min(palIndex, Math.max(0, palItems.length - 1));
     if (!palItems.length) { ul.append(el('li', { class: 'p-empty', role: 'presentation', text: 'No match.' })); $('#palette-input').removeAttribute('aria-activedescendant'); return; }
-    palItems.forEach((x, i) => { const li = el('li', { role: 'option', id: 'pal-' + i, 'aria-selected': String(i === palIndex) }, ic(x.icon), el('span', { text: x.label }), x.hint ? el('small', { text: x.hint }) : null);
+    palItems.forEach((x, i) => { const li = el('li', { role: 'option', id: 'pal-' + i, 'aria-selected': String(i === palIndex) }, ic(x.icon), el('span', x.userContent ? { 'data-user-content': '', text: x.label } : { text: x.label }), x.hint ? el('small', { text: x.hint }) : null);
       li.addEventListener('mousemove', () => { if (palIndex !== i) { palIndex = i; renderPalette(); } }); li.addEventListener('click', () => runPal(i)); ul.append(li); });
     $('#palette-input').setAttribute('aria-activedescendant', 'pal-' + palIndex);
     const sel = $('#pal-' + palIndex); if (sel) sel.scrollIntoView({ block: 'nearest' });
@@ -2331,7 +2488,7 @@ const SCRIPT = String.raw`
             const connect = el('button', { type: 'button', class: 'btn secondary', 'data-connect-provider': c.id, text: c.state === 'authenticated' || c.state === 'credential-configured' ? 'Reconnect / switch account' : 'Connect account' });
             actions.append(connect);
           } else {
-            actions.append(el('a', { class: 'btn secondary', href: '#/runtimes', text: 'Set up ' + (c.id === 'anthropic' ? 'Claude Code' : c.id === 'openai' ? 'Codex' : 'Gemini CLI') }));
+            actions.append(el('a', { class: 'btn secondary', href: '#/runtimes', text: (activeLanguage === 'fr' ? 'Configurer ' : 'Set up ') + (c.id === 'anthropic' ? 'Claude Code' : c.id === 'openai' ? 'Codex' : 'Gemini CLI') }));
           }
           card.append(actions);
         }
@@ -2391,7 +2548,7 @@ const SCRIPT = String.raw`
         body.append(el('tr', {}, el('td', { text: h.displayName }), el('td', {}, h.installed ? badge(h.versionStatus === 'builtin' ? 'built in' : 'installed', 'ok') : badge(h.versionStatus === 'not-executed' ? 'configure an endpoint' : 'not installed', 'muted')),
           el('td', { text: h.version || '—' }), el('td', { text: h.definition.integrations.join(', ') }), el('td', { text: h.definition.localModel.mechanism }), el('td', { text: h.definition.evidence })));
       }
-      status.textContent = state.harnesses.harnesses.filter(h => h.installed).length + ' runtime(s) available. Authentication is never probed.';
+      status.textContent = state.harnesses.harnesses.filter(h => h.installed).length + (activeLanguage === 'fr' ? ' runtime(s) disponible(s). L’authentification n’est jamais sondée.' : ' runtime(s) available. Authentication is never probed.');
     } catch (e) { status.textContent = 'Runtime discovery failed: ' + e.message; }
   }
 
@@ -2473,7 +2630,7 @@ const SCRIPT = String.raw`
   }
   async function loadEvalHistory() {
     const status = $('#eval-status');
-    try { const history = await getJson('/api/studio/eval/history.json?limit=50'); renderEvalHistory(history); if (status) status.textContent = history.runs.length + ' durable evaluation run(s). Execution authority: false.'; }
+    try { const history = await getJson('/api/studio/eval/history.json?limit=50'); renderEvalHistory(history); if (status) status.textContent = history.runs.length + (activeLanguage === 'fr' ? ' évaluation(s) durable(s). Autorité d’exécution : non.' : ' durable evaluation run(s). Execution authority: false.'); }
     catch (error) { if (status) status.textContent = 'FuryEval history unavailable: ' + (error instanceof Error ? error.message : String(error)); }
   }
   $('#eval-run').addEventListener('click', async () => {
@@ -2574,7 +2731,7 @@ const SCRIPT = String.raw`
     try { const r = await getJson('/api/studio/runs.json'); const box = $('#runs'); box.replaceChildren();
       if (!r.runs.length) { box.append(el('p', { class: 'empty', text: 'No run yet. Start one above; only local runtimes are used unless you allow cloud runtimes.' })); return; }
       for (const run of r.runs) {
-        const card = el('div', { class: 'card' }); card.dataset.runId = run.runId; card.append(el('h2', { text: run.runId + ' — ' + run.status + (run.verdict ? ' · FuryJudge ' + run.verdict : '') }), el('p', { class: 'muted', text: run.intent }));
+        const card = el('div', { class: 'card' }); card.dataset.runId = run.runId; card.append(el('h2', { text: run.runId + ' — ' + run.status + (run.verdict ? ' · FuryJudge ' + run.verdict : '') }), el('p', { 'data-user-content': '', class: 'muted', text: run.intent }));
         if (run.error) card.append(el('p', { class: 'bad', text: run.error }));
         const traceButton = el('button', { type: 'button', class: 'secondary', text: run.traceStatus === 'READY' ? 'View execution trace' : 'Trace not ready' });
         traceButton.disabled = run.traceStatus !== 'READY';
@@ -2589,7 +2746,7 @@ const SCRIPT = String.raw`
             stop.addEventListener('click', async () => { try { await getJson('/api/studio/runs/act', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ runId: run.runId, workerId: w.workerId, action: 'STOP' }) }); loadRuns(); } catch (e) { $('#run-status').textContent = e.message; } }); actionCell.append(stop); }
           else actionCell.append(el('span', { class: 'muted', text: runTerminal ? 'Historical' : 'No action' }));
           const stateClass = ['done','completed','accepted'].includes(String(w.state).toLowerCase()) ? 'ok' : ['failed','error','rejected'].includes(String(w.state).toLowerCase()) ? 'bad' : ['running','awaiting-approval','paused'].includes(String(w.state).toLowerCase()) ? 'warn' : 'muted';
-          tb.append(el('tr', {}, el('td', { text: w.workerId }), el('td', { text: w.role }), el('td', { text: w.harnessId }), el('td', { text: w.model }), el('td', { text: w.locality }), el('td', {}, badge(w.state, stateClass)), el('td', { text: String(w.usage.tokens) }), el('td', { text: String(w.receipts) }), actionCell)); }
+          tb.append(el('tr', {}, el('td', { text: w.workerId }), el('td', { text: w.role }), el('td', { text: w.harnessId }), el('td', { 'data-user-content': '', text: w.model }), el('td', { text: w.locality }), el('td', {}, badge(w.state, stateClass)), el('td', { text: String(w.usage.tokens) }), el('td', { text: String(w.receipts) }), actionCell)); }
         t.append(tb); const tableScroll = el('div', { class: 'worker-table-scroll', role: 'region', tabindex: '0', 'aria-label': 'Worker status table. Scroll horizontally if needed.' }); tableScroll.append(t); card.append(tableScroll);
         if (run.requirements) { const ul = el('ul', { class: 'reasons' }); for (const q of run.requirements) ul.append(el('li', { text: q.id + ': ' + q.status })); card.append(ul); }
         box.append(card);
@@ -3005,11 +3162,11 @@ const SCRIPT = String.raw`
         const gov = el('select', { 'aria-label': 'Governance for ' + s.name }); for (const g of ['DRAFT_ONLY','ASK_BEFORE_WRITE','AUTO_APPLY_LOW_RISK','LOCKED']) { const o = el('option', { text: g }); if (g === s.governance) o.selected = true; gov.append(o); }
         gov.addEventListener('change', () => skillAct(s.name, 'GOVERNANCE', gov.value));
         const state = s.pinMismatch ? badge('pin mismatch', 'warn') : !s.enabled ? badge('disabled', 'muted') : s.trust === 'trusted-instructions' ? badge('trusted', 'ok') : badge('untrusted', 'muted');
-        body.append(el('tr', {}, el('td', {}, el('b', { text: s.name }), el('div', { class: 'muted', text: s.description })), el('td', { text: s.scope }), el('td', {}, state),
+        body.append(el('tr', {}, el('td', {}, el('b', { 'data-user-content': '', text: s.name }), el('div', { 'data-user-content': '', class: 'muted', text: s.description })), el('td', { text: s.scope }), el('td', {}, state),
           el('td', { text: s.version + ' · ' + s.type }), el('td', { text: s.compatibleHarnesses.join(', ') || 'any' }), el('td', { text: s.stats.uses + ' (' + s.stats.successes + '✓/' + s.stats.failures + '✗)' }),
           el('td', { class: 'code', text: s.checksum.slice(0, 12) }), el('td', {}, gov), el('td', {}, toggle, pin)));
       }
-      status.textContent = r.skills.length + ' skill(s) discovered. Skills never gain tool, network or script authority from here.';
+      status.textContent = r.skills.length + (activeLanguage === 'fr' ? ' skill(s) découvert(s). Les skills n’obtiennent jamais ici d’autorité sur les outils, le réseau ou les scripts.' : ' skill(s) discovered. Skills never gain tool, network or script authority from here.');
     } catch (e) { status.textContent = 'Skills unavailable: ' + e.message; }
   }
   $('#skill-select-form').addEventListener('submit', async (ev) => {
@@ -3104,7 +3261,7 @@ const SCRIPT = String.raw`
       for (const s of r.sources) {
         const card = el('div', { class: 'card' });
         const health = s.health ? (s.health.ok ? badge('healthy · ' + s.health.toolCount + ' tool(s)', 'ok') : badge('unhealthy', 'warn')) : badge('not probed', 'muted');
-        card.append(el('h2', { text: s.name }), el('p', { class: 'muted', text: s.origin + ' · ' + s.transport + ' · ' + s.locality + ' · ' + (s.command ? s.command + ' ' + (s.args || []).join(' ') : s.url) }), el('p', {}, health, ' ', s.trusted ? badge('trusted', 'ok') : badge('untrusted', 'muted'), ' ', s.enabled ? badge('enabled', 'ok') : badge('disabled', 'muted')));
+        card.append(el('h2', { 'data-user-content': '', text: s.name }), el('p', { class: 'muted', text: s.origin + ' · ' + s.transport + ' · ' + s.locality + ' · ' + (s.command ? s.command + ' ' + (s.args || []).join(' ') : s.url) }), el('p', {}, health, ' ', s.trusted ? badge('trusted', 'ok') : badge('untrusted', 'muted'), ' ', s.enabled ? badge('enabled', 'ok') : badge('disabled', 'muted')));
         if (s.envNames.length || s.headerNames.length) card.append(el('p', { class: 'muted', text: 'Credentials referenced (values never shown or sent by probes): ' + [...s.envNames, ...s.headerNames].join(', ') }));
         if (s.health && s.health.error) card.append(el('p', { class: 'bad', text: s.health.error }));
         const row = el('div', { class: 'row' });
@@ -3125,7 +3282,7 @@ const SCRIPT = String.raw`
           const tb = el('tbody');
           for (const tool of s.health.tools) { const sel = el('select', { 'aria-label': 'Policy for ' + tool.name }); for (const p of ['(default)','ALLOW','ASK','DENY','READ_ONLY']) { const o = el('option', { text: p }); if ((s.toolPolicies[tool.name] || '(default)') === p) o.selected = true; sel.append(o); }
             sel.addEventListener('change', async () => { try { await mcpPost('/api/studio/mcp/act', { sourceId: s.sourceId, action: 'TOOL_POLICY', tool: tool.name, value: sel.value === '(default)' ? null : sel.value }); status.textContent = tool.name + ': ' + sel.value; } catch (e) { status.textContent = e.message; } });
-            tb.append(el('tr', {}, el('td', { text: tool.name }), el('td', { text: tool.riskClass }), el('td', { text: tool.readOnly ? 'yes' : 'no' }), el('td', {}, sel))); }
+            tb.append(el('tr', {}, el('td', { 'data-user-content': '', text: tool.name }), el('td', { text: tool.riskClass }), el('td', { text: tool.readOnly ? 'yes' : 'no' }), el('td', {}, sel))); }
           t.append(tb); card.append(t);
         }
         box.append(card);
@@ -3140,7 +3297,7 @@ const SCRIPT = String.raw`
       const open = el('button', { type: 'button', class: 'secondary', text: 'Open history' });
       open.addEventListener('click', () => openArtifact(artifact.id));
       grid.append(el('article', { class: 'card extension-card' },
-        el('h2', { text: artifact.title }),
+        el('h2', { 'data-user-content': '', text: artifact.title }),
         el('p', { class: 'muted code', text: artifact.id + ' · ' + artifact.kind }),
         el('div', { class: 'extension-meta' }, badge(artifact.versions + ' version(s)', 'muted'), badge(latest.mediaType, 'muted')),
         el('p', { class: 'muted', text: latest.byteLength + ' bytes · sha256 ' + latest.contentSha256.slice(0, 12) + '…' }),
@@ -3164,7 +3321,7 @@ const SCRIPT = String.raw`
     try {
       const r = await mcpPost('/api/studio/artifacts/get', { id });
       const artifact = r.artifact;
-      const card = el('div', { class: 'card' }, el('h2', { text: artifact.title + ' · history' }));
+      const card = el('div', { class: 'card' }, el('h2', { 'data-user-content': '', text: artifact.title + ' · history' }));
       card.append(el('p', { class: 'muted', text: artifact.id + ' · ' + artifact.kind + ' · ' + artifact.versions.length + ' version(s)' }));
       const list = el('div');
       for (const version of [...artifact.versions].reverse()) {
@@ -3247,10 +3404,10 @@ const SCRIPT = String.raw`
         const riskClass = x.risk === 'LOW' ? 'ok' : x.risk === 'MEDIUM' ? 'muted' : x.risk === 'HIGH' ? 'warn' : 'bad';
         const card = el('article', { class: 'card extension-card' });
         card.append(
-          el('h2', { text: x.name }),
+          el('h2', { 'data-user-content': '', text: x.name }),
           el('p', { class: 'muted', text: x.creator + ' · ' + x.kind.replaceAll('_', ' ') }),
           el('div', { class: 'extension-meta' }, badge(x.trust.replaceAll('_', ' '), 'muted'), badge(x.risk, riskClass), badge(x.autoActivation.replaceAll('_', ' '), x.autoActivation === 'DENIED' ? 'bad' : 'muted')),
-          el('p', { text: x.description }),
+          el('p', { 'data-user-content': '', text: x.description }),
           el('p', { class: 'muted', text: x.integration }),
           el('p', { class: x.risk === 'RESTRICTED' ? 'bad' : 'muted', text: x.safety }),
           el('a', { class: 'btn secondary', href: x.sourceUrl, target: '_blank', rel: 'noopener noreferrer', text: 'Inspect source' }),
@@ -3315,8 +3472,8 @@ const SCRIPT = String.raw`
     const action = $('#web-action').value; const input = $('#web-input').value.trim();
     status.textContent = action === 'CRAWL' ? 'Crawling (same site, robots.txt honoured)…' : 'Working…';
     try { const r = await mcpPost('/api/studio/web', action === 'SEARCH' ? { action, query: input } : { action, url: input });
-      if (action === 'SEARCH') { const ol = el('ol'); for (const x of r.results) ol.append(el('li', {}, el('b', { text: x.title || x.url }), el('div', { class: 'muted', text: x.url }), el('p', { text: x.snippet }))); out.append(ol); status.textContent = r.results.length + ' result(s) via ' + r.adapter + '.'; }
-      else if (action === 'FETCH') { out.append(el('h2', { text: r.title || r.url }), el('p', { class: 'muted', text: r.status + ' · ' + r.contentType + ' · ' + r.bytes + ' bytes · sha256 ' + r.sha256.slice(0, 12) + (r.redirects.length ? ' · redirected ' + r.redirects.length + '×' : '') }), el('pre', { text: r.text.slice(0, 4000) })); status.textContent = 'Fetched without a browser; receipt ' + (r.receiptId || 'n/a') + '.'; }
+      if (action === 'SEARCH') { const ol = el('ol'); for (const x of r.results) ol.append(el('li', {}, el('b', { 'data-user-content': '', text: x.title || x.url }), el('div', { class: 'muted', text: x.url }), el('p', { 'data-user-content': '', text: x.snippet }))); out.append(ol); status.textContent = r.results.length + ' result(s) via ' + r.adapter + '.'; }
+      else if (action === 'FETCH') { out.append(el('h2', { 'data-user-content': '', text: r.title || r.url }), el('p', { class: 'muted', text: r.status + ' · ' + r.contentType + ' · ' + r.bytes + ' bytes · sha256 ' + r.sha256.slice(0, 12) + (r.redirects.length ? ' · redirected ' + r.redirects.length + '×' : '') }), el('pre', { text: r.text.slice(0, 4000) })); status.textContent = 'Fetched without a browser; receipt ' + (r.receiptId || 'n/a') + '.'; }
       else if (action === 'MAP') { const ul = el('ul'); for (const l of r.sameOrigin) ul.append(el('li', { text: l.url + (l.text ? ' — ' + l.text : '') })); out.append(ul); status.textContent = r.sameOrigin.length + ' same-site link(s), ' + r.external.length + ' external.'; }
       else { const ul = el('ul'); for (const p of r.pages) ul.append(el('li', { text: p.url + ' — ' + (p.title || 'untitled') })); out.append(ul); status.textContent = r.pages.length + ' page(s), ' + r.skipped.length + ' skipped' + (r.truncated ? ', stopped at the page limit' : '') + '.'; }
     } catch (e) { status.textContent = 'Refused: ' + e.message; }
@@ -3465,7 +3622,7 @@ const SCRIPT = String.raw`
     ev.preventDefault(); const out = $('#mem-results'); out.replaceChildren();
     try { const r = await mcpPost('/api/studio/memory/search', { query: $('#mem-query').value });
       if (!r.hits.length) { out.append(el('p', { class: 'empty', text: 'Nothing recalled for this question.' })); return; }
-      const ol = el('ol'); for (const h of r.hits) ol.append(el('li', {}, el('p', { text: h.text }), el('p', { class: 'muted', text: h.scope + ' · ' + age(h.ageMs) + ' · why: ' + h.why }))); out.append(ol);
+      const ol = el('ol'); for (const h of r.hits) ol.append(el('li', {}, el('p', { 'data-user-content': '', text: h.text }), el('p', { class: 'muted', text: h.scope + ' · ' + age(h.ageMs) + ' · why: ' + h.why }))); out.append(ol);
     } catch (e) { out.append(el('p', { class: 'bad', text: e.message })); }
   });
   async function loadIntegrations() {
@@ -3473,7 +3630,7 @@ const SCRIPT = String.raw`
     try { const r = await getJson('/api/studio/integrations.json'); body.replaceChildren();
       for (const e of r.entries) {
         const st = e.status === 'ready' ? badge('ready', 'ok') : e.status === 'needs-credentials' ? badge('needs credentials', 'warn') : badge('invalid', 'bad');
-        body.append(el('tr', {}, el('td', {}, el('b', { text: e.name }), el('div', { class: 'muted', text: e.endpoint || '' })), el('td', { text: e.kind }), el('td', {}, st),
+        body.append(el('tr', {}, el('td', {}, el('b', { 'data-user-content': '', text: e.name }), el('div', { class: 'muted', text: e.endpoint || '' })), el('td', { text: e.kind }), el('td', {}, st),
           el('td', { text: e.auth.schemes.join(', ') + (e.auth.credentialNames.length ? ' (' + e.auth.credentialNames.join(', ') + ')' : '') }), el('td', { text: e.capabilities.join(', ') }), el('td', { text: e.defaultDecision }), el('td', { text: e.trust }),
           el('td', { text: (e.operations ? e.operations.length + ' operation(s). ' : '') + e.problems.join('; ') })));
       }
@@ -3483,7 +3640,7 @@ const SCRIPT = String.raw`
   async function loadTree(p) {
     try { const r = await post('/api/studio/code/tree', { path: p }); const ul = $('#tree'); ul.replaceChildren(); $('#tree-path').textContent = '/' + r.path;
       if (r.path) { const up = el('button', { type: 'button', class: 'linkish', text: '..' }); up.addEventListener('click', () => loadTree(r.path.split('/').slice(0, -1).join('/'))); ul.append(el('li', {}, up)); }
-      for (const e of r.entries) { const full = (r.path ? r.path + '/' : '') + e.name; const b = el('button', { type: 'button', class: 'linkish', text: e.name + (e.kind === 'dir' ? '/' : '') });
+      for (const e of r.entries) { const full = (r.path ? r.path + '/' : '') + e.name; const b = el('button', { 'data-user-content': '', type: 'button', class: 'linkish', text: e.name + (e.kind === 'dir' ? '/' : '') });
         b.addEventListener('click', () => e.kind === 'dir' ? loadTree(full) : openFile(full)); ul.append(el('li', {}, b)); }
     } catch (e) { $('#tree-path').textContent = 'Files unavailable: ' + e.message; }
   }
@@ -3493,12 +3650,13 @@ const SCRIPT = String.raw`
     try {
       const r = await post('/api/studio/code/file', { path: p });
       $('#file-title').textContent = p;
+      delete $('#file-view').dataset.placeholder;
       $('#file-view').textContent = r.binary ? '(binary file, ' + r.bytes + ' bytes)' : r.content;
       codeOpenPath = r.binary ? null : p;
       editCard.hidden = !!r.binary;
       if (!r.binary) { $('#code-edit-path').textContent = p; $('#code-edit-content').value = r.content; editStatus.textContent = 'Ready to plan an exact replacement.'; }
     } catch (e) {
-      codeOpenPath = null; editCard.hidden = true; $('#file-view').textContent = e.message;
+      codeOpenPath = null; editCard.hidden = true; delete $('#file-view').dataset.placeholder; $('#file-view').textContent = e.message;
     }
   }
   $('#code-edit-plan').addEventListener('click', async () => {
@@ -3769,7 +3927,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
     <pre id="graph-plan-out" class="code-view" hidden tabindex="0" aria-label="Graphify lifecycle plan"></pre></div>
   <div class="card"><h2>Blast radius</h2><form id="blast-form"><label for="blast-files">Changed files (one per line)</label><textarea id="blast-files" placeholder="src/auth/session.ts"></textarea><button type="submit">Analyse</button></form><div id="blast-out" aria-live="polite"></div></div></div>
   <div class="grid"><div class="card"><h2>Files</h2><p class="muted" id="tree-path">/</p><ul id="tree" class="tree"></ul></div>
-  <div class="card"><h2 id="file-title">File</h2><pre id="file-view" class="code-view" tabindex="0" aria-labelledby="file-title">Select a file.</pre></div></div>
+  <div class="card"><h2 id="file-title">File</h2><pre id="file-view" class="code-view" tabindex="0" aria-labelledby="file-title" data-placeholder="true">Select a file.</pre></div></div>
   <div class="card"><h2>FuryEval history</h2><p class="muted">Run the bounded evaluation dataset, persist the report locally, and compare runs after a restart. Evaluation never grants execution authority.</p>
     <label for="eval-dataset">Dataset JSON</label><textarea id="eval-dataset" class="code" spellcheck="false">{"format":"furypipe-eval-dataset/v1","id":"studio-smoke","version":"1","cases":[{"id":"case-1","domain":"routing","objective":"Route a local task","expected":["local"],"observed":["local"],"success":true}]}</textarea>
     <div class="row"><button id="eval-run" type="button">Run and persist evaluation</button><button id="eval-history-refresh" type="button" class="secondary">Refresh history</button></div>

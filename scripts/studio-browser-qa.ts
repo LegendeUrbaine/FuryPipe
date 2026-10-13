@@ -608,6 +608,11 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     assert(await frPage.evaluate(() => localStorage.getItem('furypipe.studio.languageV2')) === null, `${name}: locale test unexpectedly has a stored override`);
     await frPage.locator('.hero h2').filter({ hasText: 'Comment FuryPipe peut-il vous aider ?' }).waitFor();
     assert(await frPage.locator('html').getAttribute('lang') === 'fr', `${name}: French browser locale was not applied`);
+    // Counters are built at run time, outside the exact-match dictionary.
+    await frPage.goto(`${origins.normal}/#/runtimes`);
+    await frPage.locator('#runtimes-status').filter({ hasText: /^\d+ runtime\(s\) disponible\(s\)\./u }).waitFor();
+    await frPage.goto(`${origins.normal}/#/skills`);
+    await frPage.locator('#skills-status').filter({ hasText: /^\d+ skill\(s\) découvert\(s\)\./u }).waitFor();
     await frPage.goto(`${origins.normal}/#/settings`);
     await frPage.locator('#set-general').filter({ hasText: 'Langue' }).waitFor();
     await frPage.evaluate(() => localStorage.setItem('furypipe.studio.languageV2', 'en'));
@@ -615,6 +620,10 @@ async function runEngine(name: string, type: BrowserType, origins: Record<'norma
     assert(await frPage.locator('html').getAttribute('lang') === 'en', `${name}: explicit English language override was not applied`);
     await frPage.goto(`${origins.normal}/#/chat`);
     await frPage.locator('.hero h2').filter({ hasText: 'How can FuryPipe help?' }).waitFor();
+    await frPage.goto(`${origins.normal}/#/runtimes`);
+    await frPage.locator('#runtimes-status').filter({ hasText: /^\d+ runtime\(s\) available\./u }).waitFor();
+    await frPage.goto(`${origins.normal}/#/skills`);
+    await frPage.locator('#skills-status').filter({ hasText: /^\d+ skill\(s\) discovered\./u }).waitFor();
     await frContext.close();
 
     // Expected: 503 discovery-failed (error-state server), 409 not-runnable / web search not configured, 403 web SSRF refusal.

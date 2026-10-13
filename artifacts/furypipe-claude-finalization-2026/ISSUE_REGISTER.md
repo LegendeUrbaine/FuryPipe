@@ -36,7 +36,7 @@ ACTUAL    : 93 chaînes visibles restées en anglais sur 13 vues (dont la page d
 ROOT CAUSE: dictionnaire FR à correspondance exacte ; entrées manquantes ; clé du sous-titre de l'accueil
             désynchronisée ("local" → "governed")
 SEVERITY  : P2
-FIX       : PR #268. 93 → 9 mesuré à 1dcbf28 sur une partie des vues seulement. Recompte complet à c83573a (navigation + vue entière, 13 vues) : ~45 libellés encore en anglais (vue Workspace surtout), traduits par c56a014. Reste identique : noms de produits, termes techniques gardés, mots identiques en français, matériel, Re-mesuré à 1643ce9 ; le texte d'attente du lecteur de fichier, seul libellé restant, traduit par 7392dc1.
+FIX       : PR #268. 93 → 9 mesuré à 1dcbf28 sur une partie des vues seulement. Recompte complet à c83573a (navigation + vue entière, 13 vues) : ~45 libellés encore en anglais (vue Workspace surtout), traduits par c56a014. Reste identique : noms de produits, termes techniques gardés, mots identiques en français, matériel, Re-mesuré à 1643ce9 ; le texte d'attente du lecteur de fichier, seul libellé restant, traduit par 7392dc1. 743878f : retire les clés génériques `task`/`artifact` qui réécrivaient des données utilisateur, marque les IDs de modèle et les conversations de la palette comme données utilisateur ; recompte : 61 chaînes identiques, toutes noms de produit, termes techniques ou mots identiques.
 STATUS    : FIXED (en attente de fusion) ; compteurs dynamiques corrigés aussi (FIN-006)
 
 ID        : FIN-005

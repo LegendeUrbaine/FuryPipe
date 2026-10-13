@@ -1145,6 +1145,10 @@ const SCRIPT = String.raw`
     document.documentElement.lang = activeLanguage;
     for (const r of document.querySelectorAll('input[name="pref-language"]')) r.checked = r.value === languagePreference();
     translateDom(document);
+    // The file viewer is excluded from translation as file content; only its
+    // placeholder, shown before any file is opened, is UI text.
+    const fileView = $('#file-view');
+    if (fileView && fileView.dataset.placeholder === 'true') fileView.textContent = activeLanguage === 'fr' ? 'Sélectionnez un fichier.' : 'Select a file.';
   }
   async function getJson(url, init) {
     const res = await fetch(url, init);
@@ -3644,12 +3648,13 @@ const SCRIPT = String.raw`
     try {
       const r = await post('/api/studio/code/file', { path: p });
       $('#file-title').textContent = p;
+      delete $('#file-view').dataset.placeholder;
       $('#file-view').textContent = r.binary ? '(binary file, ' + r.bytes + ' bytes)' : r.content;
       codeOpenPath = r.binary ? null : p;
       editCard.hidden = !!r.binary;
       if (!r.binary) { $('#code-edit-path').textContent = p; $('#code-edit-content').value = r.content; editStatus.textContent = 'Ready to plan an exact replacement.'; }
     } catch (e) {
-      codeOpenPath = null; editCard.hidden = true; $('#file-view').textContent = e.message;
+      codeOpenPath = null; editCard.hidden = true; delete $('#file-view').dataset.placeholder; $('#file-view').textContent = e.message;
     }
   }
   $('#code-edit-plan').addEventListener('click', async () => {
@@ -3920,7 +3925,7 @@ export function renderStudioHtml(options: StudioHtmlOptions = {}): { readonly ht
     <pre id="graph-plan-out" class="code-view" hidden tabindex="0" aria-label="Graphify lifecycle plan"></pre></div>
   <div class="card"><h2>Blast radius</h2><form id="blast-form"><label for="blast-files">Changed files (one per line)</label><textarea id="blast-files" placeholder="src/auth/session.ts"></textarea><button type="submit">Analyse</button></form><div id="blast-out" aria-live="polite"></div></div></div>
   <div class="grid"><div class="card"><h2>Files</h2><p class="muted" id="tree-path">/</p><ul id="tree" class="tree"></ul></div>
-  <div class="card"><h2 id="file-title">File</h2><pre id="file-view" class="code-view" tabindex="0" aria-labelledby="file-title">Select a file.</pre></div></div>
+  <div class="card"><h2 id="file-title">File</h2><pre id="file-view" class="code-view" tabindex="0" aria-labelledby="file-title" data-placeholder="true">Select a file.</pre></div></div>
   <div class="card"><h2>FuryEval history</h2><p class="muted">Run the bounded evaluation dataset, persist the report locally, and compare runs after a restart. Evaluation never grants execution authority.</p>
     <label for="eval-dataset">Dataset JSON</label><textarea id="eval-dataset" class="code" spellcheck="false">{"format":"furypipe-eval-dataset/v1","id":"studio-smoke","version":"1","cases":[{"id":"case-1","domain":"routing","objective":"Route a local task","expected":["local"],"observed":["local"],"success":true}]}</textarea>
     <div class="row"><button id="eval-run" type="button">Run and persist evaluation</button><button id="eval-history-refresh" type="button" class="secondary">Refresh history</button></div>

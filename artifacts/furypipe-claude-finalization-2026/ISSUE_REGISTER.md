@@ -36,7 +36,7 @@ ACTUAL    : 93 chaînes visibles restées en anglais sur 13 vues (dont la page d
 ROOT CAUSE: dictionnaire FR à correspondance exacte ; entrées manquantes ; clé du sous-titre de l'accueil
             désynchronisée ("local" → "governed")
 SEVERITY  : P2
-FIX       : PR #268 (93 → 9 ; restent des noms de produits et 3 compteurs dynamiques)
+FIX       : PR #268 (93 → 9 mesuré à 1dcbf28 ; restaient des noms de produits et 3 compteurs dynamiques, ces derniers corrigés ensuite par badf05a — FIN-006 ; non recompté sur la tête actuelle)
 STATUS    : FIXED (en attente de fusion) ; compteurs dynamiques corrigés aussi (FIN-006)
 
 ID        : FIN-005

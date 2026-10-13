@@ -1,6 +1,7 @@
 {
   "format": "furypipe-installed-gateway-mcp-smoke/v1",
   "status": "PASS",
+  "sourceCommit": "0584f42c29e1503b860340e7f86087febf98d5e8",
   "platform": {
     "os": "linux",
     "arch": "x64",

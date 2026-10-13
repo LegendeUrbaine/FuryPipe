@@ -25,9 +25,9 @@ VNEXT-04      : NOT STARTED
 | #265 | claude/memory-restart-smoke | f912193 (preuve : 437d1bd) | smoke mémoire chiffrée multi-processus (restart / forget / mauvaise clé) + CI |
 | #266 | claude/fury-trace-bundle-digest | 059a7e2 | Fury Trace : vérif digest bundle, format, verdict scellé |
 | #267 | claude/studio-setup-choice-contrast | 7481566 | Studio : contraste bouton « Install Ollama » |
-| #268 | claude/studio-fr-coverage | c83573a | Studio : 88 entrées FR ajoutées au dictionnaire (chaînes visibles en anglais : 93 → 9 sur 13 vues), compteurs dynamiques traduits, « Espace de travail » en casse normale + test |
+| #268 | claude/studio-fr-coverage | c83573a | Studio : 88 entrées FR ajoutées au dictionnaire (chaînes visibles en anglais : 93 → 9 sur 13 vues, mesuré avant le fix des compteurs), compteurs dynamiques traduits, « Espace de travail » en casse normale + test |
 | #269 | claude/fervent-wozniak-ctw4nt | HEAD de la PR sur GitHub (un commit ne peut pas citer son propre hash) ; dernière CI verte : cb01165 | ce dossier de finalisation |
-| #270 | claude/gateway-smokes-evidence | 2ac0eb5 | smokes Gateway : arrêt propre vérifié, ancien endpoint refusé (`ECONNREFUSED`) après redémarrage |
+| #270 | claude/gateway-smokes-evidence | 0584f42 | smokes Gateway : arrêt propre vérifié, ancien endpoint refusé (`ECONNREFUSED`) après redémarrage, preuve liée à son commit (`sourceCommit`) |
 
 Les commits après la preuve ne font que durcir les assertions des smokes (revues bots). Les PR sont indépendantes, toutes basées sur `95c1336`. Le seul fichier partagé est
 `.github/workflows/furypipe-recovery-restart.yml` (#264 et #265), modifié à deux endroits non adjacents.

@@ -129,12 +129,20 @@ function startInstalled(installDir, args, env) {
   return child;
 }
 
+// Resolves to the observed shutdown: exit code, terminating signal and whether
+// the SIGKILL fallback was needed. Callers decide what counts as clean.
 async function stop(child) {
-  if (child.exitCode !== null) return child.exitCode;
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return { code: child.exitCode, signal: child.signalCode, forced: false };
+  }
   const closed = once(child, 'close');
   child.kill('SIGTERM');
+  let forced = false;
   const forceTimer = setTimeout(() => {
-    if (child.exitCode === null) child.kill('SIGKILL');
+    if (child.exitCode === null && child.signalCode === null) {
+      forced = true;
+      child.kill('SIGKILL');
+    }
   }, 5_000);
   let deadlineTimer;
   const stopDeadline = new Promise((_, reject) => {
@@ -142,7 +150,7 @@ async function stop(child) {
   });
   try {
     await Promise.race([closed, stopDeadline]);
-    return child.exitCode;
+    return { code: child.exitCode, signal: child.signalCode, forced };
   } finally {
     clearTimeout(forceTimer);
     clearTimeout(deadlineTimer);
@@ -368,7 +376,7 @@ async function main() {
     gateway = startInstalled(installDir, ['gateway', 'start', '--json'], env);
     const startEnvelope = await waitForGatewayReady(gateway);
     assert(gateway.exitCode === null, 'installed Gateway did not remain alive after readiness');
-    await stop(gateway);
+    const firstShutdown = await stop(gateway);
     gateway = undefined;
 
     const fixturePath = path.join(installDir, 'mcp-installed-stdio-fixture.mjs');
@@ -400,13 +408,25 @@ async function main() {
     const gatewayStdio = await inspectInstalledGatewayStdio(installDir, mcpStartEnvelope);
     assert(!gateway.output().includes(DYNAMIC_REQUIRE_ERROR), 'installed Gateway MCP stdio path emitted the dynamic child_process require failure');
     assert(gateway.exitCode === null, 'installed Gateway exited during MCP stdio inspect');
-    await stop(gateway);
+    const mcpShutdown = await stop(gateway);
     gateway = undefined;
     const gatewayMarkerDeadline = Date.now() + 5_000;
     while (!existsSync(gatewayMarker) && Date.now() < gatewayMarkerDeadline) {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     assert(existsSync(gatewayMarker), 'installed Gateway MCP stdio child did not close');
+
+    // On POSIX the CLI handles SIGTERM and must exit 0 without the SIGKILL
+    // fallback. On Windows child.kill() terminates the process outright, so a
+    // graceful exit cannot be observed and is reported as NOT_VERIFIED.
+    const shutdowns = [firstShutdown, mcpShutdown];
+    let cleanShutdown = 'NOT_VERIFIED';
+    if (process.platform !== 'win32') {
+      for (const shutdown of shutdowns) {
+        assert(shutdown.code === 0 && shutdown.signal === null && !shutdown.forced, `installed Gateway did not shut down cleanly: ${JSON.stringify(shutdown)}`);
+      }
+      cleanShutdown = true;
+    }
 
     const evidence = {
       format: 'furypipe-installed-gateway-mcp-smoke/v1',
@@ -418,7 +438,8 @@ async function main() {
         ready: true,
         processAliveAfterReady: true,
         loopbackEndpoint: 'PASS',
-        cleanShutdown: true,
+        cleanShutdown,
+        shutdowns,
         dynamicRequireError: 0,
         startEnvelope: {
           format: startEnvelope.format,

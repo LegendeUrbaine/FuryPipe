@@ -95,7 +95,8 @@ async function ping(ws, hello, sequence) {
 }
 
 async function stop(child, force = false) {
-  if (child.exitCode !== null) return;
+  // A signal-killed child has exitCode null and signalCode set; both mean gone.
+  if (child.exitCode !== null || child.signalCode !== null) return;
   const close = once(child, 'close');
   child.kill(force ? 'SIGKILL' : 'SIGTERM');
   const timer = setTimeout(() => child.kill('SIGKILL'), 5_000);
@@ -119,6 +120,23 @@ async function expectRejected(url) {
     });
   });
   assert(status === 401, `invalid-origin Gateway status was ${status}`);
+}
+
+// After a restart, a client still holding the previous daemon's endpoint must
+// not reach any Gateway there.
+async function expectStaleEndpointRefused(url) {
+  const ws = new WebSocket(url, FURY_GATEWAY_WEBSOCKET_SUBPROTOCOL, {
+    headers: { Origin: 'http://localhost:3000' },
+  });
+  const outcome = await new Promise((resolve) => {
+    const timer = setTimeout(() => { ws.terminate(); resolve('timeout'); }, 5_000);
+    ws.once('open', () => { clearTimeout(timer); ws.terminate(); resolve('opened'); });
+    ws.once('unexpected-response', (_request, response) => { clearTimeout(timer); response.resume(); resolve(`http-${response.statusCode}`); });
+    ws.once('error', (error) => { clearTimeout(timer); resolve(error.code ?? 'error'); });
+  });
+  assert(outcome !== 'opened', `stale Gateway endpoint ${url} still accepted a connection after restart`);
+  assert(outcome !== 'timeout', `stale Gateway endpoint ${url} neither accepted nor refused within 5 s`);
+  return outcome;
 }
 
 async function main() {
@@ -147,9 +165,11 @@ async function main() {
     const secondInfo = await waitForState(secondState, second);
     assert(secondInfo.status === 'ready', 'restarted Gateway worker was not ready');
     assert(secondInfo.url !== firstInfo.url, 'Gateway restart unexpectedly reused stale address');
+    const staleEndpoint = await expectStaleEndpointRefused(firstInfo.url);
     const secondConnection = await connect(secondInfo.url);
     secondSocket = secondConnection.ws;
     await ping(secondSocket, secondConnection.hello, 1);
+    await expectRejected(secondInfo.url);
     secondSocket.close();
     await once(secondSocket, 'close');
     await stop(second, false);
@@ -165,7 +185,11 @@ async function main() {
         connectDisconnect: 'PASS',
         abruptRestart: 'PASS',
         reconnect: 'PASS',
-        staleOriginDenied: 'PASS',
+        // Invalid origin rejected by both the first and the restarted daemon.
+        invalidOriginDenied: 'PASS',
+        // The pre-restart endpoint refuses connections once the daemon is gone.
+        staleEndpointRefused: 'PASS',
+        staleEndpointOutcome: staleEndpoint,
         executionAuthority: false,
         externalOpenClaw: 'NOT_EXECUTED',
       },

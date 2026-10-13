@@ -626,6 +626,9 @@ const SCRIPT = String.raw`
   const SUPPORTED_LANGUAGES = Object.freeze(['en', 'fr']);
   const FR = Object.freeze({
     'Workspace': 'Espace de travail',
+    'Pasted text': 'Texte collé',
+    'Project knowledge': 'Connaissances du projet',
+    'web page': 'page web',
     'Explore workspace': 'Explorer l’espace de travail',
     'Explore': 'EXPLORER',
     'Operate': 'PILOTER',
@@ -1670,7 +1673,7 @@ const SCRIPT = String.raw`
     for (const p of state.pastes) {
       const rm = el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove pasted text' }, ic('x'));
       rm.addEventListener('click', () => { state.pastes = state.pastes.filter(x => x !== p); renderTray(); autosize(); input.focus(); });
-      tray.append(el('div', { class: 'att pasted' }, el('div', { 'data-user-content': '', class: 'snip', text: p.text.slice(0, 240) }), el('span', { class: 'tag', text: 'Pasted · ' + p.text.length + ' chars' }), rm));
+      tray.append(el('div', { class: 'att pasted' }, el('div', { 'data-user-content': '', class: 'snip', text: p.text.slice(0, 240) }), el('span', { class: 'tag', text: (activeLanguage === 'fr' ? 'Collé · ' + p.text.length + ' caractères' : 'Pasted · ' + p.text.length + ' chars') }), rm));
     }
     for (const f of state.files) {
       const rm = el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove ' + f.name }, ic('x'));
@@ -1796,7 +1799,8 @@ const SCRIPT = String.raw`
     const chips = el('div', { class: 'att-chips' });
     for (const m of ctx.matchAll(/^\[(File|Pasted text|Web|Knowledge)(?::\s*([^\]\n]*))?\]/gm)) {
       const kind = m[1]; const label = kind === 'File' ? m[2] : kind === 'Web' ? (m[2] || 'web page') : kind === 'Knowledge' ? 'Project knowledge' : 'Pasted text';
-      chips.append(el('span', { class: 'att-chip' }, ic(kind === 'Web' ? 'web' : kind === 'Knowledge' ? 'knowledge' : 'file'), el('span', { text: label })));
+      const userLabel = kind === 'File' || (kind === 'Web' && m[2]);
+      chips.append(el('span', { class: 'att-chip' }, ic(kind === 'Web' ? 'web' : kind === 'Knowledge' ? 'knowledge' : 'file'), el('span', userLabel ? { text: label, 'data-user-content': '' } : { text: label })));
     }
     return chips.children.length ? chips : null;
   }

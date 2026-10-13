@@ -52,6 +52,9 @@ jobs:
       - name: Execute Gateway restart and reconnect contract
         run: pnpm run validation:gateway
 
+      - name: Execute Gateway MCP runtime end to end
+        run: pnpm run validation:gateway-mcp-runtime
+
       - name: Upload recovery evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

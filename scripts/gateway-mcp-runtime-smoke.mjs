@@ -48,9 +48,12 @@ async function startGateway(workspace) {
   const child = spawn(process.execPath, [CLI, 'gateway', 'start', '--json'], {
     cwd: ROOT,
     env: {
-      ...process.env,
+      // Inherited FuryPipe settings (config file, host, WebChat state, memory)
+      // must not leak into this isolated run.
+      ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('FURYPIPE_'))),
       HOME: home,
       USERPROFILE: home,
+      FURYPIPE_GATEWAY_HOST: '127.0.0.1',
       FURYPIPE_GATEWAY_PORT: String(await freePort()),
       FURYPIPE_WEBCHAT_MCP_CONFIG: toolConfig,
       NO_COLOR: '1',
@@ -63,17 +66,23 @@ async function startGateway(workspace) {
   child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
   child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
   const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline) {
-    if (child.exitCode !== null) throw new Error(`Gateway exited early: ${stderr.slice(-1_000)}`);
-    const end = stdout.lastIndexOf('}');
-    if (end > 0) {
-      try {
-        return { child, envelope: JSON.parse(stdout.slice(stdout.indexOf('{'), end + 1)) };
-      } catch { /* envelope still streaming */ }
+  try {
+    while (Date.now() < deadline) {
+      if (child.exitCode !== null) throw new Error(`Gateway exited early: ${stderr.slice(-1_000)}`);
+      const end = stdout.lastIndexOf('}');
+      if (end > 0) {
+        try {
+          return { child, envelope: JSON.parse(stdout.slice(stdout.indexOf('{'), end + 1)) };
+        } catch { /* envelope still streaming */ }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    throw new Error('Gateway readiness timeout');
+  } catch (error) {
+    // The caller never receives this child, so stop it here.
+    await stopGateway(child).catch(() => undefined);
+    throw error;
   }
-  throw new Error('Gateway readiness timeout');
 }
 
 async function stopGateway(child) {
@@ -202,7 +211,7 @@ async function main() {
     const receipt = echoExecution?.result?.receipt;
     const checks = {
       connection: typeof session.connectionId === 'string' && session.connectionId.length > 0,
-      bootstrapOneTime: bootstrapReplayStatus !== 204,
+      bootstrapOneTime: bootstrapReplayStatus === 401 || bootstrapReplayStatus === 403,
       discovery: sources?.status === 'ok' && JSON.stringify(sources.result).includes(SOURCE_ID),
       inventory: inspection?.status === 'ok' && ['echo', 'get_test_value', 'list_test_items'].every((name) => inventory.includes(name)),
       riskClassified: typeof echoProposal?.result?.riskClass === 'string',
@@ -212,12 +221,12 @@ async function main() {
       receipt: Boolean(receipt) && receipt.executed === true && receipt.succeeded === true,
       outputSchemaVerified: receipt?.verified === true,
       replayRefused: echoReplay?.status === 'rejected' && echoReplay.error?.code === 'tool-proposal-missing-or-expired',
-      approvalRequired: valueProposal?.result?.status === 'approval-required' && valueEarly?.status === 'rejected',
+      approvalRequired: valueProposal?.result?.status === 'approval-required' && valueEarly?.error?.code === 'tool-proposal-not-approved',
       operatorApproval: valueApproval?.status === 'ok' && valueApproval.result?.approvalKind === 'operator',
       approvedExecution: valueExecution?.result?.status === 'completed' && displayText(valueExecution.result) === 'test-value-42',
       listExecution: listExecution?.result?.status === 'completed' && displayText(listExecution.result).includes('gamma'),
-      invalidArgumentsRefused: badArgs?.status === 'rejected' || badArgs?.result?.status === 'denied',
-      permissionRequired: noPermission?.admission?.outcome !== undefined && noPermission.admission.outcome !== 'eligible',
+      invalidArgumentsRefused: badArgs?.error?.code === 'tool-arguments-invalid',
+      permissionRequired: noPermission?.admission?.reason === 'plugin-permission-mismatch',
       disconnect: shutdown !== 'already-exited',
     };
     const evidence = {
@@ -243,6 +252,7 @@ async function main() {
         noPermission: noPermission?.admission?.reason ?? noPermission?.admission?.outcome,
         receiptKeys: receipt ? Object.keys(receipt).sort() : [],
         executionState: echoExecution?.result?.state,
+        bootstrapReplayStatus,
         shutdown,
       },
       fixture: 'scripts/fixtures/mcp-runtime-stdio-server.mjs (side-effect free)',

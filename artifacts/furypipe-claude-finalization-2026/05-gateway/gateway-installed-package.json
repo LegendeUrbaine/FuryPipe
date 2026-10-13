@@ -16,7 +16,7 @@
     "ready": true,
     "processAliveAfterReady": true,
     "loopbackEndpoint": "PASS",
-    "cleanShutdown": true,
+    "cleanShutdown": "NOT_VERIFIED",
     "dynamicRequireError": 0,
     "startEnvelope": {
       "format": "furypipe-gateway-local-start/v1",

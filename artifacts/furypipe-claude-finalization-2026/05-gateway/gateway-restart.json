@@ -12,7 +12,7 @@
     "connectDisconnect": "PASS",
     "abruptRestart": "PASS",
     "reconnect": "PASS",
-    "staleOriginDenied": "PASS",
+    "invalidOriginDenied": "PASS",
     "executionAuthority": false,
     "externalOpenClaw": "NOT_EXECUTED"
   },

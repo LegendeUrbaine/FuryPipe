@@ -162,6 +162,7 @@ async function connect(envelope) {
     const timer = setTimeout(() => { ws.terminate(); reject(new Error('Gateway WebSocket handshake timed out')); }, 15_000);
     ws.once('message', (raw) => { clearTimeout(timer); resolve(JSON.parse(String(raw))); });
     ws.once('error', (error) => { clearTimeout(timer); reject(error); });
+    ws.once('close', () => { clearTimeout(timer); reject(new Error('Gateway closed before the connected handshake')); });
   });
   assert(hello.type === 'connected', `unexpected handshake ${JSON.stringify(hello).slice(0, 300)}`);
   return { session: new Session(ws, hello.connectionId), bootstrapReplayStatus: replay.status };

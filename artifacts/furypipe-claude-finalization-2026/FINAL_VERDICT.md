@@ -25,7 +25,7 @@ FINAL STATUS     : PARTIAL — #264–#267, #270 et #271 vertes en CI exact-head
 
 ## Next recommended action
 
-1. Vérifier la CI verte sur le HEAD exact de #268, #269 et #271, puis revoir et fusionner #264 → #265 → #266 → #267 → #268 → #270 → #271 → #269. Elles sont indépendantes. #264 et #265 touchent
+1. Vérifier la CI verte sur le HEAD exact de #268 et #269, puis revoir et fusionner #264 → #265 → #266 → #267 → #268 → #270 → #271 → #269. Elles sont indépendantes. #264 et #265 touchent
    le même workflow, à deux endroits non adjacents.
 2. Sur la machine du propriétaire, pour un run Mission Control réel : lancer Studio → Mission Control
    avec un harness local (Codex `--oss` + Ollama, ou Claude Code vers un endpoint compatible Anthropic

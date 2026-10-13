@@ -134,11 +134,9 @@ async function expectStaleEndpointRefused(url) {
     ws.once('unexpected-response', (_request, response) => { clearTimeout(timer); response.resume(); resolve(`http-${response.statusCode}`); });
     ws.once('error', (error) => { clearTimeout(timer); resolve(error.code ?? 'error'); });
   });
-  assert(outcome !== 'opened', `stale Gateway endpoint ${url} still accepted a connection after restart`);
-  assert(outcome !== 'timeout', `stale Gateway endpoint ${url} neither accepted nor refused within 5 s`);
-  // Any HTTP answer means something still listens there; only a network-level
-  // refusal proves the old endpoint is gone.
-  assert(!outcome.startsWith('http-'), `stale Gateway endpoint ${url} still answered (${outcome}) after restart`);
+  // Only a network-level refusal proves nothing listens there any more: an open
+  // socket, an HTTP answer (another listener) or a timeout all fail.
+  assert(outcome === 'ECONNREFUSED', `stale Gateway endpoint ${url} did not refuse the connection after restart: ${outcome}`);
   return outcome;
 }
 

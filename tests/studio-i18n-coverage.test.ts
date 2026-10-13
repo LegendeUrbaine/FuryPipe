@@ -23,6 +23,11 @@ const VISIBLE_STATIC_LABELS = [
   'Show diff',
   'Thick border: critical step',
   'not installed',
+  'Skip to content',
+  'One governed path',
+  'Plan a governed task',
+  'Commit verified artifact',
+  'Add conversation context',
 ];
 
 function splitPage(): { readonly keys: Set<string>; readonly pageWithoutDictionary: string } {

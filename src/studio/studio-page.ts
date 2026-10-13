@@ -1034,7 +1034,58 @@ const SCRIPT = String.raw`
     'Agent harnesses installed on this machine. Harness, provider and model are independent choices.': 'Harnais d’agents installés sur cette machine. Harnais, fournisseur et modèle sont des choix indépendants.',
     'Local models via': 'Modèles locaux via',
     'not installed': 'non installé',
-    'Any ACP agent': 'Tout agent ACP'
+    'Any ACP agent': 'Tout agent ACP',
+    'Any A2A agent': 'Tout agent A2A',
+    'Outputs': 'Sorties',
+    'Branch': 'Branche',
+    'Changed': 'Modifiés',
+    'Agents · receipts': 'Agents · reçus',
+    'Add conversation context': 'Ajouter le contexte de la conversation',
+    'Advanced evidence': 'Preuves avancées',
+    'Auto effort': 'Effort auto',
+    'Low': 'Faible',
+    'Medium': 'Moyen',
+    'High': 'Élevé',
+    'XHigh': 'Très élevé',
+    'Commit and verify': 'Enregistrer et vérifier',
+    'Commit verified artifact': 'Enregistrer l’artefact vérifié',
+    'Confirmed task': 'Tâche confirmée',
+    'Content': 'Contenu',
+    'Create a skill': 'Créer une skill',
+    'Create conversation': 'Créer une conversation',
+    'Detecting AI connections…': 'Détection des connexions IA…',
+    'Discovering runtimes…': 'Recherche des runtimes…',
+    'Evolving': 'Évolutive',
+    'Generated': 'Générée',
+    'Static': 'Statique',
+    'File': 'Fichier',
+    'Files': 'Fichiers',
+    'Edges': 'Liens',
+    'Freshness': 'Fraîcheur',
+    'Graph-aware': 'Tenir compte du graphe',
+    'I confirm this local artifact write': 'Je confirme cette écriture locale d’artefact',
+    'Keep the request in this project context.': 'Garder la demande dans le contexte de ce projet.',
+    'Legacy SSE (deprecated)': 'SSE historique (obsolète)',
+    'Name': 'Nom',
+    'No task yet. Plan one from this project.': 'Aucune tâche pour l’instant. Planifiez-en une depuis ce projet.',
+    'Objective': 'Objectif',
+    'One governed path': 'Un parcours gouverné',
+    'One project context for conversation, governed tasks and verified artifacts. Advanced runtime details stay available without taking over the main path.': 'Un seul contexte de projet pour la conversation, les tâches gouvernées et les artefacts vérifiés. Les détails avancés du runtime restent accessibles sans encombrer le parcours principal.',
+    'Opening message': 'Message d’ouverture',
+    'Persist, reread and verify the content digest.': 'Enregistrer, relire et vérifier l’empreinte du contenu.',
+    'Plan a governed task': 'Planifier une tâche gouvernée',
+    'Plan and confirm a task first': 'Planifiez et confirmez d’abord une tâche',
+    'Plan and confirm before any governed write.': 'Planifier et confirmer avant toute écriture gouvernée.',
+    'Plan task': 'Planifier la tâche',
+    'Select a file.': 'Sélectionnez un fichier.',
+    'Skip to content': 'Aller au contenu',
+    'Tasks': 'Tâches',
+    'Title': 'Titre',
+    'Workspace title': 'Titre de l’espace de travail',
+    '2 · Task': '2 · Tâche',
+    '3 · Artifact': '3 · Artefact',
+    'task': 'tâche',
+    'artifact': 'artefact'
   });
   function detectedLanguage() {
     const langs = [...(Array.isArray(navigator.languages) ? navigator.languages : []), navigator.language, Intl.DateTimeFormat().resolvedOptions().locale, SERVER_LANGUAGE].filter(Boolean);
@@ -1361,7 +1412,9 @@ const SCRIPT = String.raw`
     state.workspace = workspace;
     $('#workspace-title').textContent = workspace.title;
     $('#workspace-name').value = workspace.title;
-    $('#workspace-summary').textContent = workspace.conversationIds.length + ' conversation(s) · ' + workspace.tasks.length + ' task(s) · ' + workspace.artifactIds.length + ' artifact(s) · revision ' + workspace.revision;
+    $('#workspace-summary').textContent = activeLanguage === 'fr'
+      ? workspace.conversationIds.length + ' conversation(s) · ' + workspace.tasks.length + ' tâche(s) · ' + workspace.artifactIds.length + ' artefact(s) · révision ' + workspace.revision
+      : workspace.conversationIds.length + ' conversation(s) · ' + workspace.tasks.length + ' task(s) · ' + workspace.artifactIds.length + ' artifact(s) · revision ' + workspace.revision;
     const counts = $('#workspace-counts'); counts.replaceChildren(
       el('span', {}, el('b', { text: String(workspace.conversationIds.length) }), ' conversation'),
       el('span', {}, el('b', { text: String(workspace.tasks.length) }), ' task'),
@@ -1564,7 +1617,7 @@ const SCRIPT = String.raw`
         if (SETUP[b.kind]) {
           const control = (b.kind === 'ollama' || b.kind === 'lmstudio')
             ? el('button', { type: 'button', class: 'btn', 'data-install-runtime': b.kind, text: 'Install ' + name })
-            : el('a', { class: 'btn', href: SETUP[b.kind], target: '_blank', rel: 'noopener noreferrer', text: 'Set up ' + name });
+            : el('a', { class: 'btn', href: SETUP[b.kind], target: '_blank', rel: 'noopener noreferrer', text: (activeLanguage === 'fr' ? 'Configurer ' : 'Set up ') + name });
           card.append(el('div', {}, control));
         }
       } else if (!b.models.length) card.append(el('p', { text: 'Running, but no model is installed yet.' }));
@@ -2429,7 +2482,7 @@ const SCRIPT = String.raw`
             const connect = el('button', { type: 'button', class: 'btn secondary', 'data-connect-provider': c.id, text: c.state === 'authenticated' || c.state === 'credential-configured' ? 'Reconnect / switch account' : 'Connect account' });
             actions.append(connect);
           } else {
-            actions.append(el('a', { class: 'btn secondary', href: '#/runtimes', text: 'Set up ' + (c.id === 'anthropic' ? 'Claude Code' : c.id === 'openai' ? 'Codex' : 'Gemini CLI') }));
+            actions.append(el('a', { class: 'btn secondary', href: '#/runtimes', text: (activeLanguage === 'fr' ? 'Configurer ' : 'Set up ') + (c.id === 'anthropic' ? 'Claude Code' : c.id === 'openai' ? 'Codex' : 'Gemini CLI') }));
           }
           card.append(actions);
         }
@@ -2571,7 +2624,7 @@ const SCRIPT = String.raw`
   }
   async function loadEvalHistory() {
     const status = $('#eval-status');
-    try { const history = await getJson('/api/studio/eval/history.json?limit=50'); renderEvalHistory(history); if (status) status.textContent = history.runs.length + ' durable evaluation run(s). Execution authority: false.'; }
+    try { const history = await getJson('/api/studio/eval/history.json?limit=50'); renderEvalHistory(history); if (status) status.textContent = history.runs.length + (activeLanguage === 'fr' ? ' évaluation(s) durable(s). Autorité d’exécution : non.' : ' durable evaluation run(s). Execution authority: false.'); }
     catch (error) { if (status) status.textContent = 'FuryEval history unavailable: ' + (error instanceof Error ? error.message : String(error)); }
   }
   $('#eval-run').addEventListener('click', async () => {

@@ -25,19 +25,23 @@ const VISIBLE_STATIC_LABELS = [
   'not installed',
 ];
 
-function frenchKeys(): string[] {
+function splitPage(): { readonly keys: Set<string>; readonly pageWithoutDictionary: string } {
   const html = renderStudioHtml().html;
   const start = html.indexOf('const FR = Object.freeze({');
   const end = html.indexOf('\n  });', start);
   expect(start).toBeGreaterThan(-1);
   expect(end).toBeGreaterThan(start);
   const block = html.slice(start, end);
-  return [...block.matchAll(/^\s*'((?:[^'\\]|\\.)*)':/gmu)].map((match) => match[1]!.replace(/\\(.)/gu, '$1'));
+  const keys = [...block.matchAll(/^\s*'((?:[^'\\]|\\.)*)':/gmu)].map((match) => match[1]!.replace(/\\(.)/gu, '$1'));
+  return { keys: new Set(keys), pageWithoutDictionary: html.slice(0, start) + html.slice(end) };
 }
 
 describe('Studio French coverage', () => {
   it('keeps a French entry for each visible static label', () => {
-    const keys = new Set(frenchKeys());
+    const { keys, pageWithoutDictionary } = splitPage();
+    // A label reworded in the page must fail here instead of silently
+    // falling back to English behind a stale dictionary key.
+    expect(VISIBLE_STATIC_LABELS.filter((label) => !pageWithoutDictionary.includes(label))).toEqual([]);
     expect(VISIBLE_STATIC_LABELS.filter((label) => !keys.has(label))).toEqual([]);
   });
 });

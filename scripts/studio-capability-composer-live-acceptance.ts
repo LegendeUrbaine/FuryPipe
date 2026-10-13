@@ -45,8 +45,14 @@ function requireRecord(value: unknown, label: string): JsonRecord {
 }
 
 function requireRecords(value: unknown, label: string): JsonRecord[] {
-  if (!Array.isArray(value) || !value.every(isRecord)) throw new Error(`Composer ${label} is malformed: ${JSON.stringify(value)}`);
+  if (!Array.isArray(value) || value.length === 0 || !value.every(isRecord)) throw new Error(`Composer ${label} is malformed: ${JSON.stringify(value)}`);
   return value;
+}
+
+function requireStrings(record: JsonRecord, keys: readonly string[], label: string): void {
+  for (const key of keys) {
+    if (typeof record[key] !== 'string' || record[key] === '') throw new Error(`Composer ${label} is missing ${key}: ${JSON.stringify(record)}`);
+  }
 }
 
 function modelEntries(tags: JsonRecord): JsonRecord[] {
@@ -176,10 +182,11 @@ async function main(): Promise<void> {
   if (plannedResponse.status !== 200) throw new Error(`Composer plan failed HTTP ${plannedResponse.status}: ${JSON.stringify(planned)}`);
   const plan = planned.plan;
   if (!isRecord(plan) || typeof plan.planDigestSha256 !== 'string') throw new Error(`Composer plan response is malformed: ${JSON.stringify(planned)}`);
+  requireStrings(plan, ['state'], 'plan');
   if (plan.state !== 'READY_FOR_CONFIRMATION') {
     // The resource gate refused local inference on this host right now. That is
     // the intended fail-closed outcome, not a live pass: record it and stop.
-    const runtime = isRecord(plan.runtime) ? plan.runtime : {};
+    const runtime = requireRecord(plan.runtime, 'plan runtime');
     const evidence = {
       format: 'furypipe-capability-composer-live-acceptance/v1',
       status: 'NOT_EXECUTED',
@@ -218,6 +225,9 @@ async function main(): Promise<void> {
   const judgement = requireRecord(execution.judgement, 'execution judgement');
   const receipts = requireRecords(execution.receipts, 'execution receipts');
   const proofBundle = requireRecord(execution.proofBundle, 'execution proof bundle');
+  requireStrings(judgement, ['verdict'], 'execution judgement');
+  for (const receipt of receipts) requireStrings(receipt, ['kind', 'subject', 'outcome', 'evidenceDigest'], 'execution receipt');
+  requireStrings(proofBundle, ['bundleDigest', 'outputDigest'], 'execution proof bundle');
   const listedResponse = await api.handle('capability-composer-plans', new Request('http://127.0.0.1/api/studio/capability-composer/plans.json'));
   const listed = await readJson(listedResponse);
 

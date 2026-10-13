@@ -98,6 +98,20 @@ describe('FuryRun end to end (fake harness, real git)', () => {
     expect(rewrittenBundle.status).toBe('INVALID');
     expect(rewrittenBundle.reason).toBe('PROOF_BUNDLE_DIGEST_MISMATCH');
     expect(rewrittenBundle.nodes).toHaveLength(0);
+    // The replay itself is intact, so it is not reported as a replay failure.
+    expect(rewrittenBundle.replayIntegrity.status).toBe('PASS');
+    const relabelled = buildFuryRunTrace({
+      runId: 'r1', runStatus: result.status,
+      result: { ...result, bundle: { ...result.bundle, format: 'furypipe-proof-bundle/v0' as never } },
+    });
+    expect(relabelled.reason).toBe('PROOF_BUNDLE_DIGEST_MISMATCH');
+    // A displayed verdict that differs from the sealed one is refused.
+    const swappedVerdict = buildFuryRunTrace({
+      runId: 'r1', runStatus: result.status,
+      result: { ...result, judgement: { ...result.judgement, verdict: 'REJECT' } },
+    });
+    expect(swappedVerdict.status).toBe('INVALID');
+    expect(swappedVerdict.reason).toBe('JUDGEMENT_NOT_SEALED');
     expect(git(s.repoRoot, 'rev-parse', 'main')).toBe(s.baseSha);
   }, 120_000);
 

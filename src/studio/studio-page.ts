@@ -1063,7 +1063,8 @@ const SCRIPT = String.raw`
     const value = raw.trim();
     if (!value) return;
     const parent = node.parentElement;
-    if (parent && parent.closest('script,style,pre,code,textarea,.code')) return;
+    // Conversation content (user and model text) is data, never a UI label.
+    if (parent && parent.closest('script,style,pre,code,textarea,.code,.msg .body')) return;
     const next = translated(value);
     if (next === value) return;
     const start = raw.match(/^\s*/u)?.[0] || '';

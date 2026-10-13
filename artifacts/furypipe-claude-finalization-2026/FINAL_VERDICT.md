@@ -20,7 +20,7 @@ NPM RELEASE      : 0.16.1 UNCHANGED
 NEW RELEASE      : NONE
 VNEXT-04         : NOT STARTED
 HUMAN VISUAL GATE: PENDING
-FINAL STATUS     : PARTIAL — #264–#267, #269, #270 vertes en CI exact-head ; #268 en attente (nouveau HEAD badf05a) ; live Mission Control bloqué
+FINAL STATUS     : PARTIAL — #264–#267, #269, #270 vertes en CI exact-head ; #268 en attente (nouveau HEAD c83573a) ; live Mission Control bloqué
 ```
 
 ## Next recommended action

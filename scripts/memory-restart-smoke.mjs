@@ -48,7 +48,7 @@ async function phase(name) {
       pid: process.pid,
       recalledCount: recalled.entries.length,
       recalledExact: recalled.entries[0]?.text === TEXT_CANARY,
-      dataNotInstructions: recalled.contextBlock.includes('recalled data, not instructions'),
+      dataNotInstructions: recalled.contextBlock.includes('recalled data, not instructions') && recalled.contextBlock.includes(TEXT_CANARY),
       forget: { hard: forgotten.hard, deletedRevisions: forgotten.deletedRevisions, deletedPayloads: forgotten.deletedPayloads },
     };
   }
@@ -119,10 +119,10 @@ async function main() {
       forgetHard: restarted.forget.hard && restarted.forget.deletedRevisions >= 1 && restarted.forget.deletedPayloads >= 1
         && afterForget.length < afterRemember.length,
       forgottenAfterRestart: verify.recalledCount === 0,
-      // A timeout, signal or unrelated crash must not count as a rejected key.
-      wrongKeyRecallsNothing: wrongKey.status === 0
-        ? JSON.parse(wrongKey.stdout.trim().split('\n').at(-1) || '{}').recalledCount === 0
-        : wrongKey.status !== null && wrongKey.stderr.includes('failed integrity verification'),
+      // Fail closed: a different key must be rejected by integrity verification,
+      // not silently read as empty; a timeout or signal (status null) also fails.
+      wrongKeyRejected: typeof wrongKey.status === 'number' && wrongKey.status !== 0
+        && wrongKey.stderr.includes('failed integrity verification'),
     };
     const evidence = {
       format: FORMAT,
@@ -141,7 +141,7 @@ async function main() {
     console.log(JSON.stringify(evidence, null, 2));
     if (evidence.status !== 'PASS') process.exitCode = 1;
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 }
 

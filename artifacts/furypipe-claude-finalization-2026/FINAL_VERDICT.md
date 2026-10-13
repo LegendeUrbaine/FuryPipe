@@ -4,9 +4,10 @@
 FURYPIPE — FINALIZATION CONTINUATION
 
 BASE HEAD        : 95c1336
-QA-001 SCRIPT    : PASS — PR #263 fusionnée (95c1336)
-OLLAMA           : WORKING — aucun test modèle redondant
-GATEWAY          : PASS — CLI réel, bootstrap, WS, reconnexion, arrêt. Ancien BLOCKED non reproduit
+QA-001 SCRIPT    : PASS sur les gates du dépôt (lint, typecheck officiel, CI 43/43) — PR #263 fusionnée (95c1336)
+                   PARTIAL en strict isolé : 9 erreurs de typage préexistantes (FIN-008) ; live QA-001 NOT_EXECUTED
+OLLAMA           : déclaré fonctionnel par le propriétaire — NON testé ici (NOT_EXECUTED, pas d'Ollama dans ce conteneur)
+GATEWAY          : PASS — CLI réel, bootstrap, WS, reconnexion, arrêt (voir réserves dans TEST_MATRIX). Ancien BLOCKED non reproduit
                    sous Linux : cause probable = environnement d'exécution sur l'hôte Windows (NOT_VERIFIED là-bas).
 MEMORY           : PASS — persistance chiffrée multi-processus, forget dur, mauvaise clé refusée (PR #265)
 FURYPIPE MCP     : PASS — outil réellement exécuté via le Gateway, reçu, schéma de sortie vérifié (PR #264)
@@ -19,12 +20,12 @@ NPM RELEASE      : 0.16.1 UNCHANGED
 NEW RELEASE      : NONE
 VNEXT-04         : NOT STARTED
 HUMAN VISUAL GATE: PENDING
-FINAL STATUS     : PARTIAL — 5 PR prêtes à revue / fusion propriétaire ; live Mission Control bloqué
+FINAL STATUS     : PARTIAL — PR #264–#268 en attente de CI exact-head verte sur leurs HEAD actuels ; live Mission Control bloqué
 ```
 
 ## Next recommended action
 
-1. Revoir et fusionner #264 → #265 → #266 → #267 → #268. Elles sont indépendantes. #264 et #265 touchent
+1. Attendre la CI verte sur le HEAD exact de chaque PR, puis revoir et fusionner #264 → #265 → #266 → #267 → #268. Elles sont indépendantes. #264 et #265 touchent
    le même workflow, à deux endroits non adjacents.
 2. Sur la machine du propriétaire, pour un run Mission Control réel : lancer Studio → Mission Control
    avec un harness local (Codex `--oss` + Ollama, ou Claude Code vers un endpoint compatible Anthropic

@@ -136,7 +136,9 @@ function bundleDigestMatches(bundle: FuryProofBundle): boolean {
 /** The run's displayed judgement must be the one sealed in the bundle. */
 function judgementBound(result: FuryRunResult): boolean {
   try {
-    return digestMcpDirectJson(result.judgement) === digestMcpDirectJson(result.bundle.judgement);
+    // Same bound as sealFuryProofBundle, so a large but valid judgement is not rejected.
+    const bound = { maxBytes: 8 * 1024 * 1024, label: 'trace judgement' };
+    return digestMcpDirectJson(result.judgement, bound) === digestMcpDirectJson(result.bundle.judgement, bound);
   } catch {
     return false;
   }

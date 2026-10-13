@@ -625,7 +625,7 @@ const SCRIPT = String.raw`
   /* ---------- Locale / i18n ---------- */
   const SUPPORTED_LANGUAGES = Object.freeze(['en', 'fr']);
   const FR = Object.freeze({
-    'Workspace': 'ESPACE DE TRAVAIL',
+    'Workspace': 'Espace de travail',
     'Explore workspace': 'Explorer l’espace de travail',
     'Explore': 'EXPLORER',
     'Operate': 'PILOTER',
@@ -1520,7 +1520,7 @@ const SCRIPT = String.raw`
       $('#hw').textContent = gpu ? gpu.name : (hw.unifiedMemory ? 'Unified memory' : hw.cpuModel);
       const spec = $('#hw-spec'); spec.replaceChildren();
       if (gpu) spec.append(el('span', { text: gib(gpu.memoryBytes) + ' GB VRAM' }));
-      spec.append(el('span', { text: gib(hw.totalMemoryBytes) + ' GB RAM' }), el('span', { text: hw.cpuCount + ' CPU threads' }));
+      spec.append(el('span', { text: gib(hw.totalMemoryBytes) + ' GB RAM' }), el('span', { text: hw.cpuCount + (activeLanguage === 'fr' ? ' threads CPU' : ' CPU threads') }));
       const fits = candidates().filter(x => x.m.fit === 'FITS').length;
       $('#hw-rec').textContent = candidates().length ? fits + ' of ' + candidates().length + ' local model' + (candidates().length === 1 ? '' : 's') + ' fit this machine comfortably.' : 'Start a local runtime to see which models fit.';
     }
@@ -2489,7 +2489,7 @@ const SCRIPT = String.raw`
         body.append(el('tr', {}, el('td', { text: h.displayName }), el('td', {}, h.installed ? badge(h.versionStatus === 'builtin' ? 'built in' : 'installed', 'ok') : badge(h.versionStatus === 'not-executed' ? 'configure an endpoint' : 'not installed', 'muted')),
           el('td', { text: h.version || '—' }), el('td', { text: h.definition.integrations.join(', ') }), el('td', { text: h.definition.localModel.mechanism }), el('td', { text: h.definition.evidence })));
       }
-      status.textContent = state.harnesses.harnesses.filter(h => h.installed).length + ' runtime(s) available. Authentication is never probed.';
+      status.textContent = state.harnesses.harnesses.filter(h => h.installed).length + (activeLanguage === 'fr' ? ' runtime(s) disponible(s). L’authentification n’est jamais sondée.' : ' runtime(s) available. Authentication is never probed.');
     } catch (e) { status.textContent = 'Runtime discovery failed: ' + e.message; }
   }
 
@@ -3107,7 +3107,7 @@ const SCRIPT = String.raw`
           el('td', { text: s.version + ' · ' + s.type }), el('td', { text: s.compatibleHarnesses.join(', ') || 'any' }), el('td', { text: s.stats.uses + ' (' + s.stats.successes + '✓/' + s.stats.failures + '✗)' }),
           el('td', { class: 'code', text: s.checksum.slice(0, 12) }), el('td', {}, gov), el('td', {}, toggle, pin)));
       }
-      status.textContent = r.skills.length + ' skill(s) discovered. Skills never gain tool, network or script authority from here.';
+      status.textContent = r.skills.length + (activeLanguage === 'fr' ? ' skill(s) découvert(s). Les skills n’obtiennent jamais ici d’autorité sur les outils, le réseau ou les scripts.' : ' skill(s) discovered. Skills never gain tool, network or script authority from here.');
     } catch (e) { status.textContent = 'Skills unavailable: ' + e.message; }
   }
   $('#skill-select-form').addEventListener('submit', async (ev) => {

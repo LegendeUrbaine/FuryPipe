@@ -44,4 +44,15 @@ describe('Studio French coverage', () => {
     expect(VISIBLE_STATIC_LABELS.filter((label) => !pageWithoutDictionary.includes(label))).toEqual([]);
     expect(VISIBLE_STATIC_LABELS.filter((label) => !keys.has(label))).toEqual([]);
   });
+
+  it('builds runtime counters in the active language and keeps the Workspace label in sentence case', () => {
+    const { pageWithoutDictionary } = splitPage();
+    // Counters are assembled at run time, so the exact-match dictionary cannot
+    // translate them; each one must carry its own French text.
+    for (const french of [' threads CPU', ' runtime(s) disponible(s).', ' skill(s) découvert(s).']) {
+      expect(pageWithoutDictionary).toContain(french);
+    }
+    // The section headings are upper-cased by CSS; the shared key must not be.
+    expect(renderStudioHtml().html).toContain("'Workspace': 'Espace de travail',");
+  });
 });

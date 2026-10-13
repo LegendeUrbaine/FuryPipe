@@ -86,7 +86,8 @@ async function startGateway(workspace) {
 }
 
 async function stopGateway(child) {
-  if (child.exitCode !== null) return 'already-exited';
+  // A child killed by a signal has exitCode null and signalCode set; both mean it is gone.
+  if (child.exitCode !== null || child.signalCode !== null) return 'already-exited';
   const closed = once(child, 'close');
   child.kill('SIGTERM');
   const timer = setTimeout(() => child.kill('SIGKILL'), 5_000);
@@ -158,8 +159,9 @@ async function connect(envelope) {
   });
   const ws = new WebSocket(envelope.websocketUrl, 'furypipe.gateway.v1', { headers: { origin, cookie } });
   const hello = await new Promise((resolve, reject) => {
-    ws.once('message', (raw) => resolve(JSON.parse(String(raw))));
-    ws.once('error', reject);
+    const timer = setTimeout(() => { ws.terminate(); reject(new Error('Gateway WebSocket handshake timed out')); }, 15_000);
+    ws.once('message', (raw) => { clearTimeout(timer); resolve(JSON.parse(String(raw))); });
+    ws.once('error', (error) => { clearTimeout(timer); reject(error); });
   });
   assert(hello.type === 'connected', `unexpected handshake ${JSON.stringify(hello).slice(0, 300)}`);
   return { session: new Session(ws, hello.connectionId), bootstrapReplayStatus: replay.status };

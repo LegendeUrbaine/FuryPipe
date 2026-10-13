@@ -7,6 +7,8 @@
 import { createHash } from 'node:crypto';
 
 import { FURY_REPLAY_FORMAT, verifyFuryReplay, type FuryReplayEntry } from './fury-mission-control.js';
+import { FURY_PROOF_BUNDLE_FORMAT, sealFuryProofBundle, type FuryProofBundle } from './fury-proof.js';
+import { digestMcpDirectJson } from './mcp-direct-json.js';
 import type { FuryRunResult } from './fury-run.js';
 
 export const FURY_TRACE_FORMAT = 'furypipe-trace/v1' as const;
@@ -120,6 +122,28 @@ function dataDigest(entry: FuryReplayEntry): string {
   return createHash('sha256').update(JSON.stringify(entry.data), 'utf8').digest('hex');
 }
 
+/** True only when the bundle's content, including its format, still hashes to its sealed digest. */
+function bundleDigestMatches(bundle: FuryProofBundle): boolean {
+  try {
+    if (bundle.format !== FURY_PROOF_BUNDLE_FORMAT) return false;
+    const { taskId, judgement, receipts, commandsExecuted, filesModified, uncertainty, outputDigest } = bundle;
+    return sealFuryProofBundle({ taskId, judgement, receipts, commandsExecuted, filesModified, uncertainty, outputDigest }).bundleDigest === bundle.bundleDigest;
+  } catch {
+    return false;
+  }
+}
+
+/** The run's displayed judgement must be the one sealed in the bundle. */
+function judgementBound(result: FuryRunResult): boolean {
+  try {
+    // Same bound as sealFuryProofBundle, so a large but valid judgement is not rejected.
+    const bound = { maxBytes: 8 * 1024 * 1024, label: 'trace judgement' };
+    return digestMcpDirectJson(result.judgement, bound) === digestMcpDirectJson(result.bundle.judgement, bound);
+  } catch {
+    return false;
+  }
+}
+
 function emptyTrace(input: FuryRunTraceInput, status: FuryTraceStatus, reason: string, replayIntegrity: FuryRunTrace['replayIntegrity']): FuryRunTrace {
   return Object.freeze({
     format: FURY_TRACE_FORMAT,
@@ -167,6 +191,12 @@ export function buildFuryRunTrace(input: FuryRunTraceInput): FuryRunTrace {
       ...(integrity.truncated !== undefined ? { truncated: integrity.truncated } : {}),
     });
   }
+
+  // The replay is verified at this point; a bundle-only problem must not be
+  // reported as a replay failure.
+  const replayPassed = { status: 'PASS' as const, checkedEntries: replay.entries.length, expectedHead: head };
+  if (!bundleDigestMatches(result.bundle)) return emptyTrace(input, 'INVALID', 'PROOF_BUNDLE_DIGEST_MISMATCH', replayPassed);
+  if (!judgementBound(result)) return emptyTrace(input, 'INVALID', 'JUDGEMENT_NOT_SEALED', replayPassed);
 
   const runNode = id('run', input.runId);
   const replayNode = id('replay', replay.replayId);

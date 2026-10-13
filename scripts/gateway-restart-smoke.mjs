@@ -136,6 +136,9 @@ async function expectStaleEndpointRefused(url) {
   });
   assert(outcome !== 'opened', `stale Gateway endpoint ${url} still accepted a connection after restart`);
   assert(outcome !== 'timeout', `stale Gateway endpoint ${url} neither accepted nor refused within 5 s`);
+  // Any HTTP answer means something still listens there; only a network-level
+  // refusal proves the old endpoint is gone.
+  assert(!outcome.startsWith('http-'), `stale Gateway endpoint ${url} still answered (${outcome}) after restart`);
   return outcome;
 }
 

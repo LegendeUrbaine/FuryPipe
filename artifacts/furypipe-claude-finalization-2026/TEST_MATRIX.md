@@ -16,10 +16,10 @@
 | Studio : couverture FR | Chromium en-US vs fr-FR, 13 vues | 1dcbf28 | 93 → 9 chaînes visibles en anglais (corrigées par 88 entrées FR ajoutées). Mesure faite avant le fix des compteurs (badf05a) : 3 des 9 restantes étaient ces compteurs. Recompte complet (navigation + vue entière, en-US vs fr-FR) : ~45 libellés anglais restants à c83573a, traduits à c56a014. Re-mesuré à 1643ce9 (après correctif) : 62 chaînes identiques hors noms de fichiers, toutes noms de produits, termes techniques gardés, mots identiques en français ou données matérielles, « Select a file. » (texte d'attente du lecteur de fichier) traduit ensuite par 7392dc1 (« Sélectionnez un fichier. », vérifié fr-FR et en-US). Aucun débordement ni erreur console à 1440/768/390. |
 | Responsive | Chromium 1440 / 768 / 390 | 7481566, 1dcbf28 | aucun débordement horizontal, 0 erreur console |
 | Non-régression globale | `pnpm test` | d793c75, c48d65b | 3679/3679 et 3678/3678 PASS |
-| Fusion combinée des 8 PR (ordre recommandé) | merge local + lint/typecheck/build/test + 4 smokes | fusion 22df9a9, arbre 7b5ebac (têtes : voir CURRENT_STATE) | PASS : aucun conflit, 3681/3681, 4 smokes PASS avec `sourceCommit` = 22df9a9… |
+| Fusion combinée des 8 PR (ordre recommandé) | merge local + lint/typecheck/build/test + 4 smokes | fusion 0cacc65, arbre 167a243 (têtes : voir CURRENT_STATE) | PASS : aucun conflit, 3681/3681, 4 smokes PASS avec `sourceCommit` = 0cacc65… |
 | CI exact-head #264 (1er push) | GitHub Actions | d793c75 | 44/44 vertes (3 OS) |
 | CI exact-head — PR vertes | GitHub Actions | voir CURRENT_STATE | PASS : #264 (6b2f44b), #265 (f912193, une relance du job d'export Security CI après timeout de file), #266 (059a7e2), #267 (7481566), #270 (0584f42), #271 (3f8bd97) |
-| CI exact-head — PR en attente | GitHub Actions | voir CURRENT_STATE | PENDING au moment de la rédaction : #268 (743878f). #269 : la CI de son HEAD exact se lit sur GitHub (ce dossier ne peut pas certifier le commit qui le contient) |
+| CI exact-head — PR en attente | GitHub Actions | voir CURRENT_STATE | PENDING au moment de la rédaction : #268 (647d15b). #269 : la CI de son HEAD exact se lit sur GitHub (ce dossier ne peut pas certifier le commit qui le contient) |
 | Studio FR : compteurs + casse « Espace de travail » | vitest + Chromium fr-FR | badf05a | PASS : nav et titre « Espace de travail », en-tête de section en majuscules via CSS |
 
 ## Non exécuté

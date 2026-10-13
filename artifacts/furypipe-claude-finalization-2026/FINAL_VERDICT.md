@@ -20,7 +20,7 @@ NPM RELEASE      : 0.16.1 UNCHANGED
 NEW RELEASE      : NONE
 VNEXT-04         : NOT STARTED
 HUMAN VISUAL GATE: PENDING
-FINAL STATUS     : PARTIAL — #264–#267, #270 et #271 vertes en CI exact-head ; #268 (743878f) : CI à vérifier sur GitHub ; fusion combinée des 8 PR validée localement (fusion 22df9a9, arbre 7b5ebac) ; #269 : HEAD exact à lire sur GitHub ; live Mission Control bloqué
+FINAL STATUS     : PARTIAL — #264–#267, #270 et #271 vertes en CI exact-head ; #268 (647d15b) : CI à vérifier sur GitHub ; fusion combinée des 8 PR validée localement (fusion 0cacc65, arbre 167a243) ; #269 : HEAD exact à lire sur GitHub ; live Mission Control bloqué
 ```
 
 ## Next recommended action

@@ -1,0 +1,74 @@
+{
+  "format": "furypipe-gateway-mcp-runtime-smoke/v1",
+  "status": "PASS",
+  "sourceCommit": "29a7cb108effbf8c721922358805712f1783cb24",
+  "platform": {
+    "os": "linux",
+    "node": "v22.22.0"
+  },
+  "levels": {
+    "DISCOVERED": true,
+    "CONNECTED": true,
+    "AUTHORIZED": true,
+    "EXECUTED": true,
+    "VERIFIED": true
+  },
+  "checks": {
+    "connection": true,
+    "bootstrapOneTime": true,
+    "discovery": true,
+    "inventory": true,
+    "riskClassified": true,
+    "governedReadAutoApproved": true,
+    "toolCall": true,
+    "toolResponse": true,
+    "receipt": true,
+    "outputSchemaVerified": true,
+    "replayRefused": true,
+    "approvalRequired": true,
+    "operatorApproval": true,
+    "approvedExecution": true,
+    "listExecution": true,
+    "invalidArgumentsRefused": true,
+    "permissionRequired": true,
+    "disconnect": true
+  },
+  "observations": {
+    "echoRisk": "trusted_read_only_closed_world",
+    "echoPolicy": "allow_governed_policy",
+    "valuePolicy": "require_operator",
+    "replay": "tool-proposal-missing-or-expired",
+    "early": "tool-proposal-not-approved",
+    "badArgs": "tool-arguments-invalid",
+    "noPermission": "plugin-permission-mismatch",
+    "receiptKeys": [
+      "approvalKind",
+      "attempt",
+      "endpointFingerprint",
+      "executed",
+      "format",
+      "inputSchemaSha256",
+      "inputSha256",
+      "outputSchemaSha256",
+      "permitIdSha256",
+      "policyDecisionIdSha256",
+      "protocolVersion",
+      "replayKeySha256",
+      "replayed",
+      "resultSha256",
+      "sourceId",
+      "succeeded",
+      "toolName",
+      "verificationKind",
+      "verified"
+    ],
+    "executionState": {
+      "executed": true,
+      "succeeded": true,
+      "verified": true
+    },
+    "bootstrapReplayStatus": 401,
+    "shutdown": "exit-0"
+  },
+  "fixture": "scripts/fixtures/mcp-runtime-stdio-server.mjs (side-effect free)"
+}

@@ -1,0 +1,57 @@
+{
+  "format": "furypipe-installed-gateway-mcp-smoke/v1",
+  "status": "PASS",
+  "sourceCommit": "0cacc654753fd107921ac7bd3db6fad6b1b9fda7",
+  "platform": {
+    "os": "linux",
+    "arch": "x64",
+    "node": "v22.22.0"
+  },
+  "package": {
+    "name": "furypipe",
+    "version": "0.16.1",
+    "tarballSha256": "abc125d4b46825ed3fd7aca8dd49481a87834c50464d80c39870524e653febc5"
+  },
+  "gateway": {
+    "installedBin": "bin/cli.js",
+    "ready": true,
+    "processAliveAfterReady": true,
+    "loopbackEndpoint": "PASS",
+    "cleanShutdown": true,
+    "shutdowns": [
+      {
+        "code": 0,
+        "signal": null,
+        "forced": false
+      },
+      {
+        "code": 0,
+        "signal": null,
+        "forced": false
+      }
+    ],
+    "dynamicRequireError": 0,
+    "startEnvelope": {
+      "format": "furypipe-gateway-local-start/v1",
+      "status": "ready",
+      "executionAuthority": false
+    }
+  },
+  "mcpStdio": {
+    "installedPublicExport": "furypipe/mcp-direct-client-node",
+    "fixtureProcess": "local-child-process",
+    "connect": "PASS",
+    "toolsList": "PASS",
+    "shutdown": "PASS",
+    "dynamicRequireError": 0
+  },
+  "gatewayMcpStdio": {
+    "installedBin": "bin/cli.js",
+    "bundle": "dist/node.js",
+    "auth": "one-time-bootstrap-code+loopback-cookie",
+    "command": "tools.source.inspect.stdio",
+    "inventory": "PASS",
+    "childClosed": true,
+    "dynamicRequireError": 0
+  }
+}

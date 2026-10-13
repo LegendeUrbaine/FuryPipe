@@ -1,0 +1,23 @@
+{
+  "format": "furypipe-final-gateway-restart/v1",
+  "status": "PASS",
+  "sourceCommit": "0cacc654753fd107921ac7bd3db6fad6b1b9fda7",
+  "generatedAt": "2026-10-13T16:00:03.548Z",
+  "platform": {
+    "os": "linux",
+    "node": "v22.22.0"
+  },
+  "contract": {
+    "localGatewayStart": "PASS",
+    "authBoundary": "PASS",
+    "connectDisconnect": "PASS",
+    "abruptRestart": "PASS",
+    "reconnect": "PASS",
+    "invalidOriginDenied": "PASS",
+    "staleEndpointRefused": "PASS",
+    "staleEndpointOutcome": "ECONNREFUSED",
+    "executionAuthority": false,
+    "externalOpenClaw": "NOT_EXECUTED"
+  },
+  "durationMs": 477
+}

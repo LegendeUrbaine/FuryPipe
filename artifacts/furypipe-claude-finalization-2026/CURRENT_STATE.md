@@ -21,11 +21,11 @@ VNEXT-04      : NOT STARTED
 
 | PR | Branche | HEAD | Sujet |
 |----|---------|------|-------|
-| #264 | claude/gateway-mcp-runtime-e2e | 29a7cb1 | fix code d'erreur tool proposal consommé + smoke MCP runtime E2E via Gateway réel + CI |
-| #265 | claude/memory-restart-smoke | 437d1bd | smoke mémoire chiffrée multi-processus (restart / forget / mauvaise clé) + CI |
+| #264 | claude/gateway-mcp-runtime-e2e | a9f49af (preuve : 29a7cb1) | fix code d'erreur tool proposal consommé + smoke MCP runtime E2E via Gateway réel + CI |
+| #265 | claude/memory-restart-smoke | f912193 (preuve : 437d1bd) | smoke mémoire chiffrée multi-processus (restart / forget / mauvaise clé) + CI |
 | #266 | claude/fury-trace-bundle-digest | d390937 | Fury Trace : vérif digest bundle, format, verdict scellé |
 | #267 | claude/studio-setup-choice-contrast | 7481566 | Studio : contraste bouton « Install Ollama » |
-| #268 | claude/studio-fr-coverage | 1dcbf28 | Studio : 88 traductions FR manquantes + test |
+| #268 | claude/studio-fr-coverage | 759893f | Studio : 88 traductions FR manquantes + test |
 
-Les PR sont indépendantes, toutes basées sur `95c1336`. Le seul fichier partagé est
+Les commits après la preuve ne font que durcir les assertions des smokes (revues bots). Les PR sont indépendantes, toutes basées sur `95c1336`. Le seul fichier partagé est
 `.github/workflows/furypipe-recovery-restart.yml` (#264 et #265), modifié à deux endroits non adjacents.

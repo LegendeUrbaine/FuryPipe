@@ -107,6 +107,7 @@ async function main() {
     const wrongKeyReason = wrongKey.stderr.split('\n').find((line) => line.includes('Error')) ?? '';
     const restarted = child('recall-forget', env);
     const verify = child('verify', env);
+    const afterForget = files(recoveryRoot);
 
     const checks = {
       create: remember.added === 1,
@@ -114,9 +115,14 @@ async function main() {
       separateProcesses: new Set([remember.pid, restarted.pid, verify.pid]).size === 3,
       restoreAfterRestart: restarted.recalledCount === 1 && restarted.recalledExact,
       recalledAsDataNotInstructions: restarted.dataNotInstructions,
-      forgetHard: restarted.forget.hard && restarted.forget.deletedRevisions >= 1,
+      // Hard forget must remove the payload, not only hide it from recall.
+      forgetHard: restarted.forget.hard && restarted.forget.deletedRevisions >= 1 && restarted.forget.deletedPayloads >= 1
+        && afterForget.length < afterRemember.length,
       forgottenAfterRestart: verify.recalledCount === 0,
-      wrongKeyRecallsNothing: wrongKey.status !== 0 || JSON.parse(wrongKey.stdout.trim().split('\n').at(-1) || '{}').recalledCount === 0,
+      // A timeout, signal or unrelated crash must not count as a rejected key.
+      wrongKeyRecallsNothing: wrongKey.status === 0
+        ? JSON.parse(wrongKey.stdout.trim().split('\n').at(-1) || '{}').recalledCount === 0
+        : wrongKey.status !== null && wrongKey.stderr.includes('failed integrity verification'),
     };
     const evidence = {
       format: FORMAT,
@@ -124,7 +130,7 @@ async function main() {
       sourceCommit: process.env.FURYPIPE_SOURCE_COMMIT?.trim() || 'not-bound',
       platform: { os: process.platform, node: process.version },
       checks,
-      observations: { encryptedFiles: afterRemember.length, plaintextLeaks: leaks, forget: restarted.forget, wrongKeyExit: wrongKey.status, wrongKeyReason: wrongKeyReason.slice(0, 200) },
+      observations: { encryptedFiles: afterRemember.length, filesAfterForget: afterForget.length, plaintextLeaks: leaks, forget: restarted.forget, wrongKeyExit: wrongKey.status, wrongKeyReason: wrongKeyReason.slice(0, 200) },
       fixtures: 'synthetic; isolated temp root; owner memory untouched',
     };
     const out = process.env.FURYPIPE_VALIDATION_OUTPUT_DIR?.trim();

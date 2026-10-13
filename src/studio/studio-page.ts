@@ -1442,7 +1442,7 @@ const SCRIPT = String.raw`
     const select = $('#workspace-artifact-task');
     const previous = select.value;
     select.replaceChildren(el('option', { value: '', text: workspace.tasks.some((task) => task.status === 'CONFIRMED') ? 'Choose a confirmed task' : 'Plan and confirm a task first' }));
-    for (const task of workspace.tasks.filter((candidate) => candidate.status === 'CONFIRMED')) select.append(el('option', { value: task.id, text: task.id + ' · ' + task.objective.slice(0, 70) }));
+    for (const task of workspace.tasks.filter((candidate) => candidate.status === 'CONFIRMED')) select.append(el('option', { 'data-user-content': '', value: task.id, text: task.id + ' · ' + task.objective.slice(0, 70) }));
     if ([...select.options].some((option) => option.value === previous)) select.value = previous;
     $('#workspace-evidence').textContent = JSON.stringify({ format: workspace.format, workspaceId: workspace.workspaceId, revision: workspace.revision, conversationIds: workspace.conversationIds, tasks: workspace.tasks.map((task) => ({ id: task.id, status: task.status, dispatch: task.dispatch, execution: task.execution, artifactId: task.artifactId || null, artifactContentSha256: task.artifactContentSha256 || null, verification: task.verification || null })), artifactIds: workspace.artifactIds, executionAuthority: false }, null, 2);
   }
@@ -1668,7 +1668,7 @@ const SCRIPT = String.raw`
     for (const p of state.pastes) {
       const rm = el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove pasted text' }, ic('x'));
       rm.addEventListener('click', () => { state.pastes = state.pastes.filter(x => x !== p); renderTray(); autosize(); input.focus(); });
-      tray.append(el('div', { class: 'att pasted' }, el('div', { class: 'snip', text: p.text.slice(0, 240) }), el('span', { class: 'tag', text: 'Pasted · ' + p.text.length + ' chars' }), rm));
+      tray.append(el('div', { class: 'att pasted' }, el('div', { 'data-user-content': '', class: 'snip', text: p.text.slice(0, 240) }), el('span', { class: 'tag', text: 'Pasted · ' + p.text.length + ' chars' }), rm));
     }
     for (const f of state.files) {
       const rm = el('button', { type: 'button', class: 'rm', 'aria-label': 'Remove ' + f.name }, ic('x'));
@@ -2725,7 +2725,7 @@ const SCRIPT = String.raw`
     try { const r = await getJson('/api/studio/runs.json'); const box = $('#runs'); box.replaceChildren();
       if (!r.runs.length) { box.append(el('p', { class: 'empty', text: 'No run yet. Start one above; only local runtimes are used unless you allow cloud runtimes.' })); return; }
       for (const run of r.runs) {
-        const card = el('div', { class: 'card' }); card.dataset.runId = run.runId; card.append(el('h2', { text: run.runId + ' — ' + run.status + (run.verdict ? ' · FuryJudge ' + run.verdict : '') }), el('p', { class: 'muted', text: run.intent }));
+        const card = el('div', { class: 'card' }); card.dataset.runId = run.runId; card.append(el('h2', { text: run.runId + ' — ' + run.status + (run.verdict ? ' · FuryJudge ' + run.verdict : '') }), el('p', { 'data-user-content': '', class: 'muted', text: run.intent }));
         if (run.error) card.append(el('p', { class: 'bad', text: run.error }));
         const traceButton = el('button', { type: 'button', class: 'secondary', text: run.traceStatus === 'READY' ? 'View execution trace' : 'Trace not ready' });
         traceButton.disabled = run.traceStatus !== 'READY';
@@ -3616,7 +3616,7 @@ const SCRIPT = String.raw`
     ev.preventDefault(); const out = $('#mem-results'); out.replaceChildren();
     try { const r = await mcpPost('/api/studio/memory/search', { query: $('#mem-query').value });
       if (!r.hits.length) { out.append(el('p', { class: 'empty', text: 'Nothing recalled for this question.' })); return; }
-      const ol = el('ol'); for (const h of r.hits) ol.append(el('li', {}, el('p', { text: h.text }), el('p', { class: 'muted', text: h.scope + ' · ' + age(h.ageMs) + ' · why: ' + h.why }))); out.append(ol);
+      const ol = el('ol'); for (const h of r.hits) ol.append(el('li', {}, el('p', { 'data-user-content': '', text: h.text }), el('p', { class: 'muted', text: h.scope + ' · ' + age(h.ageMs) + ' · why: ' + h.why }))); out.append(ol);
     } catch (e) { out.append(el('p', { class: 'bad', text: e.message })); }
   });
   async function loadIntegrations() {

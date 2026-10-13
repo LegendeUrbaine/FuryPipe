@@ -17,7 +17,8 @@
 | Responsive | Chromium 1440 / 768 / 390 | 7481566, 1dcbf28 | aucun débordement horizontal, 0 erreur console |
 | Non-régression globale | `pnpm test` | d793c75, c48d65b | 3679/3679 et 3678/3678 PASS |
 | CI exact-head #264 (1er push) | GitHub Actions | d793c75 | 44/44 vertes (3 OS) |
-| CI exact-head sur les HEAD actuels (#264–#269) | GitHub Actions | voir CURRENT_STATE | PENDING au moment de la rédaction |
+| CI exact-head sur les HEAD actuels | GitHub Actions | voir CURRENT_STATE | PASS : #264 (6b2f44b), #265 (f912193, 1 relance du job d'export Security CI après timeout de file), #266 (059a7e2), #267 (7481566), #269 (cb01165), #270 (2ac0eb5). #268 : PENDING sur badf05a |
+| Studio FR : compteurs + casse « Espace de travail » | vitest + Chromium fr-FR | badf05a | PASS : nav et titre « Espace de travail », en-tête de section en majuscules via CSS |
 
 ## Non exécuté
 

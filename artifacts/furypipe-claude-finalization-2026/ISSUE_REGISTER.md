@@ -37,7 +37,7 @@ ROOT CAUSE: dictionnaire FR à correspondance exacte ; entrées manquantes ; cl�
             désynchronisée ("local" → "governed")
 SEVERITY  : P2
 FIX       : PR #268 (93 → 9 ; restent des noms de produits et 3 compteurs dynamiques)
-STATUS    : PARTIAL (compteurs dynamiques = P3 ouvert)
+STATUS    : FIXED (en attente de fusion) ; compteurs dynamiques corrigés aussi (FIN-006)
 
 ID        : FIN-005
 COMPONENT : Memory — preuves
@@ -54,15 +54,16 @@ EXPECTED  : compteurs traduits ("0 skill(s) discovered…", "2 runtime(s) availa
 ACTUAL    : anglais
 ROOT CAUSE: texte construit à l'exécution ; le dictionnaire exact ne le couvre pas
 SEVERITY  : P3
-FIX       : —
-STATUS    : OPEN
+FIX       : PR #268 (badf05a) : texte choisi selon la langue active
+STATUS    : FIXED (en attente de fusion)
 
 ID        : FIN-007
 COMPONENT : Studio i18n
 EXPECTED  : élément de navigation "Espace de travail"
 ACTUAL    : "ESPACE DE TRAVAIL" en majuscules (clé FR 'Workspace' partagée avec un en-tête de section)
 SEVERITY  : P3
-STATUS    : OPEN
+FIX       : PR #268 (badf05a) : clé en casse normale ; l'en-tête reste en majuscules via CSS (vérifié Chromium fr-FR)
+STATUS    : FIXED (en attente de fusion)
 
 ID        : FIN-008
 COMPONENT : QA script QA-001 (scripts/)

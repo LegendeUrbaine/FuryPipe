@@ -49,6 +49,9 @@ jobs:
       - name: Execute crash, migration and unknown-outcome recovery
         run: pnpm run validation:recovery
 
+      - name: Execute encrypted memory cross-process restart
+        run: pnpm run validation:memory-restart
+
       - name: Execute Gateway restart and reconnect contract
         run: pnpm run validation:gateway
 

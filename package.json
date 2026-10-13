@@ -831,6 +831,7 @@
     "validation:package-reproducibility": "node scripts/package-reproducibility.mjs",
     "validation:clean-room": "node scripts/clean-room-package-smoke.mjs",
     "validation:local-contracts": "node scripts/local-contracts.mjs",
+    "validation:memory-restart": "node scripts/memory-restart-smoke.mjs",
     "validation:accessibility": "node scripts/accessibility-automation.mjs",
     "validation:forge-assets": "node scripts/validate-forge-assets.mjs",
     "validation:flux-assets": "node scripts/validate-flux-assets.mjs",

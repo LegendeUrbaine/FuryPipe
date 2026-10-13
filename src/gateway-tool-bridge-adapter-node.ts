@@ -310,10 +310,11 @@ export function createFuryGatewayToolBridgeAdapter(
             'tools.execute input',
           );
           const proposalId = safeId(record.proposalId, 'proposalId');
-          requireCommandTransport(
-            commandName,
-            options.bridge.proposalTransport(proposalId),
-          );
+          const transport = options.bridge.proposalTransport(proposalId);
+          // An executed, discarded or expired proposal has no transport left;
+          // report that truthfully instead of as a transport mismatch.
+          if (transport === undefined) throw new Error('tool proposal is missing or expired');
+          requireCommandTransport(commandName, transport);
           result = ok(commandName, await options.bridge.execute(proposalId));
         }
 

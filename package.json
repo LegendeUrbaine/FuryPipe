@@ -827,6 +827,7 @@
     "validation:upgrade-rollback": "node scripts/upgrade-rollback-smoke.mjs",
     "validation:recovery": "node scripts/recovery-resilience-smoke.mjs",
     "validation:gateway": "node scripts/gateway-restart-smoke.mjs",
+    "validation:gateway-mcp-runtime": "node scripts/gateway-mcp-runtime-smoke.mjs",
     "validation:gateway-installed-package": "node scripts/gateway-installed-package-smoke.mjs",
     "validation:package-reproducibility": "node scripts/package-reproducibility.mjs",
     "validation:clean-room": "node scripts/clean-room-package-smoke.mjs",

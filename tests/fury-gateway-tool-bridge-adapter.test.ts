@@ -216,6 +216,31 @@ describe('Gateway governed tool bridge adapter', () => {
     expect(executions).toBe(0);
   });
 
+  it('reports an unknown or consumed proposal as missing, not as a transport mismatch', async () => {
+    let executions = 0;
+    const adapter = createFuryGatewayToolBridgeAdapter({
+      bridge: fakeBridge({
+        proposalTransport: () => undefined,
+        execute: async () => {
+          executions += 1;
+          throw new Error('must not execute');
+        },
+      }),
+    });
+
+    for (const commandName of ['tools.execute.stdio', 'tools.execute.http'] as const) {
+      const result = await adapter.dispatchExecution(
+        commandName,
+        { proposalId: 'ftb_stdio_22222222-2222-4222-8222-222222222222' },
+      );
+      expect(result).toMatchObject({
+        status: 'rejected',
+        error: { code: 'tool-proposal-missing-or-expired' },
+      });
+    }
+    expect(executions).toBe(0);
+  });
+
   it('allows the matching proposal transport to reach the bridge', async () => {
     let executions = 0;
     const proposalId = 'ftb_http_11111111-1111-4111-8111-111111111111';

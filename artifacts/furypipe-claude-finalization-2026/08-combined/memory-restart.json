@@ -1,0 +1,32 @@
+{
+  "format": "furypipe-memory-restart-smoke/v1",
+  "status": "PASS",
+  "sourceCommit": "0cacc654753fd107921ac7bd3db6fad6b1b9fda7",
+  "platform": {
+    "os": "linux",
+    "node": "v22.22.0"
+  },
+  "checks": {
+    "create": true,
+    "saveEncrypted": true,
+    "separateProcesses": true,
+    "restoreAfterRestart": true,
+    "recalledAsDataNotInstructions": true,
+    "forgetHard": true,
+    "forgottenAfterRestart": true,
+    "wrongKeyRejected": true
+  },
+  "observations": {
+    "encryptedFiles": 4,
+    "filesAfterForget": 0,
+    "plaintextLeaks": 0,
+    "forget": {
+      "hard": true,
+      "deletedRevisions": 1,
+      "deletedPayloads": 1
+    },
+    "wrongKeyExit": 1,
+    "wrongKeyReason": "        throw new Error('long-term memory Recovery revision failed integrity verification');"
+  },
+  "fixtures": "synthetic; isolated temp root; owner memory untouched"
+}

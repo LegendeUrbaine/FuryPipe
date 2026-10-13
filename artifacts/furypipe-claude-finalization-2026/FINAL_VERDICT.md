@@ -5,7 +5,7 @@ FURYPIPE — FINALIZATION CONTINUATION
 
 BASE HEAD        : 95c1336
 QA-001 SCRIPT    : PASS sur les gates du dépôt (lint, typecheck officiel, CI 43/43) — PR #263 fusionnée (95c1336)
-                   PARTIAL en strict isolé : 9 erreurs de typage préexistantes (FIN-008) ; live QA-001 NOT_EXECUTED
+                   strict isolé : 9 erreurs préexistantes (FIN-008) → 0 avec #271 ; live QA-001 NOT_EXECUTED
 OLLAMA           : déclaré fonctionnel par le propriétaire — NON testé ici (NOT_EXECUTED, pas d'Ollama dans ce conteneur)
 GATEWAY          : PASS — CLI réel, bootstrap, WS, reconnexion, arrêt (voir réserves dans TEST_MATRIX). Ancien BLOCKED non reproduit
                    sous Linux : cause probable = environnement d'exécution sur l'hôte Windows (NOT_VERIFIED là-bas).
@@ -13,19 +13,19 @@ MEMORY           : PASS — persistance chiffrée multi-processus, forget dur, m
 FURYPIPE MCP     : PASS — outil réellement exécuté via le Gateway, reçu, schéma de sortie vérifié (PR #264)
 MISSION CONTROL  : contrats PASS / live BLOCKED (pas de harness local gratuit ici)
 FURY TRACE       : contrats PASS + défaut truth-state corrigé (PR #266) / live NOT_EXECUTED
-STUDIO UI        : défauts corrigés (contraste #267 ; FR #268, compteurs et casse inclus) ; responsive OK sur 3 tailles
+STUDIO UI        : défauts corrigés (contraste #267 ; FR #268 après recompte complet) ; responsive OK sur 3 tailles ; espace vide de la carte « Choose a local model » : maquette proposée, en attente de validation du propriétaire
 ACCESSIBILITY    : contraste corrigé ; lecteur d'écran MANUAL_REQUIRED
 SECURITY         : aucune protection affaiblie ; tous les changements sont plus stricts ou neutres
 NPM RELEASE      : 0.16.1 UNCHANGED
 NEW RELEASE      : NONE
 VNEXT-04         : NOT STARTED
 HUMAN VISUAL GATE: PENDING
-FINAL STATUS     : PARTIAL — #264–#268 vertes en CI exact-head ; #270 : CI en cours sur 0584f42 (dernière verte 2ac0eb5) ; #269 : dernière CI verte cb01165, HEAD exact à lire sur GitHub ; live Mission Control bloqué
+FINAL STATUS     : PARTIAL — #264–#267 et #270 vertes en CI exact-head ; #268 (c56a014) et #271 (d0d3607) : CI à vérifier sur GitHub ; #269 : HEAD exact à lire sur GitHub ; live Mission Control bloqué
 ```
 
 ## Next recommended action
 
-1. Vérifier la CI verte sur le HEAD exact de #269, puis revoir et fusionner #264 → #265 → #266 → #267 → #268 → #270 → #269. Elles sont indépendantes. #264 et #265 touchent
+1. Vérifier la CI verte sur le HEAD exact de #268, #269 et #271, puis revoir et fusionner #264 → #265 → #266 → #267 → #268 → #270 → #271 → #269. Elles sont indépendantes. #264 et #265 touchent
    le même workflow, à deux endroits non adjacents.
 2. Sur la machine du propriétaire, pour un run Mission Control réel : lancer Studio → Mission Control
    avec un harness local (Codex `--oss` + Ollama, ou Claude Code vers un endpoint compatible Anthropic

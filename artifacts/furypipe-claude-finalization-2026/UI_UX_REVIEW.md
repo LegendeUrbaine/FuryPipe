@@ -9,7 +9,7 @@ NOT_CONFIGURED visible).
 | FR/EN mélangés : 93 chaînes non traduites sur 13 vues, accueil compris | P2 | corrigé (#268) ; compteurs dynamiques et casse corrigés ensuite (badf05a) |
 | Compteurs dynamiques non traduits | P3 | corrigé (#268, badf05a ; vérifié en session navigateur FR/EN, c83573a) |
 | « ESPACE DE TRAVAIL » en majuscules dans la navigation FR | P3 | corrigé (#268, badf05a) |
-| Espace vide en bas de la carte « Choose a local model » (desktop) | P3 | ouvert, non modifié (refonte visuelle à valider par le propriétaire) |
+| Espace vide en bas de la carte « Choose a local model » (desktop) | P3 | ouvert : cause = paragraphe d'état vide toujours affiché (≈31 px). Maquette « masquer quand vide » (195 → 164 px) présentée au propriétaire, non appliquée |
 | Débordement horizontal | — | aucun sur les 3 tailles |
 | Erreurs console | — | 0 |
 

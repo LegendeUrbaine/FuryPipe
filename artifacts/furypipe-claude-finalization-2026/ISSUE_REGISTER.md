@@ -36,7 +36,7 @@ ACTUAL    : 93 chaînes visibles restées en anglais sur 13 vues (dont la page d
 ROOT CAUSE: dictionnaire FR à correspondance exacte ; entrées manquantes ; clé du sous-titre de l'accueil
             désynchronisée ("local" → "governed")
 SEVERITY  : P2
-FIX       : PR #268 (93 → 9 mesuré à 1dcbf28 ; restaient des noms de produits et 3 compteurs dynamiques, ces derniers corrigés ensuite par badf05a — FIN-006 ; non recompté sur la tête actuelle)
+FIX       : PR #268. 93 → 9 mesuré à 1dcbf28 sur une partie des vues seulement. Recompte complet à c83573a (navigation + vue entière, 13 vues) : ~45 libellés encore en anglais (vue Workspace surtout), traduits par c56a014. Reste identique : noms de produits, termes techniques gardés, mots identiques en français, matériel, et le texte d'attente du lecteur de fichier (zone <pre> exclue).
 STATUS    : FIXED (en attente de fusion) ; compteurs dynamiques corrigés aussi (FIN-006)
 
 ID        : FIN-005
@@ -70,5 +70,6 @@ COMPONENT : QA script QA-001 (scripts/)
 EXPECTED  : typecheck strict isolé propre
 ACTUAL    : 9 erreurs préexistantes (typage du bloc succès ; `scripts/` hors tsconfig)
 SEVERITY  : P3
-STATUS    : OPEN (hors périmètre, documenté)
+FIX       : PR #271 (d0d3607) : champs imbriqués vérifiés une fois, échec si malformé ; tsc strict isolé 9 → 0
+STATUS    : FIXED (en attente de fusion)
 ```

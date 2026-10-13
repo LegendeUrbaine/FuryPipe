@@ -7,6 +7,7 @@
 import { createHash } from 'node:crypto';
 
 import { FURY_REPLAY_FORMAT, verifyFuryReplay, type FuryReplayEntry } from './fury-mission-control.js';
+import { sealFuryProofBundle, type FuryProofBundle } from './fury-proof.js';
 import type { FuryRunResult } from './fury-run.js';
 
 export const FURY_TRACE_FORMAT = 'furypipe-trace/v1' as const;
@@ -120,6 +121,16 @@ function dataDigest(entry: FuryReplayEntry): string {
   return createHash('sha256').update(JSON.stringify(entry.data), 'utf8').digest('hex');
 }
 
+/** True only when the bundle's content still hashes to its sealed digest. */
+function bundleDigestMatches(bundle: FuryProofBundle): boolean {
+  try {
+    const { taskId, judgement, receipts, commandsExecuted, filesModified, uncertainty, outputDigest } = bundle;
+    return sealFuryProofBundle({ taskId, judgement, receipts, commandsExecuted, filesModified, uncertainty, outputDigest }).bundleDigest === bundle.bundleDigest;
+  } catch {
+    return false;
+  }
+}
+
 function emptyTrace(input: FuryRunTraceInput, status: FuryTraceStatus, reason: string, replayIntegrity: FuryRunTrace['replayIntegrity']): FuryRunTrace {
   return Object.freeze({
     format: FURY_TRACE_FORMAT,
@@ -155,6 +166,12 @@ export function buildFuryRunTrace(input: FuryRunTraceInput): FuryRunTrace {
   }
   if (result.bundle.taskId !== input.runId || !SHA256.test(result.bundle.bundleDigest) || result.bundle.receipts.length > MAX_TRACE_RECEIPTS) {
     return emptyTrace(input, 'INVALID', 'PROOF_BUNDLE_BOUND_INVALID', {
+      status: 'FAIL', checkedEntries: replay.entries.length, expectedHead: head,
+    });
+  }
+
+  if (!bundleDigestMatches(result.bundle)) {
+    return emptyTrace(input, 'INVALID', 'PROOF_BUNDLE_DIGEST_MISMATCH', {
       status: 'FAIL', checkedEntries: replay.entries.length, expectedHead: head,
     });
   }

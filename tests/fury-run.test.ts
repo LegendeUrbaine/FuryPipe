@@ -90,6 +90,14 @@ describe('FuryRun end to end (fake harness, real git)', () => {
     });
     expect(tampered.status).toBe('INVALID');
     expect(tampered.replayIntegrity.status).toBe('FAIL');
+    // A proof bundle edited after sealing must not be projected as VERIFIED.
+    const rewrittenBundle = buildFuryRunTrace({
+      runId: 'r1', runStatus: result.status,
+      result: { ...result, bundle: { ...result.bundle, filesModified: ['src/auth/login.ts'] } },
+    });
+    expect(rewrittenBundle.status).toBe('INVALID');
+    expect(rewrittenBundle.reason).toBe('PROOF_BUNDLE_DIGEST_MISMATCH');
+    expect(rewrittenBundle.nodes).toHaveLength(0);
     expect(git(s.repoRoot, 'rev-parse', 'main')).toBe(s.baseSha);
   }, 120_000);
 

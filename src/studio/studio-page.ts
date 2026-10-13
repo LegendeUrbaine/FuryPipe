@@ -426,8 +426,8 @@ tbody tr{transition:background .15s}tbody tr:hover{background:rgba(255,255,255,.
 .badge.muted{color:var(--muted);border-color:var(--line-2)}
 .ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.muted{color:var(--muted)}
 button,select,textarea,input{font:inherit;color:inherit}
-main button:not(.ghost):not(.chip-btn):not(.tool):not(.send):not(.model-btn):not(.route-chip):not(.opt):not(.linkish):not(.icon-btn):not(.seg-btn){display:inline-flex;align-items:center;justify-content:center;gap:8px;height:38px;padding:0 16px;border-radius:11px;border:1px solid rgba(255,140,60,.45);background:linear-gradient(180deg,#ff8f45,var(--o-core));color:#1b0900;font:650 13.5px/1 var(--font);cursor:pointer;box-shadow:0 1px 0 rgba(255,220,190,.5) inset,0 8px 20px -10px rgba(255,106,0,.7);transition:transform .12s var(--ease),filter .2s}
-main button:not(.ghost):not(.chip-btn):not(.tool):not(.send):not(.model-btn):not(.route-chip):not(.opt):not(.linkish):not(.icon-btn):not(.seg-btn):hover{filter:brightness(1.06)}
+main button:not(.ghost):not(.chip-btn):not(.tool):not(.send):not(.model-btn):not(.route-chip):not(.opt):not(.linkish):not(.icon-btn):not(.seg-btn):not(.setup-choice){display:inline-flex;align-items:center;justify-content:center;gap:8px;height:38px;padding:0 16px;border-radius:11px;border:1px solid rgba(255,140,60,.45);background:linear-gradient(180deg,#ff8f45,var(--o-core));color:#1b0900;font:650 13.5px/1 var(--font);cursor:pointer;box-shadow:0 1px 0 rgba(255,220,190,.5) inset,0 8px 20px -10px rgba(255,106,0,.7);transition:transform .12s var(--ease),filter .2s}
+main button:not(.ghost):not(.chip-btn):not(.tool):not(.send):not(.model-btn):not(.route-chip):not(.opt):not(.linkish):not(.icon-btn):not(.seg-btn):not(.setup-choice):hover{filter:brightness(1.06)}
 main button:active{transform:scale(.97)}
 main button.secondary{background:var(--b4)!important;color:var(--ink)!important;border:1px solid var(--line-2)!important;box-shadow:0 1px 0 rgba(255,255,255,.04) inset!important}
 main button.secondary:hover{border-color:var(--line-3)!important}

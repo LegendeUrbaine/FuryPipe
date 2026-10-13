@@ -37,6 +37,18 @@ function isRecord(value: unknown): value is JsonRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+// The live result must have the documented shape; anything else fails the run
+// instead of being reported with missing fields.
+function requireRecord(value: unknown, label: string): JsonRecord {
+  if (!isRecord(value)) throw new Error(`Composer ${label} is malformed: ${JSON.stringify(value)}`);
+  return value;
+}
+
+function requireRecords(value: unknown, label: string): JsonRecord[] {
+  if (!Array.isArray(value) || !value.every(isRecord)) throw new Error(`Composer ${label} is malformed: ${JSON.stringify(value)}`);
+  return value;
+}
+
 function modelEntries(tags: JsonRecord): JsonRecord[] {
   return Array.isArray(tags.models) ? tags.models.filter(isRecord) : [];
 }
@@ -200,12 +212,18 @@ async function main(): Promise<void> {
   if (!isRecord(execution) || execution.status !== 'COMPLETED' || execution.output !== EXPECTED_OUTPUT) {
     throw new Error(`Composer live execution returned an unexpected bounded result: ${JSON.stringify(execution)}`);
   }
+  const planRuntime = requireRecord(plan.runtime, 'plan runtime');
+  const planDispatch = requireRecord(plan.dispatch, 'plan dispatch');
+  const planEvaluation = requireRecord(plan.evaluation, 'plan evaluation');
+  const judgement = requireRecord(execution.judgement, 'execution judgement');
+  const receipts = requireRecords(execution.receipts, 'execution receipts');
+  const proofBundle = requireRecord(execution.proofBundle, 'execution proof bundle');
   const listedResponse = await api.handle('capability-composer-plans', new Request('http://127.0.0.1/api/studio/capability-composer/plans.json'));
   const listed = await readJson(listedResponse);
 
   const evidence = {
     format: 'furypipe-capability-composer-live-acceptance/v1',
-    status: execution.status === 'COMPLETED' && execution.judgement?.verdict === 'ACCEPT' ? 'PASS' : 'UNPROVEN',
+    status: execution.status === 'COMPLETED' && judgement.verdict === 'ACCEPT' ? 'PASS' : 'UNPROVEN',
     sourceCommit: process.env.FURYPIPE_SOURCE_COMMIT?.trim() || 'not-bound',
     endpoint: OLLAMA_BASE_URL,
     model: { id: MODEL_ID, digest: findModel(tags)?.digest },
@@ -214,12 +232,12 @@ async function main(): Promise<void> {
     plan: {
       digest: plan.planDigestSha256,
       state: plan.state,
-      selectedModel: plan.runtime.model,
+      selectedModel: planRuntime.model,
       selectedCapabilities: plan.selectedCapabilities,
       blockedCapabilities: plan.blockedCapabilities,
-      dispatch: { status: plan.dispatch.status, requestedMode: plan.dispatch.requestedMode, profile: plan.dispatch.profile },
+      dispatch: { status: planDispatch.status, requestedMode: planDispatch.requestedMode, profile: planDispatch.profile },
       stages: plan.stages,
-      evaluation: plan.evaluation.overall,
+      evaluation: planEvaluation.overall,
     },
     confirmation: { deniedStatus: deniedResponse.status, deniedCode: deniedError.code },
     execution: {
@@ -227,8 +245,8 @@ async function main(): Promise<void> {
       output: execution.output,
       outputDigestSha256: execution.outputDigestSha256,
       judgement: execution.judgement,
-      receipts: execution.receipts.map((receipt: JsonRecord) => ({ kind: receipt.kind, subject: receipt.subject, outcome: receipt.outcome, evidenceDigest: receipt.evidenceDigest })),
-      proofBundle: { bundleDigest: execution.proofBundle.bundleDigest, outputDigest: execution.proofBundle.outputDigest },
+      receipts: receipts.map((receipt) => ({ kind: receipt.kind, subject: receipt.subject, outcome: receipt.outcome, evidenceDigest: receipt.evidenceDigest })),
+      proofBundle: { bundleDigest: proofBundle.bundleDigest, outputDigest: proofBundle.outputDigest },
       persistence: executed.persistence,
       executionAuthority: execution.executionAuthority,
     },
